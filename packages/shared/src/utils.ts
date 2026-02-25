@@ -140,11 +140,11 @@ export function createJobData<T>(
   name: string,
   data: T,
   opts: import('./types.ts').JobOptions = {},
-): Omit<import('./types.ts').JobData<T>, 'id'> {
+): Omit<import('./types.ts').JobData<T>, 'id'> & { id?: string } {
   const delay = opts.delay ? parseDelay(opts.delay) : 0;
   const now = new Date();
 
-  return {
+  const result: Omit<import('./types.ts').JobData<T>, 'id'> & { id?: string } = {
     name,
     queueName,
     data,
@@ -164,4 +164,11 @@ export function createJobData<T>(
     lockUntil: null,
     lockedBy: null,
   };
+
+  // If a custom jobId is provided, include it so the store can use it
+  if (opts.jobId) {
+    result.id = opts.jobId;
+  }
+
+  return result;
 }

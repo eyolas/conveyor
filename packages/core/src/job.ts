@@ -101,6 +101,19 @@ export class Job<T = unknown> {
     await this.store.updateJob(this.queueName, this.id, { logs: this._logs });
   }
 
+  async moveToFailed(error: Error): Promise<void> {
+    this._state = 'failed';
+    this._failedReason = error.message;
+    this._failedAt = new Date();
+    await this.store.updateJob(this.queueName, this.id, {
+      state: 'failed',
+      failedReason: error.message,
+      failedAt: this._failedAt,
+      lockUntil: null,
+      lockedBy: null,
+    });
+  }
+
   async retry(): Promise<void> {
     this._state = 'waiting';
     this._failedReason = null;
