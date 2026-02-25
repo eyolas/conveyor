@@ -671,6 +671,7 @@ identique :
 
 ### Phase 4 — Ecosystem (V2)
 
+- [ ] CI native Node.js et Bun (tests exécutés nativement sans Deno)
 - [ ] Job flows / dependencies
 - [ ] Dashboard UI web
 - [ ] OpenTelemetry integration
