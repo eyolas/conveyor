@@ -106,17 +106,14 @@ export class Queue<T = unknown> {
    * await queue.every("0 9 * * *", "daily-report", payload); // cron
    */
   every(
-    interval: string | number,
-    name: string,
-    data: T,
-    opts?: JobOptions,
+    _interval: string | number,
+    _name: string,
+    _data: T,
+    _opts?: JobOptions,
   ): Promise<Job<T>> {
-    // Detect cron vs human-readable
-    const isCron = typeof interval === 'string' && /^[\d*\/,-]+\s/.test(interval);
-
-    const repeat = isCron ? { cron: interval as string } : { every: interval };
-
-    return this.add(name, data, { ...opts, repeat });
+    throw new Error(
+      'every() is not yet implemented. Repeating/cron jobs will be available in a future release.',
+    );
   }
 
   /**
@@ -156,6 +153,14 @@ export class Queue<T = unknown> {
         const saved = await this.store.getJob(this.name, id);
         if (saved) {
           results.push(new Job(saved as JobData<T>, this.store));
+
+          this.events.emit(saved.state === 'delayed' ? 'delayed' : 'waiting', saved);
+          await this.store.publish({
+            type: saved.state === 'delayed' ? 'job:delayed' : 'job:waiting',
+            queueName: this.name,
+            jobId: id,
+            timestamp: new Date(),
+          });
         }
       }
     }

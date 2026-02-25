@@ -115,7 +115,11 @@ export class Worker<T = unknown> {
 
     // Schedule next poll
     this.pollTimer = setTimeout(async () => {
-      await this.fetchAndProcess();
+      try {
+        await this.fetchAndProcess();
+      } catch (err) {
+        this.events.emit('error', err);
+      }
       this.poll();
     }, this.pollInterval);
   }
@@ -188,7 +192,7 @@ export class Worker<T = unknown> {
       });
 
       // Handle removeOnComplete
-      if (job.opts.removeOnComplete === true) {
+      if (this.shouldRemove(job.opts.removeOnComplete)) {
         await this.store.removeJob(this.queueName, job.id);
       }
     } catch (err) {
@@ -247,7 +251,7 @@ export class Worker<T = unknown> {
       });
 
       // Handle removeOnFail
-      if (job.opts.removeOnFail === true) {
+      if (this.shouldRemove(job.opts.removeOnFail)) {
         await this.store.removeJob(this.queueName, job.id);
       }
     }
@@ -296,13 +300,39 @@ export class Worker<T = unknown> {
         );
 
         for (const job of stalledJobs) {
-          // Re-enqueue stalled job
-          await this.store.updateJob(this.queueName, job.id, {
-            state: 'waiting',
-            attemptsMade: (job.attemptsMade ?? 0) + 1,
-            lockUntil: null,
-            lockedBy: null,
-          });
+          const attemptsMade = (job.attemptsMade ?? 0) + 1;
+          const maxAttempts = job.opts.attempts ?? 1;
+
+          if (attemptsMade >= maxAttempts) {
+            // Exhausted retry budget — mark as failed
+            await this.store.updateJob(this.queueName, job.id, {
+              state: 'failed',
+              attemptsMade,
+              failedReason: 'Job stalled and exceeded max attempts',
+              failedAt: new Date(),
+              lockUntil: null,
+              lockedBy: null,
+            });
+
+            this.events.emit('failed', {
+              job,
+              error: new Error('Job stalled and exceeded max attempts'),
+            });
+            await this.store.publish({
+              type: 'job:failed',
+              queueName: this.queueName,
+              jobId: job.id,
+              timestamp: new Date(),
+            });
+          } else {
+            // Re-enqueue stalled job
+            await this.store.updateJob(this.queueName, job.id, {
+              state: 'waiting',
+              attemptsMade,
+              lockUntil: null,
+              lockedBy: null,
+            });
+          }
 
           this.events.emit('stalled', job.id);
           await this.store.publish({
@@ -324,6 +354,18 @@ export class Worker<T = unknown> {
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────
+
+  /**
+   * Determine whether a job should be removed based on removeOnComplete/removeOnFail.
+   * - true: remove immediately
+   * - number (max age in ms): remove immediately (time-based cleanup is handled by Queue.clean())
+   * - false/undefined: do not remove
+   */
+  private shouldRemove(value: boolean | number | undefined): boolean {
+    if (value === true) return true;
+    if (typeof value === 'number' && value >= 0) return true;
+    return false;
+  }
 
   private withTimeout<R>(promise: Promise<R>, ms: number): Promise<R> {
     let timer: ReturnType<typeof setTimeout>;
