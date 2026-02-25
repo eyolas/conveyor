@@ -217,6 +217,13 @@ export interface PauseOptions {
   jobName?: string;
 }
 
+// ─── Store Options ──────────────────────────────────────────────────────────
+
+export interface StoreOptions {
+  /** Run migrations automatically on connect() (default: true) */
+  autoMigrate?: boolean;
+}
+
 // ─── Store Interface ─────────────────────────────────────────────────────────
 
 /**

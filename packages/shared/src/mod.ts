@@ -13,6 +13,7 @@ export type {
   StoreEvent,
   StoreEventType,
   StoreInterface,
+  StoreOptions,
   WorkerOptions,
 } from './types.ts';
 
