@@ -282,6 +282,6 @@ export interface StoreInterface {
    * - SQLite: Polling
    */
   subscribe(queueName: string, callback: (event: StoreEvent) => void): void;
-  unsubscribe(queueName: string): void;
+  unsubscribe(queueName: string, callback?: (event: StoreEvent) => void): void;
   publish(event: StoreEvent): Promise<void>;
 }
