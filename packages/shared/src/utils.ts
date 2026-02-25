@@ -82,13 +82,24 @@ export function parseDelay(value: number | string): number {
  * Note: Uses Web Crypto API (available in Deno, Node 18+, Bun).
  */
 export async function hashPayload(data: unknown): Promise<string> {
-  const json = (data !== null && typeof data === 'object' && !Array.isArray(data))
-    ? JSON.stringify(data, Object.keys(data as Record<string, unknown>).sort())
-    : JSON.stringify(data);
+  const json = JSON.stringify(sortDeep(data));
   const encoder = new TextEncoder();
   const buffer = await crypto.subtle.digest('SHA-256', encoder.encode(json));
   const hashArray = Array.from(new Uint8Array(buffer));
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Recursively sort object keys for deterministic serialization.
+ */
+function sortDeep(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(sortDeep);
+  const sorted: Record<string, unknown> = {};
+  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+    sorted[key] = sortDeep((value as Record<string, unknown>)[key]);
+  }
+  return sorted;
 }
 
 /**
