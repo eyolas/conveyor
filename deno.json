@@ -1,4 +1,5 @@
 {
+  "nodeModulesDir": "auto",
   "workspace": [
     "./packages/core",
     "./packages/shared",
@@ -6,6 +7,14 @@
     "./packages/store-pg",
     "./packages/store-sqlite"
   ],
+  "imports": {
+    "@conveyor/core": "./packages/core/src/mod.ts",
+    "@conveyor/shared": "./packages/shared/src/mod.ts",
+    "@conveyor/store-memory": "./packages/store-memory/src/mod.ts",
+    "@conveyor/store-pg": "./packages/store-pg/src/mod.ts",
+    "@conveyor/store-sqlite": "./packages/store-sqlite/src/mod.ts",
+    "@std/assert": "jsr:@std/assert@^1.0.0"
+  },
   "tasks": {
     "test": "deno test --allow-all --parallel",
     "test:core": "deno test --allow-all packages/core/",

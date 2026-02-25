@@ -80,10 +80,13 @@ export class Queue<T = unknown> {
    * await queue.schedule("in 10 minutes", "send-reminder", payload);
    * await queue.schedule("5s", "quick-task", payload);
    */
-  async schedule(delay: string | number, name: string, data: T, opts?: JobOptions): Promise<Job<T>> {
-    const parsedDelay = typeof delay === 'string'
-      ? parseDelay(delay.replace(/^in\s+/, ''))
-      : delay;
+  schedule(
+    delay: string | number,
+    name: string,
+    data: T,
+    opts?: JobOptions,
+  ): Promise<Job<T>> {
+    const parsedDelay = typeof delay === 'string' ? parseDelay(delay.replace(/^in\s+/, '')) : delay;
 
     return this.add(name, data, { ...opts, delay: parsedDelay });
   }
@@ -91,7 +94,7 @@ export class Queue<T = unknown> {
   /**
    * Shortcut: add a job for immediate execution.
    */
-  async now(name: string, data: T, opts?: JobOptions): Promise<Job<T>> {
+  now(name: string, data: T, opts?: JobOptions): Promise<Job<T>> {
     return this.add(name, data, { ...opts, delay: undefined });
   }
 
@@ -102,13 +105,16 @@ export class Queue<T = unknown> {
    * await queue.every("2 hours", "cleanup", payload);
    * await queue.every("0 9 * * *", "daily-report", payload); // cron
    */
-  async every(interval: string | number, name: string, data: T, opts?: JobOptions): Promise<Job<T>> {
+  every(
+    interval: string | number,
+    name: string,
+    data: T,
+    opts?: JobOptions,
+  ): Promise<Job<T>> {
     // Detect cron vs human-readable
     const isCron = typeof interval === 'string' && /^[\d*\/,-]+\s/.test(interval);
 
-    const repeat = isCron
-      ? { cron: interval as string }
-      : { every: interval };
+    const repeat = isCron ? { cron: interval as string } : { every: interval };
 
     return this.add(name, data, { ...opts, repeat });
   }
@@ -185,7 +191,7 @@ export class Queue<T = unknown> {
   /**
    * Remove old completed/failed jobs.
    */
-  async clean(state: JobState, grace: number): Promise<number> {
+  clean(state: JobState, grace: number): Promise<number> {
     this.assertNotClosed();
     return this.store.clean(this.name, state, grace);
   }
@@ -199,18 +205,19 @@ export class Queue<T = unknown> {
 
   async getJobs(state: JobState, start = 0, end = 100): Promise<Job<T>[]> {
     const jobs = await this.store.listJobs(this.name, state, start, end);
-    return jobs.map((j) => new Job(j as JobData<T>, this.store));
+    return jobs.map((j: JobData) => new Job(j as JobData<T>, this.store));
   }
 
-  async count(state: JobState): Promise<number> {
+  count(state: JobState): Promise<number> {
     return this.store.countJobs(this.name, state);
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
-  async close(): Promise<void> {
+  close(): Promise<void> {
     this.closed = true;
     this.events.removeAllListeners();
+    return Promise.resolve();
   }
 
   // ─── Private ─────────────────────────────────────────────────────────

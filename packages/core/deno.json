@@ -2,7 +2,9 @@
   "name": "@conveyor/core",
   "version": "0.1.0",
   "exports": "./src/mod.ts",
-  "imports": {
-    "@conveyor/shared": "../shared/src/mod.ts"
+  "lint": {
+    "rules": {
+      "exclude": ["no-slow-types"]
+    }
   }
 }

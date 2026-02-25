@@ -143,10 +143,10 @@ export class Worker<T = unknown> {
     if (!jobData) return;
 
     // Process the job (don't await — allows concurrency)
-    this.processJob(jobData);
+    this.processJob(jobData as JobData<T>);
   }
 
-  private async processJob(jobData: JobData): Promise<void> {
+  private async processJob(jobData: JobData<T>): Promise<void> {
     this.activeCount++;
     const job = new Job(jobData as JobData<T>, this.store);
 
@@ -311,7 +311,7 @@ export class Worker<T = unknown> {
 
   // ─── Helpers ───────────────────────────────────────────────────────
 
-  private async withTimeout<R>(promise: Promise<R>, ms: number): Promise<R> {
+  private withTimeout<R>(promise: Promise<R>, ms: number): Promise<R> {
     return Promise.race([
       promise,
       new Promise<never>((_, reject) =>
