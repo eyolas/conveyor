@@ -1,0 +1,94 @@
+import type { Database } from '@db/sqlite';
+
+export interface Migration {
+  version: number;
+  name: string;
+  up: string;
+}
+
+export const migrations: Migration[] = [
+  {
+    version: 1,
+    name: 'initial_schema',
+    up: `
+      CREATE TABLE IF NOT EXISTS conveyor_migrations (
+        version    INTEGER PRIMARY KEY,
+        name       TEXT NOT NULL,
+        applied_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS conveyor_jobs (
+        id                TEXT NOT NULL,
+        queue_name        TEXT NOT NULL,
+        name              TEXT NOT NULL,
+        data              TEXT NOT NULL DEFAULT '{}',
+        state             TEXT NOT NULL DEFAULT 'waiting',
+        attempts_made     INTEGER NOT NULL DEFAULT 0,
+        progress          INTEGER NOT NULL DEFAULT 0,
+        returnvalue       TEXT,
+        failed_reason     TEXT,
+        opts              TEXT NOT NULL DEFAULT '{}',
+        deduplication_key TEXT,
+        logs              TEXT NOT NULL DEFAULT '[]',
+        priority          INTEGER NOT NULL DEFAULT 0,
+        seq               INTEGER,
+        created_at        INTEGER NOT NULL,
+        processed_at      INTEGER,
+        completed_at      INTEGER,
+        failed_at         INTEGER,
+        delay_until       INTEGER,
+        lock_until        INTEGER,
+        locked_by         TEXT,
+        PRIMARY KEY (queue_name, id)
+      );
+
+      CREATE TABLE IF NOT EXISTS conveyor_paused_names (
+        queue_name TEXT NOT NULL,
+        job_name   TEXT NOT NULL,
+        PRIMARY KEY (queue_name, job_name)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_fetch
+        ON conveyor_jobs (queue_name, state, priority, seq);
+
+      CREATE INDEX IF NOT EXISTS idx_delayed
+        ON conveyor_jobs (queue_name, state, delay_until);
+
+      CREATE INDEX IF NOT EXISTS idx_dedup
+        ON conveyor_jobs (queue_name, deduplication_key);
+
+      CREATE INDEX IF NOT EXISTS idx_stalled
+        ON conveyor_jobs (queue_name, state, lock_until);
+    `,
+  },
+];
+
+export function runMigrations(db: Database): void {
+  // Ensure migration table exists
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS conveyor_migrations (
+      version    INTEGER PRIMARY KEY,
+      name       TEXT NOT NULL,
+      applied_at INTEGER NOT NULL
+    )
+  `);
+
+  // Get current version
+  const row = db.prepare(
+    'SELECT COALESCE(MAX(version), 0) AS current_version FROM conveyor_migrations',
+  ).get() as { current_version: number } | undefined;
+  const currentVersion = row?.current_version ?? 0;
+
+  // Apply pending migrations in a transaction
+  for (const migration of migrations) {
+    if (migration.version <= currentVersion) continue;
+
+    const run = db.transaction(() => {
+      db.exec(migration.up);
+      db.prepare(
+        'INSERT INTO conveyor_migrations (version, name, applied_at) VALUES (?, ?, ?)',
+      ).run(migration.version, migration.name, Date.now());
+    });
+    run();
+  }
+}

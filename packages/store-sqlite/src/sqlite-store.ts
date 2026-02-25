@@ -1,113 +1,467 @@
-import type { FetchOptions, JobData, JobState, StoreEvent, StoreInterface } from '@conveyor/shared';
+import type {
+  FetchOptions,
+  JobData,
+  JobState,
+  StoreEvent,
+  StoreInterface,
+  StoreOptions,
+} from '@conveyor/shared';
+import { generateId } from '@conveyor/shared';
+import { type BindValue, Database, type Statement } from '@db/sqlite';
+import type { JobRow } from './mapping.ts';
+import { jobDataToRow, rowToJobData } from './mapping.ts';
+import { runMigrations } from './migrations.ts';
+
+type EventCallback = (event: StoreEvent) => void;
+
+export interface SqliteStoreOptions extends StoreOptions {
+  filename: string;
+}
 
 export class SqliteStore implements StoreInterface {
+  private db!: Database;
+  private readonly options: SqliteStoreOptions;
+  private subscribers = new Map<string, Set<EventCallback>>();
+  private seqCounter = 0;
+
+  // Prepared statement cache
+  private stmts!: {
+    insertJob: Statement;
+    getJob: Statement;
+    removeJob: Statement;
+    countByState: Statement;
+    activeCount: Statement;
+    insertPaused: Statement;
+    removePaused: Statement;
+    getPaused: Statement;
+  };
+
+  constructor(options: SqliteStoreOptions) {
+    this.options = options;
+  }
+
+  // ─── Lifecycle ───────────────────────────────────────────────────────
+
   connect(): Promise<void> {
-    throw new Error('Not implemented');
+    this.db = new Database(this.options.filename, { int64: true });
+
+    // Enable WAL mode + busy timeout for concurrency
+    this.db.exec('PRAGMA journal_mode = WAL');
+    this.db.exec('PRAGMA busy_timeout = 5000');
+
+    if (this.options.autoMigrate !== false) {
+      runMigrations(this.db);
+    }
+
+    // Initialize seq counter from existing data
+    const row = this.db.prepare(
+      'SELECT COALESCE(MAX(seq), 0) AS max_seq FROM conveyor_jobs',
+    ).get() as { max_seq: number } | undefined;
+    this.seqCounter = (row?.max_seq ?? 0) + 1;
+
+    // Prepare frequently used statements
+    this.stmts = {
+      insertJob: this.db.prepare(`
+        INSERT INTO conveyor_jobs (
+          id, queue_name, name, data, state, attempts_made, progress,
+          returnvalue, failed_reason, opts, deduplication_key, logs,
+          priority, seq, created_at, processed_at, completed_at, failed_at,
+          delay_until, lock_until, locked_by
+        ) VALUES (
+          :id, :queue_name, :name, :data, :state, :attempts_made, :progress,
+          :returnvalue, :failed_reason, :opts, :deduplication_key, :logs,
+          :priority, :seq, :created_at, :processed_at, :completed_at, :failed_at,
+          :delay_until, :lock_until, :locked_by
+        )
+      `),
+      getJob: this.db.prepare(
+        'SELECT * FROM conveyor_jobs WHERE queue_name = ? AND id = ?',
+      ),
+      removeJob: this.db.prepare(
+        'DELETE FROM conveyor_jobs WHERE queue_name = ? AND id = ?',
+      ),
+      countByState: this.db.prepare(
+        'SELECT COUNT(*) AS count FROM conveyor_jobs WHERE queue_name = ? AND state = ?',
+      ),
+      activeCount: this.db.prepare(
+        "SELECT COUNT(*) AS count FROM conveyor_jobs WHERE queue_name = ? AND state = 'active'",
+      ),
+      insertPaused: this.db.prepare(
+        'INSERT OR IGNORE INTO conveyor_paused_names (queue_name, job_name) VALUES (?, ?)',
+      ),
+      removePaused: this.db.prepare(
+        'DELETE FROM conveyor_paused_names WHERE queue_name = ? AND job_name = ?',
+      ),
+      getPaused: this.db.prepare(
+        'SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?',
+      ),
+    };
+
+    return Promise.resolve();
   }
 
   disconnect(): Promise<void> {
-    throw new Error('Not implemented');
+    this.subscribers.clear();
+    if (this.db) {
+      this.db.close();
+    }
+    return Promise.resolve();
   }
 
-  saveJob(_queueName: string, _job: Omit<JobData, 'id'>): Promise<string> {
-    throw new Error('Not implemented');
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.disconnect();
   }
 
-  saveBulk(_queueName: string, _jobs: Omit<JobData, 'id'>[]): Promise<string[]> {
-    throw new Error('Not implemented');
+  // ─── Jobs CRUD ─────────────────────────────────────────────────────
+
+  saveJob(_queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
+    const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
+    const row = jobDataToRow({ ...job, id });
+    row.seq = this.seqCounter++;
+
+    this.stmts.insertJob.run(row as Record<string, BindValue>);
+    return Promise.resolve(id);
   }
 
-  getJob(_queueName: string, _jobId: string): Promise<JobData | null> {
-    throw new Error('Not implemented');
+  saveBulk(_queueName: string, jobs: Omit<JobData, 'id'>[]): Promise<string[]> {
+    const ids: string[] = [];
+    const runBulk = this.db.transaction(() => {
+      for (const job of jobs) {
+        const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
+        const row = jobDataToRow({ ...job, id });
+        row.seq = this.seqCounter++;
+        this.stmts.insertJob.run(row as Record<string, BindValue>);
+        ids.push(id);
+      }
+    });
+    runBulk();
+    return Promise.resolve(ids);
   }
 
-  updateJob(_queueName: string, _jobId: string, _updates: Partial<JobData>): Promise<void> {
-    throw new Error('Not implemented');
+  getJob(queueName: string, jobId: string): Promise<JobData | null> {
+    const row = this.stmts.getJob.get(queueName, jobId) as JobRow | undefined;
+    if (!row) return Promise.resolve(null);
+    return Promise.resolve(rowToJobData(row));
   }
 
-  removeJob(_queueName: string, _jobId: string): Promise<void> {
-    throw new Error('Not implemented');
+  updateJob(
+    queueName: string,
+    jobId: string,
+    updates: Partial<JobData>,
+  ): Promise<void> {
+    const sets: string[] = [];
+    const values: unknown[] = [];
+
+    const columnMap: Record<string, string> = {
+      state: 'state',
+      attemptsMade: 'attempts_made',
+      progress: 'progress',
+      returnvalue: 'returnvalue',
+      failedReason: 'failed_reason',
+      opts: 'opts',
+      deduplicationKey: 'deduplication_key',
+      logs: 'logs',
+      processedAt: 'processed_at',
+      completedAt: 'completed_at',
+      failedAt: 'failed_at',
+      delayUntil: 'delay_until',
+      lockUntil: 'lock_until',
+      lockedBy: 'locked_by',
+      data: 'data',
+    };
+
+    for (const [key, col] of Object.entries(columnMap)) {
+      if (key in updates) {
+        const val = (updates as Record<string, unknown>)[key];
+        if (['returnvalue', 'opts', 'logs', 'data'].includes(key)) {
+          sets.push(`${col} = ?`);
+          values.push(val !== null && val !== undefined ? JSON.stringify(val) : null);
+        } else if (
+          ['processedAt', 'completedAt', 'failedAt', 'delayUntil', 'lockUntil'].includes(key)
+        ) {
+          sets.push(`${col} = ?`);
+          values.push(val instanceof Date ? val.getTime() : (val ?? null));
+        } else {
+          sets.push(`${col} = ?`);
+          values.push(val ?? null);
+        }
+      }
+    }
+
+    if (sets.length === 0) return Promise.resolve();
+
+    values.push(queueName, jobId);
+    const query = `UPDATE conveyor_jobs SET ${sets.join(', ')} WHERE queue_name = ? AND id = ?`;
+    this.db.prepare(query).run(...values as BindValue[]);
+    return Promise.resolve();
   }
 
-  findByDeduplicationKey(_queueName: string, _key: string): Promise<JobData | null> {
-    throw new Error('Not implemented');
+  removeJob(queueName: string, jobId: string): Promise<void> {
+    this.stmts.removeJob.run(queueName, jobId);
+    return Promise.resolve();
   }
+
+  // ─── Deduplication ─────────────────────────────────────────────────
+
+  findByDeduplicationKey(
+    queueName: string,
+    key: string,
+  ): Promise<JobData | null> {
+    const row = this.db.prepare(`
+      SELECT * FROM conveyor_jobs
+      WHERE queue_name = ? AND deduplication_key = ?
+        AND state NOT IN ('completed', 'failed')
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(queueName, key) as JobRow | undefined;
+
+    if (!row) return Promise.resolve(null);
+
+    const job = rowToJobData(row);
+
+    // Check TTL
+    const ttl = job.opts.deduplication?.ttl;
+    if (ttl !== undefined && job.createdAt) {
+      const expiresAt = job.createdAt.getTime() + ttl;
+      if (expiresAt < Date.now()) return Promise.resolve(null);
+    }
+
+    return Promise.resolve(job);
+  }
+
+  // ─── Locking / Fetching ────────────────────────────────────────────
 
   fetchNextJob(
-    _queueName: string,
-    _workerId: string,
-    _lockDuration: number,
-    _opts?: FetchOptions,
+    queueName: string,
+    workerId: string,
+    lockDuration: number,
+    opts?: FetchOptions,
   ): Promise<JobData | null> {
-    throw new Error('Not implemented');
+    const now = Date.now();
+    const lockUntil = now + lockDuration;
+    const order = opts?.lifo ? 'DESC' : 'ASC';
+
+    const result = this.db.transaction(() => {
+      let query: string;
+      const params: unknown[] = [queueName];
+
+      if (opts?.jobName) {
+        query = `
+          SELECT id FROM conveyor_jobs
+          WHERE queue_name = ? AND state = 'waiting'
+            AND name = ?
+            AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+          ORDER BY priority ASC, seq ${order}
+          LIMIT 1
+        `;
+        params.push(opts.jobName, queueName);
+      } else {
+        query = `
+          SELECT id FROM conveyor_jobs
+          WHERE queue_name = ? AND state = 'waiting'
+            AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+          ORDER BY priority ASC, seq ${order}
+          LIMIT 1
+        `;
+        params.push(queueName);
+      }
+
+      const candidate = this.db.prepare(query).get(...params as BindValue[]) as
+        | { id: string }
+        | undefined;
+      if (!candidate) return null;
+
+      this.db.prepare(`
+        UPDATE conveyor_jobs
+        SET state = 'active', processed_at = ?, lock_until = ?, locked_by = ?
+        WHERE queue_name = ? AND id = ?
+      `).run(now, lockUntil, workerId, queueName, candidate.id);
+
+      return this.stmts.getJob.get(queueName, candidate.id) as JobRow | undefined;
+    }).immediate();
+
+    if (!result) return Promise.resolve(null);
+    return Promise.resolve(rowToJobData(result));
   }
 
-  extendLock(_queueName: string, _jobId: string, _duration: number): Promise<boolean> {
-    throw new Error('Not implemented');
+  extendLock(
+    queueName: string,
+    jobId: string,
+    duration: number,
+  ): Promise<boolean> {
+    const lockUntil = Date.now() + duration;
+    const changes = this.db.prepare(`
+      UPDATE conveyor_jobs
+      SET lock_until = ?
+      WHERE queue_name = ? AND id = ? AND state = 'active'
+    `).run(lockUntil, queueName, jobId);
+    return Promise.resolve(changes > 0);
   }
 
-  releaseLock(_queueName: string, _jobId: string): Promise<void> {
-    throw new Error('Not implemented');
+  releaseLock(queueName: string, jobId: string): Promise<void> {
+    this.db.prepare(`
+      UPDATE conveyor_jobs
+      SET lock_until = NULL, locked_by = NULL
+      WHERE queue_name = ? AND id = ?
+    `).run(queueName, jobId);
+    return Promise.resolve();
   }
 
-  getActiveCount(_queueName: string): Promise<number> {
-    throw new Error('Not implemented');
+  // ─── Global Concurrency ────────────────────────────────────────────
+
+  getActiveCount(queueName: string): Promise<number> {
+    const row = this.stmts.activeCount.get(queueName) as { count: number };
+    return Promise.resolve(row.count);
   }
+
+  // ─── Queries ───────────────────────────────────────────────────────
 
   listJobs(
-    _queueName: string,
-    _state: JobState,
-    _start?: number,
-    _end?: number,
+    queueName: string,
+    state: JobState,
+    start = 0,
+    end = 100,
   ): Promise<JobData[]> {
-    throw new Error('Not implemented');
+    const limit = end - start;
+    const rows = this.db.prepare(`
+      SELECT * FROM conveyor_jobs
+      WHERE queue_name = ? AND state = ?
+      ORDER BY created_at ASC
+      LIMIT ? OFFSET ?
+    `).all(queueName, state, limit, start) as JobRow[];
+    return Promise.resolve(rows.map(rowToJobData));
   }
 
-  countJobs(_queueName: string, _state: JobState): Promise<number> {
-    throw new Error('Not implemented');
+  countJobs(queueName: string, state: JobState): Promise<number> {
+    const row = this.stmts.countByState.get(queueName, state) as { count: number };
+    return Promise.resolve(row.count);
   }
 
-  getNextDelayedTimestamp(_queueName: string): Promise<number | null> {
-    throw new Error('Not implemented');
+  // ─── Delayed Jobs ──────────────────────────────────────────────────
+
+  getNextDelayedTimestamp(queueName: string): Promise<number | null> {
+    const row = this.db.prepare(`
+      SELECT delay_until FROM conveyor_jobs
+      WHERE queue_name = ? AND state = 'delayed' AND delay_until IS NOT NULL
+      ORDER BY delay_until ASC
+      LIMIT 1
+    `).get(queueName) as { delay_until: number } | undefined;
+
+    if (!row) return Promise.resolve(null);
+    return Promise.resolve(row.delay_until);
   }
 
-  promoteDelayedJobs(_queueName: string, _timestamp: number): Promise<number> {
-    throw new Error('Not implemented');
+  promoteDelayedJobs(queueName: string, timestamp: number): Promise<number> {
+    const changes = this.db.prepare(`
+      UPDATE conveyor_jobs
+      SET state = 'waiting', delay_until = NULL
+      WHERE queue_name = ? AND state = 'delayed'
+        AND delay_until IS NOT NULL AND delay_until <= ?
+    `).run(queueName, timestamp);
+    return Promise.resolve(changes);
   }
 
-  pauseJobName(_queueName: string, _jobName: string): Promise<void> {
-    throw new Error('Not implemented');
+  // ─── Pause/Resume by Job Name ──────────────────────────────────────
+
+  pauseJobName(queueName: string, jobName: string): Promise<void> {
+    this.stmts.insertPaused.run(queueName, jobName);
+    return Promise.resolve();
   }
 
-  resumeJobName(_queueName: string, _jobName: string): Promise<void> {
-    throw new Error('Not implemented');
+  resumeJobName(queueName: string, jobName: string): Promise<void> {
+    this.stmts.removePaused.run(queueName, jobName);
+    return Promise.resolve();
   }
 
-  getPausedJobNames(_queueName: string): Promise<string[]> {
-    throw new Error('Not implemented');
+  getPausedJobNames(queueName: string): Promise<string[]> {
+    const rows = this.stmts.getPaused.all(queueName) as { job_name: string }[];
+    return Promise.resolve(rows.map((r) => r.job_name));
   }
 
-  getStalledJobs(_queueName: string, _stalledThreshold: number): Promise<JobData[]> {
-    throw new Error('Not implemented');
+  // ─── Maintenance ───────────────────────────────────────────────────
+
+  getStalledJobs(
+    queueName: string,
+    _stalledThreshold: number,
+  ): Promise<JobData[]> {
+    const now = Date.now();
+    const rows = this.db.prepare(`
+      SELECT * FROM conveyor_jobs
+      WHERE queue_name = ? AND state = 'active'
+        AND lock_until IS NOT NULL AND lock_until < ?
+    `).all(queueName, now) as JobRow[];
+    return Promise.resolve(rows.map(rowToJobData));
   }
 
-  clean(_queueName: string, _state: JobState, _grace: number): Promise<number> {
-    throw new Error('Not implemented');
+  clean(queueName: string, state: JobState, grace: number): Promise<number> {
+    const cutoff = Date.now() - grace;
+
+    let changes: number;
+    if (state === 'completed') {
+      changes = this.db.prepare(`
+        DELETE FROM conveyor_jobs
+        WHERE queue_name = ? AND state = ?
+          AND completed_at IS NOT NULL AND completed_at < ?
+      `).run(queueName, state, cutoff);
+    } else if (state === 'failed') {
+      changes = this.db.prepare(`
+        DELETE FROM conveyor_jobs
+        WHERE queue_name = ? AND state = ?
+          AND failed_at IS NOT NULL AND failed_at < ?
+      `).run(queueName, state, cutoff);
+    } else {
+      changes = this.db.prepare(`
+        DELETE FROM conveyor_jobs
+        WHERE queue_name = ? AND state = ?
+          AND created_at < ?
+      `).run(queueName, state, cutoff);
+    }
+
+    return Promise.resolve(changes);
   }
 
-  drain(_queueName: string): Promise<void> {
-    throw new Error('Not implemented');
+  drain(queueName: string): Promise<void> {
+    this.db.prepare(`
+      DELETE FROM conveyor_jobs
+      WHERE queue_name = ? AND state IN ('waiting', 'delayed')
+    `).run(queueName);
+    return Promise.resolve();
   }
 
-  subscribe(_queueName: string, _callback: (event: StoreEvent) => void): void {
-    throw new Error('Not implemented');
+  // ─── Events ────────────────────────────────────────────────────────
+
+  subscribe(queueName: string, callback: EventCallback): void {
+    if (!this.subscribers.has(queueName)) {
+      this.subscribers.set(queueName, new Set());
+    }
+    this.subscribers.get(queueName)!.add(callback);
   }
 
-  unsubscribe(_queueName: string): void {
-    throw new Error('Not implemented');
+  unsubscribe(queueName: string, callback?: EventCallback): void {
+    if (callback) {
+      const callbacks = this.subscribers.get(queueName);
+      if (callbacks) {
+        callbacks.delete(callback);
+        if (callbacks.size === 0) {
+          this.subscribers.delete(queueName);
+        }
+      }
+    } else {
+      this.subscribers.delete(queueName);
+    }
   }
 
-  publish(_event: StoreEvent): Promise<void> {
-    throw new Error('Not implemented');
+  publish(event: StoreEvent): Promise<void> {
+    const callbacks = this.subscribers.get(event.queueName);
+    if (callbacks) {
+      for (const cb of callbacks) {
+        try {
+          cb(event);
+        } catch {
+          // Swallow errors in event handlers
+        }
+      }
+    }
+    return Promise.resolve();
   }
 }

@@ -2,6 +2,9 @@
   "name": "@conveyor/store-pg",
   "version": "0.1.0",
   "exports": "./src/mod.ts",
+  "imports": {
+    "postgres": "npm:postgres@^3.4.0"
+  },
   "lint": {
     "rules": {
       "exclude": ["no-slow-types"]

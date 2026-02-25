@@ -654,11 +654,11 @@ identique :
 
 ### Phase 2 — Persistent Stores
 
-- [ ] `@conveyor/store-pg` : PostgreSQL adapter
-- [ ] `@conveyor/store-sqlite` : SQLite adapter
-- [ ] Migrations automatiques (PG + SQLite)
-- [ ] Global concurrency (cross-workers)
-- [ ] Tests d'intégration
+- [x] `@conveyor/store-pg` : PostgreSQL adapter
+- [x] `@conveyor/store-sqlite` : SQLite adapter
+- [x] Migrations automatiques (PG + SQLite)
+- [x] Global concurrency (cross-workers)
+- [x] Tests d'intégration (conformance + integration)
 
 ### Phase 3 — Production Ready
 
