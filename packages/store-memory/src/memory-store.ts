@@ -44,6 +44,10 @@ export class MemoryStore implements StoreInterface {
     return Promise.resolve();
   }
 
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.disconnect();
+  }
+
   // ─── Jobs CRUD ─────────────────────────────────────────────────────
 
   saveJob(queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
@@ -316,30 +320,37 @@ export class MemoryStore implements StoreInterface {
     const queue = this.getQueue(queueName);
     const orderMap = this.getInsertionOrder(queueName);
     const now = Date.now();
-    let removed = 0;
+    const toRemove: string[] = [];
 
     for (const [id, job] of queue.entries()) {
       if (job.state !== state) continue;
 
       const completedAt = job.completedAt?.getTime() ?? job.failedAt?.getTime() ?? 0;
       if (now - completedAt > grace) {
-        queue.delete(id);
-        orderMap.delete(id);
-        removed++;
+        toRemove.push(id);
       }
     }
 
-    return Promise.resolve(removed);
+    for (const id of toRemove) {
+      queue.delete(id);
+      orderMap.delete(id);
+    }
+
+    return Promise.resolve(toRemove.length);
   }
 
   drain(queueName: string): Promise<void> {
     const queue = this.getQueue(queueName);
     const orderMap = this.getInsertionOrder(queueName);
+    const toRemove: string[] = [];
     for (const [id, job] of queue.entries()) {
       if (job.state === 'waiting' || job.state === 'delayed') {
-        queue.delete(id);
-        orderMap.delete(id);
+        toRemove.push(id);
       }
+    }
+    for (const id of toRemove) {
+      queue.delete(id);
+      orderMap.delete(id);
     }
     return Promise.resolve();
   }
@@ -353,8 +364,18 @@ export class MemoryStore implements StoreInterface {
     this.subscribers.get(queueName)!.add(callback);
   }
 
-  unsubscribe(queueName: string): void {
-    this.subscribers.delete(queueName);
+  unsubscribe(queueName: string, callback?: EventCallback): void {
+    if (callback) {
+      const callbacks = this.subscribers.get(queueName);
+      if (callbacks) {
+        callbacks.delete(callback);
+        if (callbacks.size === 0) {
+          this.subscribers.delete(queueName);
+        }
+      }
+    } else {
+      this.subscribers.delete(queueName);
+    }
   }
 
   publish(event: StoreEvent): Promise<void> {
