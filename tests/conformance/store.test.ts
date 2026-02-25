@@ -9,9 +9,9 @@
  *   runConformanceTests('MemoryStore', () => new MemoryStore());
  */
 
-import { assertEquals, assertExists } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import type { StoreInterface } from '../../packages/shared/src/mod.ts';
-import { createJobData } from '../../packages/shared/src/mod.ts';
+import { assertEquals, assertExists } from '@std/assert';
+import type { StoreInterface } from '@conveyor/shared';
+import { createJobData } from '@conveyor/shared';
 
 export function runConformanceTests(
   storeName: string,

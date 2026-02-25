@@ -9,13 +9,7 @@
  * - Single process only
  */
 
-import type {
-  FetchOptions,
-  JobData,
-  JobState,
-  StoreEvent,
-  StoreInterface,
-} from '@conveyor/shared';
+import type { FetchOptions, JobData, JobState, StoreEvent, StoreInterface } from '@conveyor/shared';
 import { generateId } from '@conveyor/shared';
 
 type EventCallback = (event: StoreEvent) => void;
@@ -23,6 +17,10 @@ type EventCallback = (event: StoreEvent) => void;
 export class MemoryStore implements StoreInterface {
   /** Jobs indexed by queueName -> jobId -> JobData */
   private jobs = new Map<string, Map<string, JobData>>();
+
+  /** Insertion order counter per queue for stable FIFO/LIFO */
+  private insertionOrder = new Map<string, Map<string, number>>();
+  private insertionCounter = 0;
 
   /** Paused job names per queue */
   private pausedNames = new Map<string, Set<string>>();
@@ -32,24 +30,29 @@ export class MemoryStore implements StoreInterface {
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
-  async connect(): Promise<void> {
+  connect(): Promise<void> {
     // No-op for memory store
+    return Promise.resolve();
   }
 
-  async disconnect(): Promise<void> {
+  disconnect(): Promise<void> {
     this.jobs.clear();
+    this.insertionOrder.clear();
+    this.insertionCounter = 0;
     this.pausedNames.clear();
     this.subscribers.clear();
+    return Promise.resolve();
   }
 
   // ─── Jobs CRUD ─────────────────────────────────────────────────────
 
-  async saveJob(queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
+  saveJob(queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
     const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
     const jobData: JobData = { ...job, id } as JobData;
 
     this.getQueue(queueName).set(id, jobData);
-    return id;
+    this.getInsertionOrder(queueName).set(id, this.insertionCounter++);
+    return Promise.resolve(id);
   }
 
   async saveBulk(queueName: string, jobs: Omit<JobData, 'id'>[]): Promise<string[]> {
@@ -61,29 +64,32 @@ export class MemoryStore implements StoreInterface {
     return ids;
   }
 
-  async getJob(queueName: string, jobId: string): Promise<JobData | null> {
-    return this.getQueue(queueName).get(jobId) ?? null;
+  getJob(queueName: string, jobId: string): Promise<JobData | null> {
+    return Promise.resolve(this.getQueue(queueName).get(jobId) ?? null);
   }
 
-  async updateJob(
+  updateJob(
     queueName: string,
     jobId: string,
     updates: Partial<JobData>,
   ): Promise<void> {
     const queue = this.getQueue(queueName);
     const job = queue.get(jobId);
-    if (!job) return;
-
-    queue.set(jobId, { ...job, ...updates });
+    if (job) {
+      queue.set(jobId, { ...job, ...updates });
+    }
+    return Promise.resolve();
   }
 
-  async removeJob(queueName: string, jobId: string): Promise<void> {
+  removeJob(queueName: string, jobId: string): Promise<void> {
     this.getQueue(queueName).delete(jobId);
+    this.getInsertionOrder(queueName).delete(jobId);
+    return Promise.resolve();
   }
 
   // ─── Deduplication ─────────────────────────────────────────────────
 
-  async findByDeduplicationKey(
+  findByDeduplicationKey(
     queueName: string,
     key: string,
   ): Promise<JobData | null> {
@@ -92,16 +98,16 @@ export class MemoryStore implements StoreInterface {
       if (job.deduplicationKey === key) {
         // Check if still active (not completed/failed or within TTL)
         if (job.state !== 'completed' && job.state !== 'failed') {
-          return job;
+          return Promise.resolve(job);
         }
       }
     }
-    return null;
+    return Promise.resolve(null);
   }
 
   // ─── Locking / Fetching ────────────────────────────────────────────
 
-  async fetchNextJob(
+  fetchNextJob(
     queueName: string,
     workerId: string,
     lockDuration: number,
@@ -113,9 +119,9 @@ export class MemoryStore implements StoreInterface {
     // Check if queue is globally paused
     const pausedNames = this.pausedNames.get(queueName);
     const isGloballyPaused = pausedNames?.has('__all__') ?? false;
-    if (isGloballyPaused) return null;
+    if (isGloballyPaused) return Promise.resolve(null);
 
-    // Get waiting jobs, sorted by priority then by creation time
+    // Get waiting jobs, sorted by priority then by insertion order
     const waitingJobs = Array.from(queue.values())
       .filter((job) => {
         if (job.state !== 'waiting') return false;
@@ -130,14 +136,15 @@ export class MemoryStore implements StoreInterface {
         const priorityB = b.opts.priority ?? 0;
         if (priorityA !== priorityB) return priorityA - priorityB;
 
-        // Then by creation time (FIFO default, LIFO if requested)
-        const timeA = a.createdAt.getTime();
-        const timeB = b.createdAt.getTime();
-        return opts?.lifo ? timeB - timeA : timeA - timeB;
+        // Then by insertion order (FIFO default, LIFO if requested)
+        const orderMap = this.getInsertionOrder(queueName);
+        const orderA = orderMap.get(a.id) ?? 0;
+        const orderB = orderMap.get(b.id) ?? 0;
+        return opts?.lifo ? orderB - orderA : orderA - orderB;
       });
 
     const job = waitingJobs[0];
-    if (!job) return null;
+    if (!job) return Promise.resolve(null);
 
     // Lock the job
     const locked: JobData = {
@@ -149,49 +156,50 @@ export class MemoryStore implements StoreInterface {
     };
 
     queue.set(job.id, locked);
-    return locked;
+    return Promise.resolve(locked);
   }
 
-  async extendLock(
+  extendLock(
     queueName: string,
     jobId: string,
     duration: number,
   ): Promise<boolean> {
     const job = this.getQueue(queueName).get(jobId);
-    if (!job || job.state !== 'active') return false;
+    if (!job || job.state !== 'active') return Promise.resolve(false);
 
     this.getQueue(queueName).set(jobId, {
       ...job,
       lockUntil: new Date(Date.now() + duration),
     });
-    return true;
+    return Promise.resolve(true);
   }
 
-  async releaseLock(queueName: string, jobId: string): Promise<void> {
+  releaseLock(queueName: string, jobId: string): Promise<void> {
     const job = this.getQueue(queueName).get(jobId);
-    if (!job) return;
-
-    this.getQueue(queueName).set(jobId, {
-      ...job,
-      lockUntil: null,
-      lockedBy: null,
-    });
+    if (job) {
+      this.getQueue(queueName).set(jobId, {
+        ...job,
+        lockUntil: null,
+        lockedBy: null,
+      });
+    }
+    return Promise.resolve();
   }
 
   // ─── Global Concurrency ────────────────────────────────────────────
 
-  async getActiveCount(queueName: string): Promise<number> {
+  getActiveCount(queueName: string): Promise<number> {
     const queue = this.getQueue(queueName);
     let count = 0;
     for (const job of queue.values()) {
       if (job.state === 'active') count++;
     }
-    return count;
+    return Promise.resolve(count);
   }
 
   // ─── Queries ───────────────────────────────────────────────────────
 
-  async listJobs(
+  listJobs(
     queueName: string,
     state: JobState,
     start = 0,
@@ -202,21 +210,21 @@ export class MemoryStore implements StoreInterface {
       .filter((job) => job.state === state)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-    return filtered.slice(start, end);
+    return Promise.resolve(filtered.slice(start, end));
   }
 
-  async countJobs(queueName: string, state: JobState): Promise<number> {
+  countJobs(queueName: string, state: JobState): Promise<number> {
     const queue = this.getQueue(queueName);
     let count = 0;
     for (const job of queue.values()) {
       if (job.state === state) count++;
     }
-    return count;
+    return Promise.resolve(count);
   }
 
   // ─── Delayed Jobs ──────────────────────────────────────────────────
 
-  async getNextDelayedTimestamp(queueName: string): Promise<number | null> {
+  getNextDelayedTimestamp(queueName: string): Promise<number | null> {
     const queue = this.getQueue(queueName);
     let earliest: number | null = null;
 
@@ -228,10 +236,10 @@ export class MemoryStore implements StoreInterface {
         }
       }
     }
-    return earliest;
+    return Promise.resolve(earliest);
   }
 
-  async promoteDelayedJobs(queueName: string, timestamp: number): Promise<number> {
+  promoteDelayedJobs(queueName: string, timestamp: number): Promise<number> {
     const queue = this.getQueue(queueName);
     let promoted = 0;
 
@@ -250,31 +258,33 @@ export class MemoryStore implements StoreInterface {
       }
     }
 
-    return promoted;
+    return Promise.resolve(promoted);
   }
 
   // ─── Pause/Resume by Job Name ──────────────────────────────────────
 
-  async pauseJobName(queueName: string, jobName: string): Promise<void> {
+  pauseJobName(queueName: string, jobName: string): Promise<void> {
     if (!this.pausedNames.has(queueName)) {
       this.pausedNames.set(queueName, new Set());
     }
     this.pausedNames.get(queueName)!.add(jobName);
+    return Promise.resolve();
   }
 
-  async resumeJobName(queueName: string, jobName: string): Promise<void> {
+  resumeJobName(queueName: string, jobName: string): Promise<void> {
     this.pausedNames.get(queueName)?.delete(jobName);
+    return Promise.resolve();
   }
 
-  async getPausedJobNames(queueName: string): Promise<string[]> {
-    return Array.from(this.pausedNames.get(queueName) ?? []);
+  getPausedJobNames(queueName: string): Promise<string[]> {
+    return Promise.resolve(Array.from(this.pausedNames.get(queueName) ?? []));
   }
 
   // ─── Maintenance ───────────────────────────────────────────────────
 
-  async getStalledJobs(
+  getStalledJobs(
     queueName: string,
-    stalledThreshold: number,
+    _stalledThreshold: number,
   ): Promise<JobData[]> {
     const queue = this.getQueue(queueName);
     const now = Date.now();
@@ -290,10 +300,10 @@ export class MemoryStore implements StoreInterface {
       }
     }
 
-    return stalled;
+    return Promise.resolve(stalled);
   }
 
-  async clean(queueName: string, state: JobState, grace: number): Promise<number> {
+  clean(queueName: string, state: JobState, grace: number): Promise<number> {
     const queue = this.getQueue(queueName);
     const now = Date.now();
     let removed = 0;
@@ -308,16 +318,17 @@ export class MemoryStore implements StoreInterface {
       }
     }
 
-    return removed;
+    return Promise.resolve(removed);
   }
 
-  async drain(queueName: string): Promise<void> {
+  drain(queueName: string): Promise<void> {
     const queue = this.getQueue(queueName);
     for (const [id, job] of queue.entries()) {
       if (job.state === 'waiting' || job.state === 'delayed') {
         queue.delete(id);
       }
     }
+    return Promise.resolve();
   }
 
   // ─── Events ────────────────────────────────────────────────────────
@@ -333,7 +344,7 @@ export class MemoryStore implements StoreInterface {
     this.subscribers.delete(queueName);
   }
 
-  async publish(event: StoreEvent): Promise<void> {
+  publish(event: StoreEvent): Promise<void> {
     const callbacks = this.subscribers.get(event.queueName);
     if (callbacks) {
       for (const cb of callbacks) {
@@ -344,6 +355,7 @@ export class MemoryStore implements StoreInterface {
         }
       }
     }
+    return Promise.resolve();
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────
@@ -353,5 +365,12 @@ export class MemoryStore implements StoreInterface {
       this.jobs.set(queueName, new Map());
     }
     return this.jobs.get(queueName)!;
+  }
+
+  private getInsertionOrder(queueName: string): Map<string, number> {
+    if (!this.insertionOrder.has(queueName)) {
+      this.insertionOrder.set(queueName, new Map());
+    }
+    return this.insertionOrder.get(queueName)!;
   }
 }

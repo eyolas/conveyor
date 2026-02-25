@@ -5,8 +5,8 @@
  * Run: deno run --allow-all examples/basic/main.ts
  */
 
-import { Queue, Worker } from '../../packages/core/src/mod.ts';
-import { MemoryStore } from '../../packages/store-memory/src/mod.ts';
+import { Queue, Worker } from '@conveyor/core';
+import { MemoryStore } from '@conveyor/store-memory';
 
 // Create a shared store instance
 const store = new MemoryStore();
@@ -54,11 +54,13 @@ const worker = new Worker<EmailPayload>(
 
 // ─── Listen to Events ────────────────────────────────────────────────
 
-worker.on('completed', ({ job, result }: { job: unknown; result: unknown }) => {
+worker.on('completed', (data: unknown) => {
+  const { result } = data as { job: unknown; result: unknown };
   console.log(`🎉 Job completed:`, result);
 });
 
-worker.on('failed', ({ job, error }: { job: unknown; error: Error }) => {
+worker.on('failed', (data: unknown) => {
+  const { error } = data as { job: unknown; error: Error };
   console.error(`❌ Job failed:`, error.message);
 });
 
@@ -84,7 +86,7 @@ await emailQueue.now('notification', {
 await emailQueue.schedule('2s', 'reminder', {
   to: 'charlie@example.com',
   subject: 'Reminder',
-  body: 'Don\'t forget!',
+  body: "Don't forget!",
 });
 
 // Wait for processing

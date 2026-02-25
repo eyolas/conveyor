@@ -1,5 +1,5 @@
-import { assertEquals, assertThrows } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { parseDelay, calculateBackoff, hashPayload } from '../../packages/shared/src/mod.ts';
+import { assertEquals, assertThrows } from '@std/assert';
+import { calculateBackoff, hashPayload, parseDelay } from '@conveyor/shared';
 
 Deno.test('parseDelay: number passthrough', () => {
   assertEquals(parseDelay(5000), 5000);
