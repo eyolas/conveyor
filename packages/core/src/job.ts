@@ -24,6 +24,10 @@ export class Job<T = unknown> {
   private _completedAt: Date | null;
   private _failedAt: Date | null;
   private _logs: string[];
+  private readonly _deduplicationKey: string | null;
+  private readonly _delayUntil: Date | null;
+  private readonly _lockUntil: Date | null;
+  private readonly _lockedBy: string | null;
 
   private readonly store: StoreInterface;
 
@@ -44,6 +48,10 @@ export class Job<T = unknown> {
     this._completedAt = jobData.completedAt;
     this._failedAt = jobData.failedAt;
     this._logs = [...jobData.logs];
+    this._deduplicationKey = jobData.deduplicationKey;
+    this._delayUntil = jobData.delayUntil;
+    this._lockUntil = jobData.lockUntil;
+    this._lockedBy = jobData.lockedBy;
 
     this.store = store;
   }
@@ -140,15 +148,15 @@ export class Job<T = unknown> {
       returnvalue: this._returnvalue,
       failedReason: this._failedReason,
       opts: this.opts,
-      deduplicationKey: null,
+      deduplicationKey: this._deduplicationKey,
       logs: this._logs,
       createdAt: this.createdAt,
       processedAt: this._processedAt,
       completedAt: this._completedAt,
       failedAt: this._failedAt,
-      delayUntil: null,
-      lockUntil: null,
-      lockedBy: null,
+      delayUntil: this._delayUntil,
+      lockUntil: this._lockUntil,
+      lockedBy: this._lockedBy,
     };
   }
 }

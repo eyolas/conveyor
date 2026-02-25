@@ -5,7 +5,7 @@
  * It polls the store for available jobs, locks them, and executes the handler.
  */
 
-import type { JobData, StoreInterface, WorkerOptions } from '@conveyor/shared';
+import type { JobData, QueueEventType, StoreInterface, WorkerOptions } from '@conveyor/shared';
 import { calculateBackoff, generateWorkerId } from '@conveyor/shared';
 import { EventBus } from './events.ts';
 import { Job } from './job.ts';
@@ -57,8 +57,8 @@ export class Worker<T = unknown> {
 
   // ─── Event helpers (mirror common pattern) ─────────────────────────
 
-  on(event: string, handler: (...args: unknown[]) => void): void {
-    this.events.on(event as Parameters<EventBus['on']>[0], handler);
+  on(event: QueueEventType, handler: (...args: unknown[]) => void): void {
+    this.events.on(event, handler);
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
@@ -143,7 +143,9 @@ export class Worker<T = unknown> {
     if (!jobData) return;
 
     // Process the job (don't await — allows concurrency)
-    this.processJob(jobData as JobData<T>);
+    this.processJob(jobData as JobData<T>).catch((err) => {
+      this.events.emit('error', err);
+    });
   }
 
   private async processJob(jobData: JobData<T>): Promise<void> {
@@ -201,19 +203,30 @@ export class Worker<T = unknown> {
     const maxAttempts = job.opts.attempts ?? 1;
     const attemptsMade = (job.attemptsMade ?? 0) + 1;
 
-    if (attemptsMade < maxAttempts && job.opts.backoff) {
-      // Retry with backoff
-      const delay = calculateBackoff(attemptsMade, job.opts.backoff);
-      const delayUntil = new Date(Date.now() + delay);
+    if (attemptsMade < maxAttempts) {
+      if (job.opts.backoff) {
+        // Retry with backoff delay
+        const delay = calculateBackoff(attemptsMade, job.opts.backoff);
+        const delayUntil = new Date(Date.now() + delay);
 
-      await this.store.updateJob(this.queueName, job.id, {
-        state: 'delayed',
-        attemptsMade,
-        failedReason: error.message,
-        delayUntil,
-        lockUntil: null,
-        lockedBy: null,
-      });
+        await this.store.updateJob(this.queueName, job.id, {
+          state: 'delayed',
+          attemptsMade,
+          failedReason: error.message,
+          delayUntil,
+          lockUntil: null,
+          lockedBy: null,
+        });
+      } else {
+        // Retry immediately (no backoff configured)
+        await this.store.updateJob(this.queueName, job.id, {
+          state: 'waiting',
+          attemptsMade,
+          failedReason: error.message,
+          lockUntil: null,
+          lockedBy: null,
+        });
+      }
     } else {
       // Final failure
       await this.store.updateJob(this.queueName, job.id, {
@@ -286,6 +299,7 @@ export class Worker<T = unknown> {
           // Re-enqueue stalled job
           await this.store.updateJob(this.queueName, job.id, {
             state: 'waiting',
+            attemptsMade: (job.attemptsMade ?? 0) + 1,
             lockUntil: null,
             lockedBy: null,
           });
@@ -312,11 +326,12 @@ export class Worker<T = unknown> {
   // ─── Helpers ───────────────────────────────────────────────────────
 
   private withTimeout<R>(promise: Promise<R>, ms: number): Promise<R> {
+    let timer: ReturnType<typeof setTimeout>;
     return Promise.race([
-      promise,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Job timed out after ${ms}ms`)), ms)
-      ),
+      promise.finally(() => clearTimeout(timer)),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Job timed out after ${ms}ms`)), ms);
+      }),
     ]);
   }
 

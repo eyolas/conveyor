@@ -305,6 +305,7 @@ export class MemoryStore implements StoreInterface {
 
   clean(queueName: string, state: JobState, grace: number): Promise<number> {
     const queue = this.getQueue(queueName);
+    const orderMap = this.getInsertionOrder(queueName);
     const now = Date.now();
     let removed = 0;
 
@@ -314,6 +315,7 @@ export class MemoryStore implements StoreInterface {
       const completedAt = job.completedAt?.getTime() ?? job.failedAt?.getTime() ?? 0;
       if (now - completedAt > grace) {
         queue.delete(id);
+        orderMap.delete(id);
         removed++;
       }
     }
@@ -323,9 +325,11 @@ export class MemoryStore implements StoreInterface {
 
   drain(queueName: string): Promise<void> {
     const queue = this.getQueue(queueName);
+    const orderMap = this.getInsertionOrder(queueName);
     for (const [id, job] of queue.entries()) {
       if (job.state === 'waiting' || job.state === 'delayed') {
         queue.delete(id);
+        orderMap.delete(id);
       }
     }
     return Promise.resolve();

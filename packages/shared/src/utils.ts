@@ -82,7 +82,9 @@ export function parseDelay(value: number | string): number {
  * Note: Uses Web Crypto API (available in Deno, Node 18+, Bun).
  */
 export async function hashPayload(data: unknown): Promise<string> {
-  const json = JSON.stringify(data, Object.keys(data as Record<string, unknown>).sort());
+  const json = (data !== null && typeof data === 'object' && !Array.isArray(data))
+    ? JSON.stringify(data, Object.keys(data as Record<string, unknown>).sort())
+    : JSON.stringify(data);
   const encoder = new TextEncoder();
   const buffer = await crypto.subtle.digest('SHA-256', encoder.encode(json));
   const hashArray = Array.from(new Uint8Array(buffer));
