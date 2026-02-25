@@ -50,15 +50,33 @@ export class Job<T = unknown> {
 
   // ─── Getters ─────────────────────────────────────────────────────────
 
-  get state() { return this._state; }
-  get progress() { return this._progress; }
-  get returnvalue() { return this._returnvalue; }
-  get failedReason() { return this._failedReason; }
-  get attemptsMade() { return this._attemptsMade; }
-  get processedAt() { return this._processedAt; }
-  get completedAt() { return this._completedAt; }
-  get failedAt() { return this._failedAt; }
-  get logs() { return [...this._logs]; }
+  get state() {
+    return this._state;
+  }
+  get progress() {
+    return this._progress;
+  }
+  get returnvalue() {
+    return this._returnvalue;
+  }
+  get failedReason() {
+    return this._failedReason;
+  }
+  get attemptsMade() {
+    return this._attemptsMade;
+  }
+  get processedAt() {
+    return this._processedAt;
+  }
+  get completedAt() {
+    return this._completedAt;
+  }
+  get failedAt() {
+    return this._failedAt;
+  }
+  get logs() {
+    return [...this._logs];
+  }
 
   // ─── Methods ─────────────────────────────────────────────────────────
 

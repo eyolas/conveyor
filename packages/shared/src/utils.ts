@@ -33,22 +33,38 @@ export function parseDelay(value: number | string): number {
   if (typeof value === 'number') return value;
 
   const str = value.trim().toLowerCase();
-  const match = str.match(/^(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|seconds?|m|minutes?|h|hours?|d|days?|w|weeks?)$/);
+  const match = str.match(
+    /^(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|seconds?|m|minutes?|h|hours?|d|days?|w|weeks?)$/,
+  );
 
   if (!match) {
-    throw new Error(`Invalid delay format: "${value}". Use a number (ms) or string like "5s", "10 minutes", "2 hours".`);
+    throw new Error(
+      `Invalid delay format: "${value}". Use a number (ms) or string like "5s", "10 minutes", "2 hours".`,
+    );
   }
 
   const num = parseFloat(match[1]!);
   const unit = match[2]!;
 
   const multipliers: Record<string, number> = {
-    'ms': 1, 'millisecond': 1, 'milliseconds': 1,
-    's': 1000, 'second': 1000, 'seconds': 1000,
-    'm': 60_000, 'minute': 60_000, 'minutes': 60_000,
-    'h': 3_600_000, 'hour': 3_600_000, 'hours': 3_600_000,
-    'd': 86_400_000, 'day': 86_400_000, 'days': 86_400_000,
-    'w': 604_800_000, 'week': 604_800_000, 'weeks': 604_800_000,
+    'ms': 1,
+    'millisecond': 1,
+    'milliseconds': 1,
+    's': 1000,
+    'second': 1000,
+    'seconds': 1000,
+    'm': 60_000,
+    'minute': 60_000,
+    'minutes': 60_000,
+    'h': 3_600_000,
+    'hour': 3_600_000,
+    'hours': 3_600_000,
+    'd': 86_400_000,
+    'day': 86_400_000,
+    'days': 86_400_000,
+    'w': 604_800_000,
+    'week': 604_800_000,
+    'weeks': 604_800_000,
   };
 
   const multiplier = multipliers[unit];
@@ -78,7 +94,11 @@ export async function hashPayload(data: unknown): Promise<string> {
  */
 export function calculateBackoff(
   attemptsMade: number,
-  backoff: { type: 'fixed' | 'exponential' | 'custom'; delay: number; customStrategy?: (attempt: number) => number },
+  backoff: {
+    type: 'fixed' | 'exponential' | 'custom';
+    delay: number;
+    customStrategy?: (attempt: number) => number;
+  },
 ): number {
   switch (backoff.type) {
     case 'fixed':

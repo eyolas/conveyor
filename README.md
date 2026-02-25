@@ -1,6 +1,7 @@
 # 🚚 Conveyor
 
-A multi-backend job queue for Node.js, Deno, and Bun. BullMQ-like API with PostgreSQL, SQLite, and in-memory support.
+A multi-backend job queue for Node.js, Deno, and Bun. BullMQ-like API with PostgreSQL, SQLite, and
+in-memory support.
 
 ## Features
 
@@ -21,20 +22,20 @@ A multi-backend job queue for Node.js, Deno, and Bun. BullMQ-like API with Postg
 ## Quick Start
 
 ```typescript
-import { Queue, Worker } from "@conveyor/core";
-import { MemoryStore } from "@conveyor/store-memory";
+import { Queue, Worker } from '@conveyor/core';
+import { MemoryStore } from '@conveyor/store-memory';
 
 const store = new MemoryStore();
 await store.connect();
 
 // Create a queue
-const queue = new Queue("emails", { store });
+const queue = new Queue('emails', { store });
 
 // Add a job
-await queue.add("send-welcome", { to: "user@example.com" });
+await queue.add('send-welcome', { to: 'user@example.com' });
 
 // Process jobs
-const worker = new Worker("emails", async (job) => {
+const worker = new Worker('emails', async (job) => {
   console.log(`Sending email to ${job.data.to}`);
 }, { store, concurrency: 5 });
 
@@ -45,13 +46,13 @@ await queue.close();
 
 ## Packages
 
-| Package | Description | Status |
-|---------|-------------|--------|
-| `@conveyor/core` | Queue, Worker, Job, Events | ✅ Alpha |
-| `@conveyor/shared` | Types & utilities | ✅ Alpha |
-| `@conveyor/store-memory` | In-memory store | ✅ Alpha |
-| `@conveyor/store-pg` | PostgreSQL store | 🚧 Phase 2 |
-| `@conveyor/store-sqlite` | SQLite store | 🚧 Phase 2 |
+| Package                  | Description                | Status     |
+| ------------------------ | -------------------------- | ---------- |
+| `@conveyor/core`         | Queue, Worker, Job, Events | ✅ Alpha   |
+| `@conveyor/shared`       | Types & utilities          | ✅ Alpha   |
+| `@conveyor/store-memory` | In-memory store            | ✅ Alpha   |
+| `@conveyor/store-pg`     | PostgreSQL store           | 🚧 Phase 2 |
+| `@conveyor/store-sqlite` | SQLite store               | 🚧 Phase 2 |
 
 ## Development
 
