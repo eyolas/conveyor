@@ -94,9 +94,18 @@ export class MemoryStore implements StoreInterface {
     key: string,
   ): Promise<JobData | null> {
     const queue = this.getQueue(queueName);
+    const now = Date.now();
     for (const job of queue.values()) {
       if (job.deduplicationKey === key) {
-        // Check if still active (not completed/failed or within TTL)
+        // Check TTL expiration
+        const ttl = job.opts.deduplication?.ttl;
+        if (ttl !== undefined && job.createdAt) {
+          const expiresAt = job.createdAt.getTime() + ttl;
+          if (expiresAt < now) {
+            continue; // TTL expired, skip this job
+          }
+        }
+        // Check if still active (not completed/failed)
         if (job.state !== 'completed' && job.state !== 'failed') {
           return Promise.resolve(job);
         }
