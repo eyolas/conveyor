@@ -642,15 +642,15 @@ identique :
 
 ### Phase 1 — Foundation (MVP)
 
-- [ ] Monorepo Deno 2 + CI (Deno, Node, Bun)
-- [ ] `@conveyor/core` : Queue, Worker, Job, Events
-- [ ] `@conveyor/store-memory` : store in-memory complet
-- [ ] FIFO + LIFO mode
-- [ ] Human-readable scheduling (`schedule()`, `now()`, `every()`)
-- [ ] Job deduplication (hash payload + clé custom)
-- [ ] Pause/Resume par job name
-- [ ] Conformance test suite
-- [ ] Documentation de base + exemples
+- [x] Monorepo Deno 2 + CI (Deno, Node, Bun)
+- [x] `@conveyor/core` : Queue, Worker, Job, Events
+- [x] `@conveyor/store-memory` : store in-memory complet
+- [x] FIFO + LIFO mode
+- [x] Human-readable scheduling (`schedule()`, `now()`, `every()`)
+- [x] Job deduplication (hash payload + clé custom)
+- [x] Pause/Resume par job name
+- [x] Conformance test suite
+- [x] Documentation de base + exemples
 
 ### Phase 2 — Persistent Stores
 

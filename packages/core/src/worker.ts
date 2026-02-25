@@ -6,7 +6,7 @@
  */
 
 import type { JobData, QueueEventType, StoreInterface, WorkerOptions } from '@conveyor/shared';
-import { calculateBackoff, generateWorkerId } from '@conveyor/shared';
+import { calculateBackoff, createJobData, generateWorkerId, parseDelay } from '@conveyor/shared';
 import { EventBus } from './events.ts';
 import { Job } from './job.ts';
 
@@ -115,6 +115,7 @@ export class Worker<T = unknown> {
 
     // Schedule next poll
     this.pollTimer = setTimeout(async () => {
+      if (this.closed || this.paused) return;
       try {
         await this.fetchAndProcess();
       } catch (err) {
@@ -190,6 +191,9 @@ export class Worker<T = unknown> {
         jobId: job.id,
         timestamp: new Date(),
       });
+
+      // Handle repeat jobs
+      await this.scheduleRepeat(job);
 
       // Handle removeOnComplete
       if (this.shouldRemove(job.opts.removeOnComplete)) {
@@ -351,6 +355,41 @@ export class Worker<T = unknown> {
         this.startStalledCheck();
       }
     }, this.stalledInterval);
+  }
+
+  // ─── Repeat Scheduling ─────────────────────────────────────────────
+
+  private async scheduleRepeat(job: Job<T>): Promise<void> {
+    const repeat = job.opts.repeat;
+    if (!repeat?.every) return;
+
+    // Check endDate
+    if (repeat.endDate && new Date() >= repeat.endDate) return;
+
+    // Check limit
+    if (repeat.limit !== undefined && repeat.limit <= 0) return;
+
+    const interval = parseDelay(repeat.every);
+    const nextRepeat = { ...repeat };
+
+    // Decrement limit if set
+    if (nextRepeat.limit !== undefined) {
+      nextRepeat.limit = nextRepeat.limit - 1;
+    }
+
+    const nextOpts = { ...job.opts, repeat: nextRepeat, delay: interval };
+    // Remove jobId to avoid duplicate ID conflicts
+    delete nextOpts.jobId;
+
+    const nextJobData = createJobData(this.queueName, job.name, job.data, nextOpts);
+    const id = await this.store.saveJob(this.queueName, nextJobData);
+
+    await this.store.publish({
+      type: 'job:delayed',
+      queueName: this.queueName,
+      jobId: id,
+      timestamp: new Date(),
+    });
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────

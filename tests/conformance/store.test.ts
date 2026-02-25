@@ -9,9 +9,9 @@
  *   runConformanceTests('MemoryStore', () => new MemoryStore());
  */
 
-import { assertEquals, assertExists } from '@std/assert';
-import type { StoreInterface } from '@conveyor/shared';
-import { createJobData } from '@conveyor/shared';
+import { assertEquals, assertExists, assertNotEquals } from '@std/assert';
+import type { StoreEvent, StoreInterface } from '@conveyor/shared';
+import { createJobData, hashPayload } from '@conveyor/shared';
 
 export function runConformanceTests(
   storeName: string,
@@ -263,6 +263,321 @@ export function runConformanceTests(
 
     await store.fetchNextJob(queueName, 'worker-2', 30_000);
     assertEquals(await store.getActiveCount(queueName), 2);
+
+    await store.disconnect();
+  });
+
+  // ─── Stalled Jobs ───────────────────────────────────────────────────
+
+  Deno.test(`[${storeName}] getStalledJobs detects stalled jobs`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'stalled-job', {}));
+
+    // Fetch with very short lock (1ms)
+    const fetched = await store.fetchNextJob(queueName, 'worker-1', 1);
+    assertExists(fetched);
+
+    // Wait for lock to expire
+    await new Promise((r) => setTimeout(r, 10));
+
+    const stalled = await store.getStalledJobs(queueName, 30_000);
+    assertEquals(stalled.length, 1);
+    assertEquals(stalled[0]!.name, 'stalled-job');
+
+    await store.disconnect();
+  });
+
+  Deno.test(`[${storeName}] getStalledJobs ignores jobs with valid locks`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'active-job', {}));
+    await store.fetchNextJob(queueName, 'worker-1', 60_000);
+
+    const stalled = await store.getStalledJobs(queueName, 30_000);
+    assertEquals(stalled.length, 0);
+
+    await store.disconnect();
+  });
+
+  // ─── Clean ──────────────────────────────────────────────────────────
+
+  Deno.test(`[${storeName}] clean completed jobs with grace period`, async () => {
+    store = factory();
+    await store.connect();
+
+    const id = await store.saveJob(queueName, createJobData(queueName, 'old-job', {}));
+    await store.updateJob(queueName, id, {
+      state: 'completed',
+      completedAt: new Date(Date.now() - 10_000),
+    });
+
+    // Grace period of 5s — job completed 10s ago, should be cleaned
+    const removed = await store.clean(queueName, 'completed', 5_000);
+    assertEquals(removed, 1);
+
+    const job = await store.getJob(queueName, id);
+    assertEquals(job, null);
+
+    await store.disconnect();
+  });
+
+  Deno.test(`[${storeName}] clean respects grace period`, async () => {
+    store = factory();
+    await store.connect();
+
+    const id = await store.saveJob(queueName, createJobData(queueName, 'recent-job', {}));
+    await store.updateJob(queueName, id, {
+      state: 'completed',
+      completedAt: new Date(),
+    });
+
+    // Grace period of 60s — job just completed, should NOT be cleaned
+    const removed = await store.clean(queueName, 'completed', 60_000);
+    assertEquals(removed, 0);
+
+    const job = await store.getJob(queueName, id);
+    assertExists(job);
+
+    await store.disconnect();
+  });
+
+  Deno.test(`[${storeName}] clean failed jobs`, async () => {
+    store = factory();
+    await store.connect();
+
+    const id = await store.saveJob(queueName, createJobData(queueName, 'failed-job', {}));
+    await store.updateJob(queueName, id, {
+      state: 'failed',
+      failedAt: new Date(Date.now() - 10_000),
+    });
+
+    const removed = await store.clean(queueName, 'failed', 5_000);
+    assertEquals(removed, 1);
+
+    await store.disconnect();
+  });
+
+  // ─── Events ─────────────────────────────────────────────────────────
+
+  Deno.test(`[${storeName}] publish and subscribe`, async () => {
+    store = factory();
+    await store.connect();
+
+    const received: StoreEvent[] = [];
+    store.subscribe(queueName, (event) => {
+      received.push(event);
+    });
+
+    await store.publish({
+      type: 'job:waiting',
+      queueName,
+      jobId: 'test-id',
+      timestamp: new Date(),
+    });
+
+    assertEquals(received.length, 1);
+    assertEquals(received[0]!.type, 'job:waiting');
+    assertEquals(received[0]!.jobId, 'test-id');
+
+    await store.disconnect();
+  });
+
+  Deno.test(`[${storeName}] unsubscribe stops events`, async () => {
+    store = factory();
+    await store.connect();
+
+    const received: StoreEvent[] = [];
+    store.subscribe(queueName, (event) => {
+      received.push(event);
+    });
+
+    store.unsubscribe(queueName);
+
+    await store.publish({
+      type: 'job:waiting',
+      queueName,
+      jobId: 'test-id',
+      timestamp: new Date(),
+    });
+
+    assertEquals(received.length, 0);
+
+    await store.disconnect();
+  });
+
+  // ─── Lock Management ────────────────────────────────────────────────
+
+  Deno.test(`[${storeName}] extendLock extends active job lock`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'locked-job', {}));
+    const fetched = await store.fetchNextJob(queueName, 'worker-1', 5_000);
+    assertExists(fetched);
+
+    const extended = await store.extendLock(queueName, fetched.id, 60_000);
+    assertEquals(extended, true);
+
+    const job = await store.getJob(queueName, fetched.id);
+    assertExists(job);
+    assertExists(job.lockUntil);
+
+    await store.disconnect();
+  });
+
+  Deno.test(`[${storeName}] extendLock returns false for non-active jobs`, async () => {
+    store = factory();
+    await store.connect();
+
+    const id = await store.saveJob(queueName, createJobData(queueName, 'waiting-job', {}));
+
+    const extended = await store.extendLock(queueName, id, 60_000);
+    assertEquals(extended, false);
+
+    await store.disconnect();
+  });
+
+  Deno.test(`[${storeName}] releaseLock clears lock fields`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'locked-job', {}));
+    const fetched = await store.fetchNextJob(queueName, 'worker-1', 30_000);
+    assertExists(fetched);
+
+    await store.releaseLock(queueName, fetched.id);
+
+    const job = await store.getJob(queueName, fetched.id);
+    assertExists(job);
+    assertEquals(job.lockUntil, null);
+    assertEquals(job.lockedBy, null);
+
+    await store.disconnect();
+  });
+
+  // ─── Deduplication with TTL ─────────────────────────────────────────
+
+  Deno.test(`[${storeName}] findByDeduplicationKey with expired TTL`, async () => {
+    store = factory();
+    await store.connect();
+
+    const jobData = createJobData(queueName, 'dedup-ttl-job', {}, {
+      deduplication: { key: 'ttl-key', ttl: 1 },
+    });
+    jobData.deduplicationKey = 'ttl-key';
+    jobData.createdAt = new Date(Date.now() - 100); // Created 100ms ago
+    await store.saveJob(queueName, jobData);
+
+    // TTL is 1ms, created 100ms ago — should be expired
+    const found = await store.findByDeduplicationKey(queueName, 'ttl-key');
+    assertEquals(found, null);
+
+    await store.disconnect();
+  });
+
+  Deno.test(`[${storeName}] findByDeduplicationKey with valid TTL`, async () => {
+    store = factory();
+    await store.connect();
+
+    const jobData = createJobData(queueName, 'dedup-ttl-job', {}, {
+      deduplication: { key: 'valid-key', ttl: 60_000 },
+    });
+    jobData.deduplicationKey = 'valid-key';
+    await store.saveJob(queueName, jobData);
+
+    const found = await store.findByDeduplicationKey(queueName, 'valid-key');
+    assertExists(found);
+    assertEquals(found.name, 'dedup-ttl-job');
+
+    await store.disconnect();
+  });
+
+  // ─── countJobs ──────────────────────────────────────────────────────
+
+  Deno.test(`[${storeName}] countJobs by state`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'w1', {}));
+    await store.saveJob(queueName, createJobData(queueName, 'w2', {}));
+    await store.saveJob(queueName, createJobData(queueName, 'd1', {}, { delay: 60_000 }));
+
+    assertEquals(await store.countJobs(queueName, 'waiting'), 2);
+    assertEquals(await store.countJobs(queueName, 'delayed'), 1);
+    assertEquals(await store.countJobs(queueName, 'active'), 0);
+    assertEquals(await store.countJobs(queueName, 'completed'), 0);
+    assertEquals(await store.countJobs(queueName, 'failed'), 0);
+
+    await store.disconnect();
+  });
+
+  // ─── getNextDelayedTimestamp ─────────────────────────────────────────
+
+  Deno.test(`[${storeName}] getNextDelayedTimestamp`, async () => {
+    store = factory();
+    await store.connect();
+
+    // No delayed jobs
+    assertEquals(await store.getNextDelayedTimestamp(queueName), null);
+
+    const job1 = createJobData(queueName, 'delayed-1', {}, { delay: 10_000 });
+    const job2 = createJobData(queueName, 'delayed-2', {}, { delay: 5_000 });
+    await store.saveJob(queueName, job1);
+    await store.saveJob(queueName, job2);
+
+    const next = await store.getNextDelayedTimestamp(queueName);
+    assertExists(next);
+    // The 5s delay job should be the earliest
+    const job2Delay = job2.delayUntil!.getTime();
+    assertEquals(next, job2Delay);
+
+    await store.disconnect();
+  });
+
+  // ─── Hash-based deduplication ───────────────────────────────────────
+
+  Deno.test(`[${storeName}] deduplication by hash`, async () => {
+    store = factory();
+    await store.connect();
+
+    const payload = { user: 'abc', action: 'send' };
+    const hash = await hashPayload(payload);
+
+    const jobData = createJobData(queueName, 'hash-job', payload);
+    jobData.deduplicationKey = hash;
+    await store.saveJob(queueName, jobData);
+
+    const found = await store.findByDeduplicationKey(queueName, hash);
+    assertExists(found);
+    assertEquals(found.name, 'hash-job');
+
+    // Different hash should not match
+    const differentHash = await hashPayload({ user: 'xyz' });
+    assertNotEquals(hash, differentHash);
+    const notFound = await store.findByDeduplicationKey(queueName, differentHash);
+    assertEquals(notFound, null);
+
+    await store.disconnect();
+  });
+
+  // ─── Custom jobId ───────────────────────────────────────────────────
+
+  Deno.test(`[${storeName}] saveJob with custom jobId`, async () => {
+    store = factory();
+    await store.connect();
+
+    const jobData = createJobData(queueName, 'custom-id-job', {}, { jobId: 'my-custom-id' });
+    const id = await store.saveJob(queueName, jobData);
+
+    assertEquals(id, 'my-custom-id');
+
+    const retrieved = await store.getJob(queueName, 'my-custom-id');
+    assertExists(retrieved);
+    assertEquals(retrieved.id, 'my-custom-id');
+    assertEquals(retrieved.name, 'custom-id-job');
 
     await store.disconnect();
   });

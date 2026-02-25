@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  deno:
+    name: Deno ${{ matrix.deno-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        deno-version: ['2.x']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: ${{ matrix.deno-version }}
+
+      - name: Verify formatting
+        run: deno fmt --check
+
+      - name: Lint
+        run: deno lint
+
+      - name: Type check
+        run: deno check packages/*/src/mod.ts
+
+      - name: Run tests
+        run: deno test --allow-all --parallel
+
+  node:
+    name: Node.js ${{ matrix.node-version }} compatibility
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['20']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.x'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Run tests via Deno
+        run: deno test --allow-all --parallel
+
+  bun:
+    name: Bun compatibility
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.x'
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Run tests via Deno
+        run: deno test --allow-all --parallel

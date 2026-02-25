@@ -106,14 +106,15 @@ export class Queue<T = unknown> {
    * await queue.every("0 9 * * *", "daily-report", payload); // cron
    */
   every(
-    _interval: string | number,
-    _name: string,
-    _data: T,
-    _opts?: JobOptions,
+    interval: string | number,
+    name: string,
+    data: T,
+    opts?: JobOptions,
   ): Promise<Job<T>> {
-    throw new Error(
-      'every() is not yet implemented. Repeating/cron jobs will be available in a future release.',
-    );
+    return this.add(name, data, {
+      ...opts,
+      repeat: { ...opts?.repeat, every: interval },
+    });
   }
 
   /**
