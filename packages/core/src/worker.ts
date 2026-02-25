@@ -99,6 +99,10 @@ export class Worker<T = unknown> {
     this.events.removeAllListeners();
   }
 
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.close();
+  }
+
   pause(): void {
     this.paused = true;
   }
@@ -121,7 +125,7 @@ export class Worker<T = unknown> {
       } catch (err) {
         this.events.emit('error', err);
       }
-      this.poll();
+      if (!this.closed) this.poll();
     }, this.pollInterval);
   }
 
@@ -209,7 +213,9 @@ export class Worker<T = unknown> {
 
   private async handleFailure(job: Job<T>, error: Error): Promise<void> {
     const maxAttempts = job.opts.attempts ?? 1;
-    const attemptsMade = (job.attemptsMade ?? 0) + 1;
+    // Read fresh attemptsMade from store to avoid stale snapshot
+    const freshJob = await this.store.getJob(this.queueName, job.id);
+    const attemptsMade = ((freshJob?.attemptsMade ?? job.attemptsMade) ?? 0) + 1;
 
     if (attemptsMade < maxAttempts) {
       if (job.opts.backoff) {

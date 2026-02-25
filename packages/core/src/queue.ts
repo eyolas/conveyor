@@ -244,6 +244,10 @@ export class Queue<T = unknown> {
     return Promise.resolve();
   }
 
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.close();
+  }
+
   // ─── Private ─────────────────────────────────────────────────────────
 
   private assertNotClosed(): void {

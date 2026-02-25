@@ -6,7 +6,7 @@ import { MemoryStore } from '@conveyor/store-memory';
 
 const queueName = 'test-queue';
 
-function createTestJob(_store: MemoryStore, overrides?: Partial<JobData>): JobData {
+function createTestJob(overrides?: Partial<JobData>): JobData {
   const data = createJobData(queueName, 'test-job', { x: 1 });
   return { id: 'job-1', ...data, ...overrides } as JobData;
 }
@@ -17,7 +17,7 @@ Deno.test('Job.updateProgress updates progress', async () => {
   const store = new MemoryStore();
   await store.connect();
 
-  const jobData = createTestJob(store);
+  const jobData = createTestJob();
   await store.saveJob(queueName, jobData);
 
   const job = new Job(jobData, store);
@@ -35,7 +35,7 @@ Deno.test('Job.updateProgress rejects invalid values', async () => {
   const store = new MemoryStore();
   await store.connect();
 
-  const jobData = createTestJob(store);
+  const jobData = createTestJob();
   await store.saveJob(queueName, jobData);
 
   const job = new Job(jobData, store);
@@ -58,7 +58,7 @@ Deno.test('Job.log appends messages', async () => {
   const store = new MemoryStore();
   await store.connect();
 
-  const jobData = createTestJob(store);
+  const jobData = createTestJob();
   await store.saveJob(queueName, jobData);
 
   const job = new Job(jobData, store);
@@ -79,7 +79,7 @@ Deno.test('Job.moveToFailed sets state to failed', async () => {
   const store = new MemoryStore();
   await store.connect();
 
-  const jobData = createTestJob(store, { state: 'active' });
+  const jobData = createTestJob({ state: 'active' });
   await store.saveJob(queueName, jobData);
 
   const job = new Job(jobData, store);
@@ -103,7 +103,7 @@ Deno.test('Job.retry resets to waiting state', async () => {
   const store = new MemoryStore();
   await store.connect();
 
-  const jobData = createTestJob(store, {
+  const jobData = createTestJob({
     state: 'failed',
     failedReason: 'Error',
     failedAt: new Date(),
@@ -129,7 +129,7 @@ Deno.test('Job.remove deletes the job', async () => {
   const store = new MemoryStore();
   await store.connect();
 
-  const jobData = createTestJob(store);
+  const jobData = createTestJob();
   await store.saveJob(queueName, jobData);
 
   const job = new Job(jobData, store);
@@ -147,7 +147,7 @@ Deno.test('Job.isCompleted', async () => {
   const store = new MemoryStore();
   await store.connect();
 
-  const jobData = createTestJob(store);
+  const jobData = createTestJob();
   await store.saveJob(queueName, jobData);
 
   const job = new Job(jobData, store);
@@ -163,7 +163,7 @@ Deno.test('Job.isFailed', async () => {
   const store = new MemoryStore();
   await store.connect();
 
-  const jobData = createTestJob(store);
+  const jobData = createTestJob();
   await store.saveJob(queueName, jobData);
 
   const job = new Job(jobData, store);
@@ -179,7 +179,7 @@ Deno.test('Job.isActive', async () => {
   const store = new MemoryStore();
   await store.connect();
 
-  const jobData = createTestJob(store);
+  const jobData = createTestJob();
   await store.saveJob(queueName, jobData);
 
   const job = new Job(jobData, store);
@@ -197,7 +197,7 @@ Deno.test('Job.toJSON returns JobData', async () => {
   const store = new MemoryStore();
   await store.connect();
 
-  const jobData = createTestJob(store);
+  const jobData = createTestJob();
   await store.saveJob(queueName, jobData);
 
   const job = new Job(jobData, store);
