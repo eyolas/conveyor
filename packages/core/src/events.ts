@@ -26,7 +26,7 @@ export class EventBus {
   emit<T = unknown>(event: QueueEventType, data: T): void {
     const handlers = this.handlers.get(event);
     if (handlers) {
-      for (const handler of handlers) {
+      for (const handler of [...handlers]) {
         try {
           handler(data);
         } catch (err) {

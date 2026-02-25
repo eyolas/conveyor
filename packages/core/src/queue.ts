@@ -127,18 +127,36 @@ export class Queue<T = unknown> {
   ): Promise<Job<T>[]> {
     this.assertNotClosed();
 
-    const jobDataList = jobs.map(({ name, data, opts }) => {
-      const mergedOpts = { ...this.defaultJobOptions, ...opts };
-      return createJobData(this.name, name, data, mergedOpts);
-    });
-
-    const ids = await this.store.saveBulk(this.name, jobDataList);
-
     const results: Job<T>[] = [];
-    for (const id of ids) {
-      const saved = await this.store.getJob(this.name, id);
-      if (saved) {
-        results.push(new Job(saved as JobData<T>, this.store));
+    const toSave: Omit<JobData<T>, 'id'>[] = [];
+
+    for (const { name, data, opts } of jobs) {
+      const mergedOpts = { ...this.defaultJobOptions, ...opts };
+      const jobData = createJobData(this.name, name, data, mergedOpts);
+
+      // Handle deduplication
+      if (mergedOpts.deduplication) {
+        const dedupKey = await this.resolveDeduplicationKey(data, mergedOpts.deduplication);
+        jobData.deduplicationKey = dedupKey;
+
+        const existing = await this.store.findByDeduplicationKey(this.name, dedupKey);
+        if (existing) {
+          results.push(new Job(existing as JobData<T>, this.store));
+          continue;
+        }
+      }
+
+      toSave.push(jobData);
+    }
+
+    if (toSave.length > 0) {
+      const ids = await this.store.saveBulk(this.name, toSave);
+
+      for (const id of ids) {
+        const saved = await this.store.getJob(this.name, id);
+        if (saved) {
+          results.push(new Job(saved as JobData<T>, this.store));
+        }
       }
     }
 
