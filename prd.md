@@ -1,12 +1,15 @@
 # Conveyor — Product Requirements Document
 
-> 🚚 A multi-backend job queue for Node.js and Deno. BullMQ-like API with PostgreSQL, SQLite, and in-memory support.
+> 🚚 A multi-backend job queue for Node.js and Deno. BullMQ-like API with PostgreSQL, SQLite, and
+> in-memory support.
 
 ---
 
 ## 1. Vision
 
-Conveyor est une bibliothèque TypeScript de job queue avec des backends de stockage interchangeables. Elle vise à offrir une API familière (inspirée de BullMQ) sans imposer de dépendance à Redis, en supportant PostgreSQL, SQLite et un store in-memory.
+Conveyor est une bibliothèque TypeScript de job queue avec des backends de stockage
+interchangeables. Elle vise à offrir une API familière (inspirée de BullMQ) sans imposer de
+dépendance à Redis, en supportant PostgreSQL, SQLite et un store in-memory.
 
 ### Pourquoi Conveyor ?
 
@@ -90,89 +93,89 @@ Le core ne dépend **jamais** d'un driver concret. Chaque store implémente `Sto
 ### 3.1 Queue
 
 ```typescript
-import { Queue } from "@conveyor/core";
-import { MemoryStore } from "@conveyor/store-memory";
+import { Queue } from '@conveyor/core';
+import { MemoryStore } from '@conveyor/store-memory';
 
-const queue = new Queue<MyPayload>("email-sending", {
+const queue = new Queue<MyPayload>('email-sending', {
   store: new MemoryStore(),
   defaultJobOptions: {
     attempts: 3,
-    backoff: { type: "exponential", delay: 1000 },
+    backoff: { type: 'exponential', delay: 1000 },
     removeOnComplete: true,
     removeOnFail: false,
   },
 });
 
 // Ajouter un job
-const job = await queue.add("send-welcome", {
-  to: "user@example.com",
-  template: "welcome",
+const job = await queue.add('send-welcome', {
+  to: 'user@example.com',
+  template: 'welcome',
 });
 
 // Ajouter un job avec délai (ms ou human-readable)
-await queue.add("send-reminder", payload, {
+await queue.add('send-reminder', payload, {
   delay: 60_000, // 1 minute
 });
 
 // Raccourcis schedule() et now()
-await queue.schedule("in 10 minutes", "send-reminder", payload);
-await queue.schedule("tomorrow at 9am", "daily-digest", payload);
-await queue.now("send-welcome", payload); // exécution immédiate
+await queue.schedule('in 10 minutes', 'send-reminder', payload);
+await queue.schedule('tomorrow at 9am', 'daily-digest', payload);
+await queue.now('send-welcome', payload); // exécution immédiate
 
 // Ajouter un job récurrent (cron ou human-readable)
-await queue.add("daily-report", payload, {
-  repeat: { cron: "0 9 * * *" }, // tous les jours à 9h
+await queue.add('daily-report', payload, {
+  repeat: { cron: '0 9 * * *' }, // tous les jours à 9h
 });
-await queue.every("2 hours", "cleanup", payload);   // human-readable
-await queue.every("30 minutes", "sync", payload);
+await queue.every('2 hours', 'cleanup', payload); // human-readable
+await queue.every('30 minutes', 'sync', payload);
 
 // Ajouter un job avec priorité (plus bas = plus prioritaire)
-await queue.add("urgent-task", payload, {
+await queue.add('urgent-task', payload, {
   priority: 1,
 });
 
 // Mode LIFO (dernier ajouté = premier traité)
-await queue.add("lifo-job", payload, {
+await queue.add('lifo-job', payload, {
   lifo: true,
 });
 
 // Déduplication automatique par payload
-await queue.add("send-email", payload, {
+await queue.add('send-email', payload, {
   deduplication: { hash: true }, // hash du payload pour dédup
 });
-await queue.add("send-email", payload, {
-  deduplication: { key: "user-123" }, // clé custom de dédup
+await queue.add('send-email', payload, {
+  deduplication: { key: 'user-123' }, // clé custom de dédup
 });
 
 // Bulk add
 await queue.addBulk([
-  { name: "job-1", data: payload1 },
-  { name: "job-2", data: payload2, opts: { delay: 5000 } },
+  { name: 'job-1', data: payload1 },
+  { name: 'job-2', data: payload2, opts: { delay: 5000 } },
 ]);
 
 // Gestion de la queue
-await queue.pause();                      // pause toute la queue
-await queue.resume();                     // reprend toute la queue
-await queue.pause({ jobName: "sync" });   // pause un job spécifique par nom
-await queue.resume({ jobName: "sync" });  // reprend un job spécifique
-await queue.drain();        // supprime tous les jobs en attente
-await queue.clean(grace);   // supprime les vieux jobs completed/failed
+await queue.pause(); // pause toute la queue
+await queue.resume(); // reprend toute la queue
+await queue.pause({ jobName: 'sync' }); // pause un job spécifique par nom
+await queue.resume({ jobName: 'sync' }); // reprend un job spécifique
+await queue.drain(); // supprime tous les jobs en attente
+await queue.clean(grace); // supprime les vieux jobs completed/failed
 await queue.close();
 ```
 
 ### 3.2 Worker
 
 ```typescript
-import { Worker } from "@conveyor/core";
+import { Worker } from '@conveyor/core';
 
 const worker = new Worker<MyPayload>(
-  "email-sending",
+  'email-sending',
   async (job) => {
     // Traitement du job
     await job.updateProgress(50);
     await sendEmail(job.data.to, job.data.template);
     await job.updateProgress(100);
-    
+
     return { sent: true }; // résultat stocké sur job.returnvalue
   },
   {
@@ -180,20 +183,20 @@ const worker = new Worker<MyPayload>(
     concurrency: 5,
     maxGlobalConcurrency: 50, // cap global cross-workers (optionnel)
     limiter: {
-      max: 10,       // max 10 jobs
+      max: 10, // max 10 jobs
       duration: 1000, // par seconde
     },
-    lockDuration: 30_000,    // 30s, renouvelé automatiquement
+    lockDuration: 30_000, // 30s, renouvelé automatiquement
     stalledInterval: 30_000, // check stalled jobs toutes les 30s
-  }
+  },
 );
 
 // Events
-worker.on("completed", (job, result) => { /* ... */ });
-worker.on("failed", (job, error) => { /* ... */ });
-worker.on("progress", (job, progress) => { /* ... */ });
-worker.on("stalled", (jobId) => { /* ... */ });
-worker.on("error", (error) => { /* ... */ });
+worker.on('completed', (job, result) => {/* ... */});
+worker.on('failed', (job, error) => {/* ... */});
+worker.on('progress', (job, progress) => {/* ... */});
+worker.on('stalled', (jobId) => {/* ... */});
+worker.on('error', (error) => {/* ... */});
 
 await worker.close();
 ```
@@ -206,20 +209,20 @@ interface Job<T = unknown> {
   name: string;
   data: T;
   opts: JobOptions;
-  
+
   // Lifecycle
-  state: "waiting" | "delayed" | "active" | "completed" | "failed";
+  state: 'waiting' | 'delayed' | 'active' | 'completed' | 'failed';
   progress: number;
   returnvalue: unknown;
   failedReason: string | null;
   attemptsMade: number;
-  
+
   // Timestamps
   createdAt: Date;
   processedAt: Date | null;
   completedAt: Date | null;
   failedAt: Date | null;
-  
+
   // Methods
   updateProgress(progress: number): Promise<void>;
   log(message: string): Promise<void>;
@@ -237,44 +240,44 @@ interface Job<T = unknown> {
 ```typescript
 interface JobOptions {
   // Retry
-  attempts?: number;           // défaut: 1
+  attempts?: number; // défaut: 1
   backoff?: {
-    type: "fixed" | "exponential" | "custom";
-    delay: number;             // ms
+    type: 'fixed' | 'exponential' | 'custom';
+    delay: number; // ms
     customStrategy?: (attemptsMade: number) => number;
   };
-  
+
   // Scheduling
-  delay?: number | string;     // ms ou human-readable ("5 minutes", "2 hours")
+  delay?: number | string; // ms ou human-readable ("5 minutes", "2 hours")
   repeat?: {
-    cron?: string;             // expression cron
-    every?: number | string;   // intervalle en ms ou human-readable
-    limit?: number;            // nombre max de répétitions
+    cron?: string; // expression cron
+    every?: number | string; // intervalle en ms ou human-readable
+    limit?: number; // nombre max de répétitions
     startDate?: Date;
     endDate?: Date;
-    tz?: string;               // timezone (IANA)
+    tz?: string; // timezone (IANA)
   };
-  
+
   // Priority & ordering
-  priority?: number;           // plus bas = plus prioritaire (défaut: 0)
-  lifo?: boolean;              // LIFO mode : dernier ajouté = premier traité (défaut: false)
-  
+  priority?: number; // plus bas = plus prioritaire (défaut: 0)
+  lifo?: boolean; // LIFO mode : dernier ajouté = premier traité (défaut: false)
+
   // Deduplication
   deduplication?: {
-    hash?: boolean;            // hash automatique du payload pour dédup
-    key?: string;              // clé custom de dédup
-    ttl?: number;              // durée de vie de la dédup en ms (évite les collisions tard)
+    hash?: boolean; // hash automatique du payload pour dédup
+    key?: string; // clé custom de dédup
+    ttl?: number; // durée de vie de la dédup en ms (évite les collisions tard)
   };
-  
+
   // Lifecycle
   removeOnComplete?: boolean | number; // true, false, ou max age en ms
   removeOnFail?: boolean | number;
-  
+
   // Timeout
-  timeout?: number;            // ms, job marqué failed si dépassé
-  
+  timeout?: number; // ms, job marqué failed si dépassé
+
   // Identifiant
-  jobId?: string;              // custom job ID (dédup manuelle)
+  jobId?: string; // custom job ID (dédup manuelle)
 }
 ```
 
@@ -285,46 +288,46 @@ interface StoreInterface {
   // Lifecycle
   connect(): Promise<void>;
   disconnect(): Promise<void>;
-  
+
   // Jobs CRUD
   saveJob(queueName: string, job: JobData): Promise<string>;
   saveBulk(queueName: string, jobs: JobData[]): Promise<string[]>;
   getJob(queueName: string, jobId: string): Promise<JobData | null>;
   updateJob(queueName: string, jobId: string, updates: Partial<JobData>): Promise<void>;
   removeJob(queueName: string, jobId: string): Promise<void>;
-  
+
   // Deduplication
   findByDeduplicationKey(queueName: string, key: string): Promise<JobData | null>;
-  
+
   // Locking / Fetching
   fetchNextJob(queueName: string, lockDuration: number, opts?: {
-    lifo?: boolean;               // inverse l'ordre de fetch
-    jobName?: string;             // filtre par nom de job
+    lifo?: boolean; // inverse l'ordre de fetch
+    jobName?: string; // filtre par nom de job
   }): Promise<JobData | null>;
   extendLock(queueName: string, jobId: string, duration: number): Promise<boolean>;
   releaseLock(queueName: string, jobId: string): Promise<void>;
-  
+
   // Global concurrency
   getActiveCount(queueName: string): Promise<number>;
-  
+
   // Queries
   listJobs(queueName: string, state: JobState, start?: number, end?: number): Promise<JobData[]>;
   countJobs(queueName: string, state: JobState): Promise<number>;
-  
+
   // Delayed jobs
   getNextDelayedTimestamp(queueName: string): Promise<number | null>;
   promoteDelayedJobs(queueName: string, timestamp: number): Promise<number>;
-  
+
   // Pause/Resume par job name
   pauseJobName(queueName: string, jobName: string): Promise<void>;
   resumeJobName(queueName: string, jobName: string): Promise<void>;
   getPausedJobNames(queueName: string): Promise<string[]>;
-  
+
   // Maintenance
   getStalledJobs(queueName: string, stalledThreshold: number): Promise<JobData[]>;
   clean(queueName: string, state: JobState, grace: number): Promise<number>;
   drain(queueName: string): Promise<void>;
-  
+
   // Events (couplé au store — Option A)
   // Chaque store utilise son mécanisme natif :
   // PG = LISTEN/NOTIFY, Memory = EventEmitter, SQLite = polling
@@ -339,25 +342,25 @@ interface StoreInterface {
 ### 4.1 Job Lifecycle
 
 ```
-               ┌──────────────────────────────────────────┐
-               │                                          │
-               ▼                                          │
-  add() → [waiting] ──fetch──→ [active] ──success──→ [completed]
-               │                   │                      
-               │                   ├──failure──→ [failed]  
-               │                   │                 │     
-               │                   │            retry?     
-               │                   │                 │     
-               │                   │     ┌───yes─────┘     
-               │                   │     ▼                 
-               │                   │  [waiting] (backoff delay)
-               │                   │                       
-               │              stalled?──→ [waiting] (réenqueue)
-               │                                          
-          delay > 0                                       
-               │                                          
-               ▼                                          
-          [delayed] ──timer──→ [waiting]                   
+             ┌──────────────────────────────────────────┐
+             │                                          │
+             ▼                                          │
+add() → [waiting] ──fetch──→ [active] ──success──→ [completed]
+             │                   │                      
+             │                   ├──failure──→ [failed]  
+             │                   │                 │     
+             │                   │            retry?     
+             │                   │                 │     
+             │                   │     ┌───yes─────┘     
+             │                   │     ▼                 
+             │                   │  [waiting] (backoff delay)
+             │                   │                       
+             │              stalled?──→ [waiting] (réenqueue)
+             │                                          
+        delay > 0                                       
+             │                                          
+             ▼                                          
+        [delayed] ──timer──→ [waiting]
 ```
 
 ### 4.2 Concurrence & Locking
@@ -369,11 +372,11 @@ interface StoreInterface {
 
 **Implémentation par backend :**
 
-| Mécanisme | PostgreSQL | SQLite | Memory |
-|-----------|-----------|--------|--------|
-| Lock | `SELECT ... FOR UPDATE SKIP LOCKED` | `BEGIN IMMEDIATE` + flag | `Map` + mutex |
-| Notification | `LISTEN/NOTIFY` | Polling | `EventEmitter` |
-| Atomicité | Transactions | WAL mode + transactions | Synchrone |
+| Mécanisme    | PostgreSQL                          | SQLite                   | Memory         |
+| ------------ | ----------------------------------- | ------------------------ | -------------- |
+| Lock         | `SELECT ... FOR UPDATE SKIP LOCKED` | `BEGIN IMMEDIATE` + flag | `Map` + mutex  |
+| Notification | `LISTEN/NOTIFY`                     | Polling                  | `EventEmitter` |
+| Atomicité    | Transactions                        | WAL mode + transactions  | Synchrone      |
 
 ### 4.3 Retry & Backoff
 
@@ -383,32 +386,35 @@ interface StoreInterface {
 
 ### 4.4 FIFO & LIFO
 
-Par défaut, les jobs sont traités en **FIFO** (premier ajouté = premier traité). Le mode **LIFO** (dernier ajouté = premier traité) est activable par job :
+Par défaut, les jobs sont traités en **FIFO** (premier ajouté = premier traité). Le mode **LIFO**
+(dernier ajouté = premier traité) est activable par job :
 
 ```typescript
-await queue.add("recent-first", payload, { lifo: true });
+await queue.add('recent-first', payload, { lifo: true });
 ```
 
 Implémentation par backend :
+
 - **Memory** : tri inversé sur `createdAt`
 - **PostgreSQL** : `ORDER BY created_at DESC` au lieu de `ASC`
 - **SQLite** : idem
 
 ### 4.5 Human-Readable Scheduling
 
-En complément des valeurs en ms et des expressions cron, Conveyor supporte les intervalles en langage naturel :
+En complément des valeurs en ms et des expressions cron, Conveyor supporte les intervalles en
+langage naturel :
 
 ```typescript
 // Méthodes dédiées
-await queue.schedule("in 10 minutes", "send-reminder", payload);
-await queue.schedule("tomorrow at 9am", "daily-digest", payload);
-await queue.now("urgent-job", payload);
-await queue.every("2 hours", "cleanup", payload);
-await queue.every("30 minutes", "health-check", payload);
+await queue.schedule('in 10 minutes', 'send-reminder', payload);
+await queue.schedule('tomorrow at 9am', 'daily-digest', payload);
+await queue.now('urgent-job', payload);
+await queue.every('2 hours', 'cleanup', payload);
+await queue.every('30 minutes', 'health-check', payload);
 
 // Ou via les options
-await queue.add("job", payload, { delay: "5 minutes" });
-await queue.add("job", payload, { repeat: { every: "1 hour" } });
+await queue.add('job', payload, { delay: '5 minutes' });
+await queue.add('job', payload, { repeat: { every: '1 hour' } });
 ```
 
 Parsing assuré par une lib compatible multi-runtime (type `ms` ou `human-interval`).
@@ -418,49 +424,56 @@ Parsing assuré par une lib compatible multi-runtime (type `ms` ou `human-interv
 Conveyor empêche l'ajout de jobs dupliqués via deux mécanismes :
 
 **Hash automatique du payload :**
+
 ```typescript
-await queue.add("send-email", { to: "a@b.com" }, {
-  deduplication: { hash: true, ttl: 60_000 }
+await queue.add('send-email', { to: 'a@b.com' }, {
+  deduplication: { hash: true, ttl: 60_000 },
 });
 // Un second add avec le même payload dans les 60s sera ignoré (retourne le job existant)
 ```
 
 **Clé custom :**
+
 ```typescript
-await queue.add("process-user", data, {
-  deduplication: { key: `user-${userId}`, ttl: 300_000 }
+await queue.add('process-user', data, {
+  deduplication: { key: `user-${userId}`, ttl: 300_000 },
 });
 ```
 
-Le `ttl` permet d'éviter les collisions sur des jobs anciens déjà complétés. Sans `ttl`, la dédup est permanente tant que le job existe dans le store.
+Le `ttl` permet d'éviter les collisions sur des jobs anciens déjà complétés. Sans `ttl`, la dédup
+est permanente tant que le job existe dans le store.
 
 ### 4.7 Global Concurrency
 
-En plus de la concurrence par worker (`concurrency`), Conveyor supporte un cap **global cross-workers** :
+En plus de la concurrence par worker (`concurrency`), Conveyor supporte un cap **global
+cross-workers** :
 
 ```typescript
-const worker = new Worker("queue", handler, {
+const worker = new Worker('queue', handler, {
   store,
-  concurrency: 5,            // max 5 jobs simultanés sur CE worker
-  maxGlobalConcurrency: 50,  // max 50 jobs actifs au total sur TOUS les workers
+  concurrency: 5, // max 5 jobs simultanés sur CE worker
+  maxGlobalConcurrency: 50, // max 50 jobs actifs au total sur TOUS les workers
 });
 ```
 
 Implémentation par backend :
-- **PostgreSQL** : `SELECT COUNT(*) FROM jobs WHERE state = 'active'` avant fetch (atomique via transaction)
+
+- **PostgreSQL** : `SELECT COUNT(*) FROM jobs WHERE state = 'active'` avant fetch (atomique via
+  transaction)
 - **SQLite** : même requête, single process donc trivial
 - **Memory** : compteur in-memory
 
 ### 4.8 Pause/Resume par Job Name
 
-En plus de pause/resume sur toute la queue, Conveyor permet de cibler un job spécifique par son nom :
+En plus de pause/resume sur toute la queue, Conveyor permet de cibler un job spécifique par son nom
+:
 
 ```typescript
-await queue.pause({ jobName: "send-email" });  // seuls les jobs "send-email" sont en pause
-await queue.resume({ jobName: "send-email" }); // reprend uniquement "send-email"
+await queue.pause({ jobName: 'send-email' }); // seuls les jobs "send-email" sont en pause
+await queue.resume({ jobName: 'send-email' }); // reprend uniquement "send-email"
 
 // Pause globale (comportement par défaut)
-await queue.pause();  // toute la queue
+await queue.pause(); // toute la queue
 await queue.resume();
 ```
 
@@ -490,18 +503,18 @@ limiter: {
 
 ```typescript
 type QueueEvent =
-  | "waiting"      // job ajouté à la queue
-  | "active"       // job pris par un worker
-  | "completed"    // job terminé avec succès
-  | "failed"       // job échoué
-  | "progress"     // progression mise à jour
-  | "stalled"      // job stalé détecté
-  | "delayed"      // job delayed ajouté
-  | "removed"      // job supprimé
-  | "drained"      // queue vidée
-  | "paused"       // queue en pause
-  | "resumed"      // queue reprise
-  | "error";       // erreur interne
+  | 'waiting' // job ajouté à la queue
+  | 'active' // job pris par un worker
+  | 'completed' // job terminé avec succès
+  | 'failed' // job échoué
+  | 'progress' // progression mise à jour
+  | 'stalled' // job stalé détecté
+  | 'delayed' // job delayed ajouté
+  | 'removed' // job supprimé
+  | 'drained' // queue vidée
+  | 'paused' // queue en pause
+  | 'resumed' // queue reprise
+  | 'error'; // erreur interne
 ```
 
 ### 4.12 Graceful Shutdown
@@ -568,22 +581,28 @@ Les features suivantes sont volontairement **exclues** de la V1 pour garder le s
 
 ## 7. Compatibilité Runtime
 
-| Runtime | Support | Notes |
-|---------|---------|-------|
-| Deno 2+ | ✅ First-class | Workspace natif, JSR publish |
-| Node.js 18+ | ✅ First-class | Via `deno compile` ou JSR/npm |
-| Bun 1.1+ | ✅ First-class | Compatible via npm/JSR, testé CI |
+| Runtime     | Support        | Notes                            |
+| ----------- | -------------- | -------------------------------- |
+| Deno 2+     | ✅ First-class | Workspace natif, JSR publish     |
+| Node.js 18+ | ✅ First-class | Via `deno compile` ou JSR/npm    |
+| Bun 1.1+    | ✅ First-class | Compatible via npm/JSR, testé CI |
 
 ### Contraintes multi-runtime
 
-- **Aucune API runtime-spécifique dans le core** : pas de `Deno.*`, `Bun.*`, ou `process.*` dans `@conveyor/core`. Uniquement des Web Standards APIs (`setTimeout`, `EventTarget`, `crypto.randomUUID`, etc.)
-- **Drivers par store** : chaque store adapter encapsule le driver spécifique au runtime (ex: `bun:sqlite` vs `better-sqlite3` vs Deno FFI SQLite). Le choix du driver est automatique ou configurable.
-- **CI** : matrice GitHub Actions avec Deno, Node.js et Bun pour garantir la compatibilité sur les 3 runtimes.
+- **Aucune API runtime-spécifique dans le core** : pas de `Deno.*`, `Bun.*`, ou `process.*` dans
+  `@conveyor/core`. Uniquement des Web Standards APIs (`setTimeout`, `EventTarget`,
+  `crypto.randomUUID`, etc.)
+- **Drivers par store** : chaque store adapter encapsule le driver spécifique au runtime (ex:
+  `bun:sqlite` vs `better-sqlite3` vs Deno FFI SQLite). Le choix du driver est automatique ou
+  configurable.
+- **CI** : matrice GitHub Actions avec Deno, Node.js et Bun pour garantir la compatibilité sur les 3
+  runtimes.
 
 ### Publication
 
 - **JSR** (JavaScript Registry) : `@conveyor/core`, `@conveyor/store-*`
-- **npm** : généré depuis Deno via `dnt` (Deno to Node Transform) ou publié directement sur JSR (compatible npm)
+- **npm** : généré depuis Deno via `dnt` (Deno to Node Transform) ou publié directement sur JSR
+  (compatible npm)
 
 ---
 
@@ -601,7 +620,8 @@ tests/
 
 ### Conformance Tests
 
-Une **suite unique** de tests qui s'exécute contre **chaque store** pour garantir un comportement identique :
+Une **suite unique** de tests qui s'exécute contre **chaque store** pour garantir un comportement
+identique :
 
 - Ajout/récupération de jobs
 - FIFO et LIFO ordering
@@ -621,6 +641,7 @@ Une **suite unique** de tests qui s'exécute contre **chaque store** pour garant
 ## 9. Roadmap
 
 ### Phase 1 — Foundation (MVP)
+
 - [ ] Monorepo Deno 2 + CI (Deno, Node, Bun)
 - [ ] `@conveyor/core` : Queue, Worker, Job, Events
 - [ ] `@conveyor/store-memory` : store in-memory complet
@@ -632,6 +653,7 @@ Une **suite unique** de tests qui s'exécute contre **chaque store** pour garant
 - [ ] Documentation de base + exemples
 
 ### Phase 2 — Persistent Stores
+
 - [ ] `@conveyor/store-pg` : PostgreSQL adapter
 - [ ] `@conveyor/store-sqlite` : SQLite adapter
 - [ ] Migrations automatiques (PG + SQLite)
@@ -639,6 +661,7 @@ Une **suite unique** de tests qui s'exécute contre **chaque store** pour garant
 - [ ] Tests d'intégration
 
 ### Phase 3 — Production Ready
+
 - [ ] Rate limiting
 - [ ] Graceful shutdown
 - [ ] Repeated jobs (cron + human-readable)
@@ -647,6 +670,7 @@ Une **suite unique** de tests qui s'exécute contre **chaque store** pour garant
 - [ ] Benchmarks vs BullMQ
 
 ### Phase 4 — Ecosystem (V2)
+
 - [ ] Job flows / dependencies
 - [ ] Dashboard UI web
 - [ ] OpenTelemetry integration

@@ -18,7 +18,13 @@ export type {
 } from '@conveyor/shared';
 
 // Re-export shared utilities
-export { calculateBackoff, createJobData, generateId, hashPayload, parseDelay } from '@conveyor/shared';
+export {
+  calculateBackoff,
+  createJobData,
+  generateId,
+  hashPayload,
+  parseDelay,
+} from '@conveyor/shared';
 
 // Core classes
 export { EventBus } from './events.ts';
