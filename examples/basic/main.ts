@@ -1,0 +1,100 @@
+/**
+ * Conveyor — Basic Example
+ *
+ * Demonstrates Queue + Worker with the MemoryStore.
+ * Run: deno run --allow-all examples/basic/main.ts
+ */
+
+import { Queue, Worker } from '../../packages/core/src/mod.ts';
+import { MemoryStore } from '../../packages/store-memory/src/mod.ts';
+
+// Create a shared store instance
+const store = new MemoryStore();
+await store.connect();
+
+// ─── Define a Queue ──────────────────────────────────────────────────
+
+interface EmailPayload {
+  to: string;
+  subject: string;
+  body: string;
+}
+
+const emailQueue = new Queue<EmailPayload>('emails', {
+  store,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 1000 },
+    removeOnComplete: true,
+  },
+});
+
+// ─── Create a Worker ─────────────────────────────────────────────────
+
+const worker = new Worker<EmailPayload>(
+  'emails',
+  async (job) => {
+    console.log(`📧 Sending email to ${job.data.to}: "${job.data.subject}"`);
+    await job.updateProgress(50);
+
+    // Simulate email sending
+    await new Promise((r) => setTimeout(r, 500));
+
+    await job.updateProgress(100);
+    console.log(`✅ Email sent to ${job.data.to}`);
+
+    return { sent: true, timestamp: new Date().toISOString() };
+  },
+  {
+    store,
+    concurrency: 3,
+    lockDuration: 30_000,
+  },
+);
+
+// ─── Listen to Events ────────────────────────────────────────────────
+
+worker.on('completed', ({ job, result }: { job: unknown; result: unknown }) => {
+  console.log(`🎉 Job completed:`, result);
+});
+
+worker.on('failed', ({ job, error }: { job: unknown; error: Error }) => {
+  console.error(`❌ Job failed:`, error.message);
+});
+
+// ─── Add Jobs ────────────────────────────────────────────────────────
+
+console.log('Adding jobs...\n');
+
+// Regular add
+await emailQueue.add('welcome', {
+  to: 'alice@example.com',
+  subject: 'Welcome!',
+  body: 'Welcome to Conveyor',
+});
+
+// Using now() shortcut
+await emailQueue.now('notification', {
+  to: 'bob@example.com',
+  subject: 'New notification',
+  body: 'You have a new message',
+});
+
+// Using schedule() shortcut
+await emailQueue.schedule('2s', 'reminder', {
+  to: 'charlie@example.com',
+  subject: 'Reminder',
+  body: 'Don\'t forget!',
+});
+
+// Wait for processing
+console.log('\nWaiting for jobs to process...\n');
+await new Promise((r) => setTimeout(r, 5000));
+
+// ─── Cleanup ─────────────────────────────────────────────────────────
+
+await worker.close();
+await emailQueue.close();
+await store.disconnect();
+
+console.log('\n🚚 Done!');
