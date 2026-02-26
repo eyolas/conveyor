@@ -155,15 +155,17 @@ export class PgStore implements StoreInterface {
         if (['returnvalue', 'opts', 'logs', 'data'].includes(key)) {
           sets.push(`${col} = $${idx++}`);
           values.push(val !== null && val !== undefined ? JSON.stringify(val) : null);
-        } else if (key === 'state') {
-          sets.push(`${col} = $${idx++}`);
-          values.push(val);
-          // Also update priority if opts are being updated
         } else {
           sets.push(`${col} = $${idx++}`);
           values.push(val ?? null);
         }
       }
+    }
+
+    // Sync priority column when opts are updated
+    if ('opts' in updates && updates.opts) {
+      sets.push(`priority = $${idx++}`);
+      values.push(updates.opts.priority ?? 0);
     }
 
     if (sets.length === 0) return;

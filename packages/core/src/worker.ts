@@ -197,14 +197,22 @@ export class Worker<T = unknown> {
       });
 
       // Handle repeat jobs
-      await this.scheduleRepeat(job);
+      try {
+        await this.scheduleRepeat(job);
+      } catch (repeatErr) {
+        this.events.emit('error', repeatErr);
+      }
 
       // Handle removeOnComplete
       if (this.shouldRemove(job.opts.removeOnComplete)) {
         await this.store.removeJob(this.queueName, job.id);
       }
     } catch (err) {
-      await this.handleFailure(job, err as Error);
+      try {
+        await this.handleFailure(job, err as Error);
+      } catch (failureErr) {
+        this.events.emit('error', failureErr);
+      }
     } finally {
       this.stopLockRenewal(job.id);
       this.activeCount--;
@@ -367,7 +375,13 @@ export class Worker<T = unknown> {
 
   private async scheduleRepeat(job: Job<T>): Promise<void> {
     const repeat = job.opts.repeat;
-    if (!repeat?.every) return;
+    if (!repeat) return;
+
+    if (repeat.cron) {
+      throw new Error('Cron scheduling is not yet implemented. Use repeat.every instead.');
+    }
+
+    if (!repeat.every) return;
 
     // Check endDate
     if (repeat.endDate && new Date() >= repeat.endDate) return;

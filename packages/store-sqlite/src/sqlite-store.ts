@@ -264,6 +264,12 @@ export class SqliteStore implements StoreInterface {
       }
     }
 
+    // Sync priority column when opts are updated
+    if ('opts' in updates && updates.opts) {
+      sets.push('priority = ?');
+      values.push(updates.opts.priority ?? 0);
+    }
+
     if (sets.length === 0) return Promise.resolve();
 
     values.push(queueName, jobId);
