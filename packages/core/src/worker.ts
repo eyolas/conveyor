@@ -440,8 +440,8 @@ export class Worker<T = unknown> {
     } else if (repeat.every) {
       delay = parseDelay(repeat.every);
 
-      // Check endDate
-      if (repeat.endDate && new Date() >= repeat.endDate) return;
+      // Check endDate against next run time
+      if (repeat.endDate && new Date(Date.now() + delay) >= repeat.endDate) return;
     } else {
       return;
     }
