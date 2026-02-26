@@ -5,8 +5,15 @@
  * It polls the store for available jobs, locks them, and executes the handler.
  */
 
-import type { JobData, QueueEventType, StoreInterface, WorkerOptions } from '@conveyor/shared';
+import type {
+  JobData,
+  LimiterOptions,
+  QueueEventType,
+  StoreInterface,
+  WorkerOptions,
+} from '@conveyor/shared';
 import { calculateBackoff, createJobData, generateWorkerId, parseDelay } from '@conveyor/shared';
+import { Cron } from 'croner';
 import { EventBus } from './events.ts';
 import { Job } from './job.ts';
 
@@ -47,6 +54,8 @@ export class Worker<T = unknown> {
   private readonly maxGlobalConcurrency: number | null;
   private readonly lockDuration: number;
   private readonly stalledInterval: number;
+  private readonly limiter: LimiterOptions | null;
+  private rateLimitTimestamps: number[] = [];
 
   private activeCount = 0;
   private closed = false;
@@ -78,6 +87,7 @@ export class Worker<T = unknown> {
     this.maxGlobalConcurrency = options.maxGlobalConcurrency ?? null;
     this.lockDuration = options.lockDuration ?? 30_000;
     this.stalledInterval = options.stalledInterval ?? 30_000;
+    this.limiter = options.limiter ?? null;
 
     // Start processing
     this.poll();
@@ -170,6 +180,9 @@ export class Worker<T = unknown> {
     // Check local concurrency
     if (this.activeCount >= this.concurrency) return;
 
+    // Check rate limiter
+    if (this.isRateLimited()) return;
+
     // Check global concurrency
     if (this.maxGlobalConcurrency !== null) {
       const globalActive = await this.store.getActiveCount(this.queueName);
@@ -187,6 +200,9 @@ export class Worker<T = unknown> {
     );
 
     if (!jobData) return;
+
+    // Record timestamp for rate limiting
+    this.recordRateLimitTimestamp();
 
     // Process the job (don't await — allows concurrency)
     this.processJob(jobData as JobData<T>).catch((err) => {
@@ -414,19 +430,25 @@ export class Worker<T = unknown> {
     const repeat = job.opts.repeat;
     if (!repeat) return;
 
+    let delay: number;
+
     if (repeat.cron) {
-      throw new Error('Cron scheduling is not yet implemented. Use repeat.every instead.');
+      delay = this.getNextCronDelay(repeat.cron, repeat.tz);
+
+      // Check endDate against next run time
+      if (repeat.endDate && new Date(Date.now() + delay) >= repeat.endDate) return;
+    } else if (repeat.every) {
+      delay = parseDelay(repeat.every);
+
+      // Check endDate
+      if (repeat.endDate && new Date() >= repeat.endDate) return;
+    } else {
+      return;
     }
-
-    if (!repeat.every) return;
-
-    // Check endDate
-    if (repeat.endDate && new Date() >= repeat.endDate) return;
 
     // Check limit
     if (repeat.limit !== undefined && repeat.limit <= 0) return;
 
-    const interval = parseDelay(repeat.every);
     const nextRepeat = { ...repeat };
 
     // Decrement limit if set
@@ -434,7 +456,7 @@ export class Worker<T = unknown> {
       nextRepeat.limit = nextRepeat.limit - 1;
     }
 
-    const nextOpts = { ...job.opts, repeat: nextRepeat, delay: interval };
+    const nextOpts = { ...job.opts, repeat: nextRepeat, delay };
     // Remove jobId to avoid duplicate ID conflicts
     delete nextOpts.jobId;
 
@@ -447,6 +469,33 @@ export class Worker<T = unknown> {
       jobId: id,
       timestamp: new Date(),
     });
+  }
+
+  // ─── Rate Limiting ─────────────────────────────────────────────────
+
+  private isRateLimited(): boolean {
+    if (!this.limiter) return false;
+    const now = Date.now();
+    const windowStart = now - this.limiter.duration;
+    this.rateLimitTimestamps = this.rateLimitTimestamps.filter((t) => t > windowStart);
+    return this.rateLimitTimestamps.length >= this.limiter.max;
+  }
+
+  private recordRateLimitTimestamp(): void {
+    if (this.limiter) {
+      this.rateLimitTimestamps.push(Date.now());
+    }
+  }
+
+  // ─── Cron Helpers ─────────────────────────────────────────────────
+
+  private getNextCronDelay(cronExpr: string, tz?: string): number {
+    const cron = new Cron(cronExpr, { timezone: tz });
+    const nextRun = cron.nextRun();
+    if (!nextRun) {
+      throw new Error(`Cron expression "${cronExpr}" has no future runs`);
+    }
+    return nextRun.getTime() - Date.now();
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────

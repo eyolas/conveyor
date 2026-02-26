@@ -3,6 +3,7 @@
   "specifiers": {
     "jsr:@std/assert@1": "1.0.18",
     "jsr:@std/internal@^1.0.12": "1.0.12",
+    "npm:croner@10": "10.0.1",
     "npm:postgres@^3.4.0": "3.4.8"
   },
   "jsr": {
@@ -17,6 +18,9 @@
     }
   },
   "npm": {
+    "croner@10.0.1": {
+      "integrity": "sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g=="
+    },
     "postgres@3.4.8": {
       "integrity": "sha512-d+JFcLM17njZaOLkv6SCev7uoLaBtfK86vMUXhW1Z4glPWh4jozno9APvW/XKFJ3CCxVoC7OL38BqRydtu5nGg=="
     }
@@ -26,6 +30,11 @@
       "jsr:@std/assert@1"
     ],
     "members": {
+      "packages/core": {
+        "dependencies": [
+          "npm:croner@10"
+        ]
+      },
       "packages/store-pg": {
         "dependencies": [
           "npm:postgres@^3.4.0"
