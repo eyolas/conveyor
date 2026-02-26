@@ -32,11 +32,8 @@ export class PgStore implements StoreInterface {
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
   async connect(): Promise<void> {
-    if (typeof this.options.connection === 'string') {
-      this.sql = postgres(this.options.connection);
-    } else {
-      this.sql = postgres(this.options.connection);
-    }
+    const conn = this.options.connection;
+    this.sql = typeof conn === 'string' ? postgres(conn) : postgres(conn);
 
     if (this.options.autoMigrate !== false) {
       await runMigrations(this.sql);
