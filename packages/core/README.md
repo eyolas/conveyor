@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/eyolas/conveyor/main/assets/logo.jpeg" alt="Conveyor" width="120" />
+</p>
+
 # @conveyor/core
 
 Queue, Worker, and Job classes for the [Conveyor](../../README.md) job queue.

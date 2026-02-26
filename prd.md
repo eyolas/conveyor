@@ -665,7 +665,8 @@ identique :
 - [x] Rate limiting
 - [x] Graceful shutdown
 - [x] Repeated jobs (cron + human-readable)
-- [ ] README complet + logo
+- [x] README complet
+- [x] Logo
 - [ ] Benchmarks vs BullMQ
 - [ ] Publish sur JSR
 
