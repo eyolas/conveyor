@@ -1,8 +1,14 @@
+/**
+ * @module @conveyor/store-pg/mapping
+ *
+ * Mapping functions between {@linkcode JobData} and PostgreSQL row format.
+ */
+
 import type { JobData, JobOptions } from '@conveyor/shared';
 
 /**
  * Row shape returned by PostgreSQL queries.
- * JSONB columns are auto-parsed by the postgres driver.
+ * JSONB columns (`data`, `opts`, `logs`, `returnvalue`) are auto-parsed by the `postgres` driver.
  */
 export interface JobRow {
   id: string;
@@ -28,6 +34,12 @@ export interface JobRow {
   locked_by: string | null;
 }
 
+/**
+ * Convert a PostgreSQL row into a {@linkcode JobData} object.
+ *
+ * @param row - The raw row from the database.
+ * @returns A fully typed JobData object.
+ */
 export function rowToJobData(row: JobRow): JobData {
   return {
     id: row.id,
@@ -52,6 +64,13 @@ export function rowToJobData(row: JobRow): JobData {
   };
 }
 
+/**
+ * Convert a {@linkcode JobData} object into a PostgreSQL row for insertion.
+ * JSONB fields are serialized to JSON strings.
+ *
+ * @param job - The job data (with optional `id`).
+ * @returns A flat record suitable for parameterized INSERT.
+ */
 export function jobDataToRow(
   job: Omit<JobData, 'id'> & { id?: string },
 ): Record<string, unknown> {

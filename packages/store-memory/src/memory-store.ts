@@ -12,29 +12,36 @@
 import type { FetchOptions, JobData, JobState, StoreEvent, StoreInterface } from '@conveyor/shared';
 import { generateId } from '@conveyor/shared';
 
+/** @internal */
 type EventCallback = (event: StoreEvent) => void;
 
+/**
+ * In-memory implementation of {@linkcode StoreInterface}.
+ *
+ * Data is stored in plain `Map` objects and is lost when the process exits.
+ * Uses `structuredClone` to ensure callers receive isolated copies.
+ *
+ * @example
+ * ```ts
+ * const store = new MemoryStore();
+ * await store.connect();
+ * ```
+ */
 export class MemoryStore implements StoreInterface {
-  /** Jobs indexed by queueName -> jobId -> JobData */
   private jobs = new Map<string, Map<string, JobData>>();
-
-  /** Insertion order counter per queue for stable FIFO/LIFO */
   private insertionOrder = new Map<string, Map<string, number>>();
   private insertionCounter = 0;
-
-  /** Paused job names per queue */
   private pausedNames = new Map<string, Set<string>>();
-
-  /** Event subscribers per queue */
   private subscribers = new Map<string, Set<EventCallback>>();
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
+  /** No-op — memory store requires no connection setup. */
   connect(): Promise<void> {
-    // No-op for memory store
     return Promise.resolve();
   }
 
+  /** Clear all data and subscribers. */
   disconnect(): Promise<void> {
     this.jobs.clear();
     this.insertionOrder.clear();

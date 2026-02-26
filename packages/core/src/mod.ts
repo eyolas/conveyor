@@ -1,3 +1,26 @@
+/**
+ * @module @conveyor/core
+ *
+ * Core classes for the Conveyor job queue: Queue, Worker, Job, and EventBus.
+ * Also re-exports all shared types and utilities for convenience.
+ *
+ * @example
+ * ```ts
+ * import { Queue, Worker } from "@conveyor/core";
+ * import { MemoryStore } from "@conveyor/store-memory";
+ *
+ * const store = new MemoryStore();
+ * await store.connect();
+ *
+ * const queue = new Queue("my-queue", { store });
+ * await queue.add("send-email", { to: "user@example.com" });
+ *
+ * const worker = new Worker("my-queue", async (job) => {
+ *   console.log("Processing", job.name, job.data);
+ * }, { store });
+ * ```
+ */
+
 // Re-export shared types
 export type {
   BackoffOptions,
