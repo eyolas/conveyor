@@ -665,7 +665,7 @@ identique :
 - [x] Rate limiting
 - [x] Graceful shutdown
 - [x] Repeated jobs (cron + human-readable)
-- [ ] npm publish via JSR
+- [ ] Publish sur JSR
 - [ ] README complet + logo
 - [ ] Benchmarks vs BullMQ
 
