@@ -63,7 +63,6 @@ export class PgStore implements StoreInterface {
   // ─── Jobs CRUD ─────────────────────────────────────────────────────
 
   async saveJob(_queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
-    const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
     const dedupKey = (job as JobData).deduplicationKey;
 
     // Atomic dedup check inside a transaction
@@ -94,42 +93,8 @@ export class PgStore implements StoreInterface {
         }
 
         // No valid dedup match — insert
-        const row = jobDataToRow({ ...job, id });
-        const params = [
-          row.id,
-          row.queue_name,
-          row.name,
-          row.data,
-          row.state,
-          row.attempts_made,
-          row.progress,
-          row.returnvalue,
-          row.failed_reason,
-          row.opts,
-          row.deduplication_key,
-          row.logs,
-          row.priority,
-          row.created_at,
-          row.processed_at,
-          row.completed_at,
-          row.failed_at,
-          row.delay_until,
-          row.lock_until,
-          row.locked_by,
-        ] as (string | number | Date | null)[];
-
-        await tx.unsafe(
-          `INSERT INTO conveyor_jobs (
-            id, queue_name, name, data, state, attempts_made, progress,
-            returnvalue, failed_reason, opts, deduplication_key, logs,
-            priority, created_at, processed_at, completed_at, failed_at,
-            delay_until, lock_until, locked_by
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-            $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
-          )`,
-          params,
-        );
+        const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
+        await this.insertRow(tx, { ...job, id });
         return id;
       });
 
@@ -137,43 +102,8 @@ export class PgStore implements StoreInterface {
     }
 
     // No dedup key — simple insert
-    const row = jobDataToRow({ ...job, id });
-    const params = [
-      row.id,
-      row.queue_name,
-      row.name,
-      row.data,
-      row.state,
-      row.attempts_made,
-      row.progress,
-      row.returnvalue,
-      row.failed_reason,
-      row.opts,
-      row.deduplication_key,
-      row.logs,
-      row.priority,
-      row.created_at,
-      row.processed_at,
-      row.completed_at,
-      row.failed_at,
-      row.delay_until,
-      row.lock_until,
-      row.locked_by,
-    ] as (string | number | Date | null)[];
-
-    await this.sql.unsafe(
-      `INSERT INTO conveyor_jobs (
-        id, queue_name, name, data, state, attempts_made, progress,
-        returnvalue, failed_reason, opts, deduplication_key, logs,
-        priority, created_at, processed_at, completed_at, failed_at,
-        delay_until, lock_until, locked_by
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
-      )`,
-      params,
-    );
-
+    const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
+    await this.insertRow(this.sql, { ...job, id });
     return id;
   }
 
@@ -505,6 +435,50 @@ export class PgStore implements StoreInterface {
       DELETE FROM conveyor_jobs
       WHERE queue_name = ${queueName} AND state IN ('waiting', 'delayed')
     `;
+  }
+
+  // ─── Helpers ────────────────────────────────────────────────────────
+
+  private async insertRow(
+    sql: postgres.Sql | postgres.TransactionSql,
+    job: Omit<JobData, 'id'> & { id: string },
+  ): Promise<void> {
+    const row = jobDataToRow(job);
+    const params = [
+      row.id,
+      row.queue_name,
+      row.name,
+      row.data,
+      row.state,
+      row.attempts_made,
+      row.progress,
+      row.returnvalue,
+      row.failed_reason,
+      row.opts,
+      row.deduplication_key,
+      row.logs,
+      row.priority,
+      row.created_at,
+      row.processed_at,
+      row.completed_at,
+      row.failed_at,
+      row.delay_until,
+      row.lock_until,
+      row.locked_by,
+    ] as (string | number | Date | null)[];
+
+    await sql.unsafe(
+      `INSERT INTO conveyor_jobs (
+        id, queue_name, name, data, state, attempts_made, progress,
+        returnvalue, failed_reason, opts, deduplication_key, logs,
+        priority, created_at, processed_at, completed_at, failed_at,
+        delay_until, lock_until, locked_by
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+      )`,
+      params,
+    );
   }
 
   // ─── Events ────────────────────────────────────────────────────────
