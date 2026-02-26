@@ -6,6 +6,7 @@
  */
 
 import type { JobData, JobOptions } from '@conveyor/shared';
+import { assertJobState } from '@conveyor/shared';
 
 /**
  * Row shape returned by SQLite queries.
@@ -41,7 +42,8 @@ function parseJson(value: string | null, fallback: unknown = null): unknown {
   if (value === null || value === undefined) return fallback;
   try {
     return JSON.parse(value);
-  } catch {
+  } catch (err) {
+    console.warn('[Conveyor] Failed to parse JSON from DB:', err);
     return fallback;
   }
 }
@@ -69,7 +71,7 @@ export function rowToJobData(row: JobRow): JobData {
     queueName: row.queue_name,
     name: row.name,
     data: parseJson(row.data, {}),
-    state: row.state as JobData['state'],
+    state: assertJobState(row.state),
     attemptsMade: row.attempts_made,
     progress: row.progress,
     returnvalue: parseJson(row.returnvalue),

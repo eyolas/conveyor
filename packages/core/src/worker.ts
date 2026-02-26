@@ -102,7 +102,7 @@ export class Worker<T = unknown> {
    * @param event - The event type to listen for.
    * @param handler - The callback to invoke.
    */
-  on(event: QueueEventType, handler: (...args: unknown[]) => void): void {
+  on(event: QueueEventType, handler: (data: unknown) => void): void {
     this.events.on(event, handler);
   }
 
