@@ -88,7 +88,8 @@ export class MemoryStore implements StoreInterface {
   }
 
   getJob(queueName: string, jobId: string): Promise<JobData | null> {
-    return Promise.resolve(this.getQueue(queueName).get(jobId) ?? null);
+    const job = this.getQueue(queueName).get(jobId);
+    return Promise.resolve(job ? structuredClone(job) : null);
   }
 
   updateJob(

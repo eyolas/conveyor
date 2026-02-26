@@ -177,6 +177,33 @@ export class SqliteStore implements StoreInterface {
     const ids: string[] = [];
     this.runTransaction(() => {
       for (const job of jobs) {
+        const dedupKey = (job as JobData).deduplicationKey;
+
+        if (dedupKey) {
+          const existing = this.db.prepare(`
+            SELECT * FROM conveyor_jobs
+            WHERE queue_name = ? AND deduplication_key = ?
+              AND state NOT IN ('completed', 'failed')
+            ORDER BY created_at DESC
+            LIMIT 1
+          `).get(job.queueName, dedupKey) as JobRow | undefined;
+
+          if (existing) {
+            const matched = rowToJobData(existing);
+            const ttl = matched.opts.deduplication?.ttl;
+            if (ttl !== undefined && matched.createdAt) {
+              const expiresAt = matched.createdAt.getTime() + ttl;
+              if (expiresAt >= Date.now()) {
+                ids.push(matched.id);
+                continue;
+              }
+            } else {
+              ids.push(matched.id);
+              continue;
+            }
+          }
+        }
+
         const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
         const row = jobDataToRow({ ...job, id });
         row.seq = this.seqCounter++;
