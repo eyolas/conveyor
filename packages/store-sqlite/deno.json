@@ -5,7 +5,6 @@
   "publish": {
     "include": ["src/**/*.ts", "deno.json", "README.md", "LICENSE"]
   },
-  "imports": {},
   "lint": {
     "rules": {
       "exclude": ["no-slow-types"]
