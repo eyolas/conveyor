@@ -87,7 +87,7 @@ export interface BackoffOptions {
 
 /** Configuration for recurring (repeat) jobs. */
 export interface RepeatOptions {
-  /** Cron expression (5 or 6 fields). Not yet implemented. */
+  /** Cron expression (5, 6, or 7 fields). */
   cron?: string;
 
   /** Interval in ms or human-readable (`"5 minutes"`, `"2 hours"`). */

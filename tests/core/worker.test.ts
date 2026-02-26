@@ -309,34 +309,6 @@ Deno.test('Worker respects repeat.limit', testOpts, async () => {
   await store.disconnect();
 });
 
-// ─── Cron Not Implemented ───────────────────────────────────────────
-
-Deno.test('Worker throws on cron repeat', testOpts, async () => {
-  const store = new MemoryStore();
-  await store.connect();
-  const queue = new Queue(queueName, { store });
-
-  const errors: unknown[] = [];
-  const worker = createWorker(store, () => Promise.resolve('done'));
-  worker.on('error', (err) => errors.push(err));
-
-  await queue.add('cron-job', {}, {
-    repeat: { cron: '0 9 * * *' },
-  });
-
-  await waitFor(3000);
-
-  // The cron error should be caught
-  const cronError = errors.find(
-    (e) => e instanceof Error && e.message.includes('Cron scheduling is not yet implemented'),
-  );
-  assertEquals(cronError !== undefined, true);
-
-  await worker.close();
-  await queue.close();
-  await store.disconnect();
-});
-
 // ─── Stalled Detection ──────────────────────────────────────────────
 
 Deno.test('Worker detects and re-enqueues stalled jobs', testOpts, async () => {

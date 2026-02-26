@@ -165,6 +165,32 @@ export class Queue<T = unknown> {
   }
 
   /**
+   * Add a cron-scheduled recurring job.
+   *
+   * @param cronExpr - A cron expression (5, 6, or 7 fields).
+   * @param name - The job name.
+   * @param data - The job payload.
+   * @param opts - Optional job options.
+   * @returns The created job.
+   *
+   * @example
+   * ```ts
+   * await queue.cron("0 9 * * *", "daily-report", { type: "summary" });
+   * ```
+   */
+  cron(
+    cronExpr: string,
+    name: string,
+    data: T,
+    opts?: JobOptions,
+  ): Promise<Job<T>> {
+    return this.add(name, data, {
+      ...opts,
+      repeat: { ...opts?.repeat, cron: cronExpr },
+    });
+  }
+
+  /**
    * Add multiple jobs at once. Deduplication is applied per-job.
    *
    * @param jobs - An array of job descriptors (name, data, opts).
