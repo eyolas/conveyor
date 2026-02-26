@@ -12,12 +12,30 @@ import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
 import { runMigrations } from './migrations.ts';
 
+/** @internal */
 type EventCallback = (event: StoreEvent) => void;
 
+/**
+ * Configuration options for {@linkcode PgStore}.
+ */
 export interface PgStoreOptions extends StoreOptions {
+  /** A PostgreSQL connection string (e.g. `"postgres://user:pass@host/db"`) or `postgres` driver options. */
   connection: string | postgres.Options<Record<string, never>>;
 }
 
+/**
+ * PostgreSQL implementation of {@linkcode StoreInterface}.
+ *
+ * Uses `npm:postgres` for connection pooling, `FOR UPDATE SKIP LOCKED`
+ * for atomic job fetching, JSONB for structured columns, and
+ * LISTEN/NOTIFY for cross-process event delivery.
+ *
+ * @example
+ * ```ts
+ * const store = new PgStore({ connection: "postgres://localhost/mydb" });
+ * await store.connect();
+ * ```
+ */
 export class PgStore implements StoreInterface {
   private sql!: postgres.Sql;
   private readonly options: PgStoreOptions;
@@ -25,12 +43,14 @@ export class PgStore implements StoreInterface {
   private listeningChannels = new Set<string>();
   private listenPromises = new Map<string, Promise<{ unlisten: () => Promise<void> }>>();
 
+  /** @param options - PostgreSQL connection and store options. */
   constructor(options: PgStoreOptions) {
     this.options = options;
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
+  /** Connect to PostgreSQL and run pending migrations (unless `autoMigrate` is `false`). */
   async connect(): Promise<void> {
     const conn = this.options.connection;
     this.sql = typeof conn === 'string' ? postgres(conn) : postgres(conn);
@@ -40,6 +60,7 @@ export class PgStore implements StoreInterface {
     }
   }
 
+  /** Unlisten all channels, clear subscribers, and close the connection pool. */
   async disconnect(): Promise<void> {
     // Unlisten all channels before closing
     const unlistenResults = Array.from(this.listenPromises.values()).map(
@@ -563,6 +584,7 @@ export class PgStore implements StoreInterface {
 
   // ─── Utility for tests ────────────────────────────────────────────
 
+  /** Truncate all Conveyor tables. Intended for test cleanup only. */
   async truncateAll(): Promise<void> {
     await this.sql`TRUNCATE conveyor_jobs, conveyor_paused_names`;
   }

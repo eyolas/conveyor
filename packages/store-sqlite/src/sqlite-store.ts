@@ -12,12 +12,30 @@ import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
 import { runMigrations } from './migrations.ts';
 
+/** @internal */
 type EventCallback = (event: StoreEvent) => void;
 
+/**
+ * Configuration options for {@linkcode SqliteStore}.
+ */
 export interface SqliteStoreOptions extends StoreOptions {
+  /** Path to the SQLite database file (e.g. `"./data/queue.db"` or `":memory:"`). */
   filename: string;
 }
 
+/**
+ * SQLite implementation of {@linkcode StoreInterface}.
+ *
+ * Uses `node:sqlite` (DatabaseSync) which is built-in to
+ * Node.js 22.13+, Deno 2.2+, and Bun 1.2+.
+ * WAL mode and prepared statements provide good concurrency and performance.
+ *
+ * @example
+ * ```ts
+ * const store = new SqliteStore({ filename: ":memory:" });
+ * await store.connect();
+ * ```
+ */
 export class SqliteStore implements StoreInterface {
   private db!: DatabaseSync;
   private readonly options: SqliteStoreOptions;
@@ -36,10 +54,15 @@ export class SqliteStore implements StoreInterface {
     getPaused: StatementSync;
   };
 
+  /** @param options - SQLite database path and store options. */
   constructor(options: SqliteStoreOptions) {
     this.options = options;
   }
 
+  /**
+   * Run a function inside a `BEGIN IMMEDIATE` transaction.
+   * Automatically commits on success or rolls back on error.
+   */
   private runTransaction<T>(fn: () => T): T {
     this.db.exec('BEGIN IMMEDIATE');
     try {
@@ -54,6 +77,7 @@ export class SqliteStore implements StoreInterface {
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
+  /** Open the database, enable WAL mode, run migrations, and prepare statements. */
   connect(): Promise<void> {
     this.db = new DatabaseSync(this.options.filename);
 
@@ -112,6 +136,7 @@ export class SqliteStore implements StoreInterface {
     return Promise.resolve();
   }
 
+  /** Close the database and clear all subscribers. */
   disconnect(): Promise<void> {
     this.subscribers.clear();
     if (this.db) {

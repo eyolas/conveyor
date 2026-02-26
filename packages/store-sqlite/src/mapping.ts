@@ -1,9 +1,16 @@
+/**
+ * @module @conveyor/store-sqlite/mapping
+ *
+ * Mapping functions between {@linkcode JobData} and SQLite row format.
+ * JSON columns are stored as TEXT and timestamps as INTEGER (ms since epoch).
+ */
+
 import type { JobData, JobOptions } from '@conveyor/shared';
 
 /**
  * Row shape returned by SQLite queries.
- * JSON columns are stored as TEXT and must be parsed manually.
- * Timestamps are stored as INTEGER (ms since epoch).
+ * JSON columns (`data`, `opts`, `logs`, `returnvalue`) are stored as TEXT
+ * and must be parsed manually. Timestamps are INTEGER (ms since epoch).
  */
 export interface JobRow {
   id: string;
@@ -29,6 +36,7 @@ export interface JobRow {
   locked_by: string | null;
 }
 
+/** @internal Parse a JSON string, returning the fallback on failure. */
 function parseJson(value: string | null, fallback: unknown = null): unknown {
   if (value === null || value === undefined) return fallback;
   try {
@@ -38,14 +46,23 @@ function parseJson(value: string | null, fallback: unknown = null): unknown {
   }
 }
 
+/** @internal Convert an epoch-ms timestamp to a Date, or null. */
 function tsToDate(value: number | null): Date | null {
   return value !== null && value !== undefined ? new Date(value) : null;
 }
 
+/** @internal Convert a Date to epoch-ms timestamp, or null. */
 function dateToTs(value: Date | null): number | null {
   return value ? value.getTime() : null;
 }
 
+/**
+ * Convert a SQLite row into a {@linkcode JobData} object.
+ * Parses JSON TEXT columns and converts INTEGER timestamps to Dates.
+ *
+ * @param row - The raw row from the database.
+ * @returns A fully typed JobData object.
+ */
 export function rowToJobData(row: JobRow): JobData {
   return {
     id: row.id,
@@ -70,6 +87,13 @@ export function rowToJobData(row: JobRow): JobData {
   };
 }
 
+/**
+ * Convert a {@linkcode JobData} object into a SQLite row for insertion.
+ * JSON fields are serialized to strings; Dates are converted to epoch-ms integers.
+ *
+ * @param job - The job data (with optional `id`).
+ * @returns A flat record suitable for parameterized INSERT.
+ */
 export function jobDataToRow(
   job: Omit<JobData, 'id'> & { id?: string },
 ): Record<string, unknown> {
