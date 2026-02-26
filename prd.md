@@ -668,11 +668,11 @@ identique :
 - [x] README complet
 - [x] Logo
 - [x] Benchmarks vs BullMQ
+- [ ] CI native Node.js et Bun (tests exécutés nativement sans Deno)
 - [ ] Publish sur JSR
 
 ### Phase 4 — Ecosystem (V2)
 
-- [ ] CI native Node.js et Bun (tests exécutés nativement sans Deno)
 - [ ] Job flows / dependencies
 - [ ] Dashboard UI web
 - [ ] OpenTelemetry integration
