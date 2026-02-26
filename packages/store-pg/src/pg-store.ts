@@ -23,6 +23,7 @@ export class PgStore implements StoreInterface {
   private readonly options: PgStoreOptions;
   private subscribers = new Map<string, Set<EventCallback>>();
   private listeningChannels = new Set<string>();
+  private listenPromises = new Map<string, Promise<{ unlisten: () => Promise<void> }>>();
 
   constructor(options: PgStoreOptions) {
     this.options = options;
@@ -43,6 +44,13 @@ export class PgStore implements StoreInterface {
   }
 
   async disconnect(): Promise<void> {
+    // Unlisten all channels before closing
+    const unlistenResults = Array.from(this.listenPromises.values()).map(
+      (p) => p.then((sub) => sub.unlisten()).catch(() => {}),
+    );
+    await Promise.all(unlistenResults);
+
+    this.listenPromises.clear();
     this.listeningChannels.clear();
     this.subscribers.clear();
     await this.sql.end();
@@ -56,8 +64,80 @@ export class PgStore implements StoreInterface {
 
   async saveJob(_queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
     const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
-    const row = jobDataToRow({ ...job, id });
+    const dedupKey = (job as JobData).deduplicationKey;
 
+    // Atomic dedup check inside a transaction
+    if (dedupKey) {
+      const result = await this.sql.begin(async (tx) => {
+        const existing = await tx.unsafe(
+          `SELECT * FROM conveyor_jobs
+          WHERE queue_name = $1
+            AND deduplication_key = $2
+            AND state NOT IN ('completed', 'failed')
+          ORDER BY created_at DESC
+          LIMIT 1
+          FOR UPDATE`,
+          [job.queueName, dedupKey],
+        ) as JobRow[];
+
+        if (existing.length > 0) {
+          const matched = rowToJobData(existing[0]!);
+          const ttl = matched.opts.deduplication?.ttl;
+          if (ttl !== undefined && matched.createdAt) {
+            const expiresAt = matched.createdAt.getTime() + ttl;
+            if (expiresAt >= Date.now()) {
+              return matched.id;
+            }
+          } else {
+            return matched.id;
+          }
+        }
+
+        // No valid dedup match — insert
+        const row = jobDataToRow({ ...job, id });
+        const params = [
+          row.id,
+          row.queue_name,
+          row.name,
+          row.data,
+          row.state,
+          row.attempts_made,
+          row.progress,
+          row.returnvalue,
+          row.failed_reason,
+          row.opts,
+          row.deduplication_key,
+          row.logs,
+          row.priority,
+          row.created_at,
+          row.processed_at,
+          row.completed_at,
+          row.failed_at,
+          row.delay_until,
+          row.lock_until,
+          row.locked_by,
+        ] as (string | number | Date | null)[];
+
+        await tx.unsafe(
+          `INSERT INTO conveyor_jobs (
+            id, queue_name, name, data, state, attempts_made, progress,
+            returnvalue, failed_reason, opts, deduplication_key, logs,
+            priority, created_at, processed_at, completed_at, failed_at,
+            delay_until, lock_until, locked_by
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+            $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+          )`,
+          params,
+        );
+        return id;
+      });
+
+      return result;
+    }
+
+    // No dedup key — simple insert
+    const row = jobDataToRow({ ...job, id });
     const params = [
       row.id,
       row.queue_name,
@@ -439,7 +519,7 @@ export class PgStore implements StoreInterface {
     const channel = `conveyor:${queueName}`;
     if (!this.listeningChannels.has(channel)) {
       this.listeningChannels.add(channel);
-      this.sql.listen(channel, (payload) => {
+      const listenPromise = this.sql.listen(channel, (payload) => {
         try {
           const event = JSON.parse(payload) as StoreEvent;
           event.timestamp = new Date(event.timestamp);
@@ -449,7 +529,9 @@ export class PgStore implements StoreInterface {
         }
       }).catch(() => {
         // Ignore listen errors on shutdown
+        return { unlisten: () => Promise.resolve() };
       });
+      this.listenPromises.set(channel, listenPromise);
     }
   }
 
@@ -460,10 +542,26 @@ export class PgStore implements StoreInterface {
         callbacks.delete(callback);
         if (callbacks.size === 0) {
           this.subscribers.delete(queueName);
+          this.stopListening(queueName);
         }
       }
     } else {
       this.subscribers.delete(queueName);
+      this.stopListening(queueName);
+    }
+  }
+
+  private stopListening(queueName: string): void {
+    const channel = `conveyor:${queueName}`;
+    if (this.listeningChannels.has(channel)) {
+      this.listeningChannels.delete(channel);
+      const promise = this.listenPromises.get(channel);
+      if (promise) {
+        this.listenPromises.delete(channel);
+        promise.then((sub) => sub.unlisten()).catch(() => {
+          // Ignore unlisten errors on shutdown
+        });
+      }
     }
   }
 

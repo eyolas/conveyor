@@ -120,7 +120,7 @@ export function calculateBackoff(
       const base = backoff.delay * Math.pow(2, attemptsMade - 1);
       // Add jitter: ±25%
       const jitter = base * 0.25 * (Math.random() * 2 - 1);
-      return Math.floor(base + jitter);
+      return Math.max(0, Math.floor(base + jitter));
     }
     case 'custom':
       if (!backoff.customStrategy) {

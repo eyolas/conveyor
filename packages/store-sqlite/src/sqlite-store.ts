@@ -7,11 +7,7 @@ import type {
   StoreOptions,
 } from '@conveyor/shared';
 import { generateId } from '@conveyor/shared';
-import {
-  DatabaseSync,
-  type SQLInputValue,
-  type StatementSync,
-} from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue, type StatementSync } from 'node:sqlite';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
 import { runMigrations } from './migrations.ts';
@@ -131,6 +127,44 @@ export class SqliteStore implements StoreInterface {
   // ─── Jobs CRUD ─────────────────────────────────────────────────────
 
   saveJob(_queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
+    const dedupKey = (job as JobData).deduplicationKey;
+
+    // Atomic dedup check inside a transaction
+    if (dedupKey) {
+      const result = this.runTransaction(() => {
+        const existing = this.db.prepare(`
+          SELECT * FROM conveyor_jobs
+          WHERE queue_name = ? AND deduplication_key = ?
+            AND state NOT IN ('completed', 'failed')
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).get(job.queueName, dedupKey) as JobRow | undefined;
+
+        if (existing) {
+          const matched = rowToJobData(existing);
+          const ttl = matched.opts.deduplication?.ttl;
+          if (ttl !== undefined && matched.createdAt) {
+            const expiresAt = matched.createdAt.getTime() + ttl;
+            if (expiresAt >= Date.now()) {
+              return matched.id;
+            }
+          } else {
+            return matched.id;
+          }
+        }
+
+        // No valid dedup match — insert
+        const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
+        const row = jobDataToRow({ ...job, id });
+        row.seq = this.seqCounter++;
+        this.stmts.insertJob.run(row as Record<string, SQLInputValue>);
+        return id;
+      });
+
+      return Promise.resolve(result);
+    }
+
+    // No dedup key — simple insert
     const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
     const row = jobDataToRow({ ...job, id });
     row.seq = this.seqCounter++;
