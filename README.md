@@ -1,7 +1,13 @@
-# Conveyor
+<p align="center">
+  <img src="assets/logo.jpeg" alt="Conveyor" width="200" />
+</p>
 
-A multi-backend job queue for Deno, Node.js, and Bun. BullMQ-like API with PostgreSQL, SQLite, and
-in-memory support.
+<h1 align="center">Conveyor</h1>
+
+<p align="center">
+  A multi-backend job queue for Deno, Node.js, and Bun.<br/>
+  BullMQ-like API with PostgreSQL, SQLite, and in-memory support.
+</p>
 
 ## Why Conveyor?
 

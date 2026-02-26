@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/eyolas/conveyor/main/assets/logo.jpeg" alt="Conveyor" width="120" />
+</p>
+
 # @conveyor/store-pg
 
 PostgreSQL storage backend for the [Conveyor](../../README.md) job queue.
