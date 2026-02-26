@@ -521,8 +521,8 @@ export class PgStore implements StoreInterface {
           const event = JSON.parse(payload) as StoreEvent;
           event.timestamp = new Date(event.timestamp);
           this.deliverEvent(event);
-        } catch {
-          // Ignore malformed payloads
+        } catch (err) {
+          this.onEventHandlerError(err);
         }
       }).catch(() => {
         // Ignore listen errors on shutdown

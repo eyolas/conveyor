@@ -384,6 +384,59 @@ Deno.test('Worker emits error when handleFailure throws', testOpts, async () => 
 
 // ─── removeOnComplete ────────────────────────────────────────────────
 
+Deno.test('Worker removes job on fail when configured', testOpts, async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  const worker = createWorker(store, () => Promise.reject(new Error('boom')));
+
+  const job = await queue.add('auto-remove-fail', {}, { removeOnFail: true });
+  await waitFor(2500);
+
+  const stored = await store.getJob(queueName, job.id);
+  assertEquals(stored, null);
+
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
+
+// ─── maxGlobalConcurrency ─────────────────────────────────────────────
+
+Deno.test('Worker respects maxGlobalConcurrency', testOpts, async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  let concurrent = 0;
+  let maxConcurrent = 0;
+
+  const worker = createWorker(store, async () => {
+    concurrent++;
+    maxConcurrent = Math.max(maxConcurrent, concurrent);
+    await waitFor(300);
+    concurrent--;
+    return 'done';
+  }, { concurrency: 4, maxGlobalConcurrency: 1 });
+
+  await queue.addBulk([
+    { name: 'g1', data: {} },
+    { name: 'g2', data: {} },
+    { name: 'g3', data: {} },
+  ]);
+
+  await waitFor(5000);
+
+  assertEquals(maxConcurrent, 1);
+
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
+
+// ─── removeOnComplete ────────────────────────────────────────────────
+
 Deno.test('Worker removes job on complete when configured', testOpts, async () => {
   const store = new MemoryStore();
   await store.connect();
