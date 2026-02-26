@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "vitest": "^3"
+  },
+  "dependencies": {
+    "croner": "^10.0.0",
+    "postgres": "^3.4.0"
+  }
+}

@@ -1,73 +1,73 @@
-import { assertEquals, assertThrows } from '@std/assert';
+import { expect, test } from 'vitest';
 import { calculateBackoff, hashPayload, parseDelay } from '@conveyor/shared';
 
-Deno.test('parseDelay: number passthrough', () => {
-  assertEquals(parseDelay(5000), 5000);
+test('parseDelay: number passthrough', () => {
+  expect(parseDelay(5000)).toEqual(5000);
 });
 
-Deno.test('parseDelay: seconds', () => {
-  assertEquals(parseDelay('5s'), 5000);
-  assertEquals(parseDelay('5 seconds'), 5000);
+test('parseDelay: seconds', () => {
+  expect(parseDelay('5s')).toEqual(5000);
+  expect(parseDelay('5 seconds')).toEqual(5000);
 });
 
-Deno.test('parseDelay: minutes', () => {
-  assertEquals(parseDelay('10m'), 600_000);
-  assertEquals(parseDelay('10 minutes'), 600_000);
+test('parseDelay: minutes', () => {
+  expect(parseDelay('10m')).toEqual(600_000);
+  expect(parseDelay('10 minutes')).toEqual(600_000);
 });
 
-Deno.test('parseDelay: hours', () => {
-  assertEquals(parseDelay('2h'), 7_200_000);
-  assertEquals(parseDelay('2 hours'), 7_200_000);
+test('parseDelay: hours', () => {
+  expect(parseDelay('2h')).toEqual(7_200_000);
+  expect(parseDelay('2 hours')).toEqual(7_200_000);
 });
 
-Deno.test('parseDelay: days', () => {
-  assertEquals(parseDelay('1d'), 86_400_000);
-  assertEquals(parseDelay('1 day'), 86_400_000);
+test('parseDelay: days', () => {
+  expect(parseDelay('1d')).toEqual(86_400_000);
+  expect(parseDelay('1 day')).toEqual(86_400_000);
 });
 
-Deno.test('parseDelay: invalid format throws', () => {
-  assertThrows(() => parseDelay('foo'));
-  assertThrows(() => parseDelay('in 5 minutes'));
+test('parseDelay: invalid format throws', () => {
+  expect(() => parseDelay('foo')).toThrow();
+  expect(() => parseDelay('in 5 minutes')).toThrow();
 });
 
-Deno.test('calculateBackoff: fixed', () => {
-  assertEquals(calculateBackoff(1, { type: 'fixed', delay: 1000 }), 1000);
-  assertEquals(calculateBackoff(5, { type: 'fixed', delay: 1000 }), 1000);
+test('calculateBackoff: fixed', () => {
+  expect(calculateBackoff(1, { type: 'fixed', delay: 1000 })).toEqual(1000);
+  expect(calculateBackoff(5, { type: 'fixed', delay: 1000 })).toEqual(1000);
 });
 
-Deno.test('calculateBackoff: exponential grows', () => {
+test('calculateBackoff: exponential grows', () => {
   const delay1 = calculateBackoff(1, { type: 'exponential', delay: 1000 });
   const delay3 = calculateBackoff(3, { type: 'exponential', delay: 1000 });
   // With jitter, we check the range
-  assertEquals(delay1 >= 750 && delay1 <= 1250, true);
-  assertEquals(delay3 >= 3000 && delay3 <= 5000, true);
+  expect(delay1 >= 750 && delay1 <= 1250).toEqual(true);
+  expect(delay3 >= 3000 && delay3 <= 5000).toEqual(true);
 });
 
-Deno.test('calculateBackoff: exponential never returns negative', () => {
+test('calculateBackoff: exponential never returns negative', () => {
   // Run many iterations to verify Math.max(0, ...) clamp
   for (let i = 0; i < 100; i++) {
     const delay = calculateBackoff(1, { type: 'exponential', delay: 1000 });
-    assertEquals(delay >= 0, true, `Expected non-negative delay, got ${delay}`);
+    expect(delay >= 0).toEqual(true);
   }
 });
 
-Deno.test('calculateBackoff: custom strategy', () => {
+test('calculateBackoff: custom strategy', () => {
   const result = calculateBackoff(3, {
     type: 'custom',
     delay: 0,
     customStrategy: (attempt) => attempt * 500,
   });
-  assertEquals(result, 1500);
+  expect(result).toEqual(1500);
 });
 
-Deno.test('hashPayload: deterministic', async () => {
+test('hashPayload: deterministic', async () => {
   const hash1 = await hashPayload({ a: 1, b: 2 });
   const hash2 = await hashPayload({ b: 2, a: 1 }); // different key order
-  assertEquals(hash1, hash2); // should be same hash (keys sorted)
+  expect(hash1).toEqual(hash2); // should be same hash (keys sorted)
 });
 
-Deno.test('hashPayload: different data = different hash', async () => {
+test('hashPayload: different data = different hash', async () => {
   const hash1 = await hashPayload({ a: 1 });
   const hash2 = await hashPayload({ a: 2 });
-  assertEquals(hash1 !== hash2, true);
+  expect(hash1 !== hash2).toEqual(true);
 });

@@ -1,148 +1,143 @@
-import { assertEquals } from '@std/assert';
+import process from 'node:process';
+import { expect, test } from 'vitest';
 import { Queue, Worker } from '@conveyor/core';
 import { PgStore } from '@conveyor/store-pg';
 
-const PG_URL = Deno.env.get('PG_URL');
+const PG_URL = process.env.PG_URL ?? 'postgres://conveyor:conveyor@localhost:5432/conveyor_test';
 
 function waitFor(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
 async function createStore(): Promise<PgStore> {
-  const store = new PgStore({ connection: PG_URL! });
+  const store = new PgStore({ connection: PG_URL });
   await store.connect();
   await store.truncateAll();
   return store;
 }
 
-if (!PG_URL) {
-  console.warn('PG_URL not set — skipping PgStore integration tests');
-} else {
-  const testOpts = { sanitizeOps: false, sanitizeResources: false };
+test('[PgStore Integration] add job -> worker process -> completed', async () => {
+  const store = await createStore();
+  const queue = new Queue('int-test', { store });
 
-  Deno.test('[PgStore Integration] add job -> worker process -> completed', testOpts, async () => {
-    const store = await createStore();
-    const queue = new Queue('int-test', { store });
+  const results: unknown[] = [];
+  const worker = new Worker('int-test', (job) => {
+    results.push(job.data);
+    return Promise.resolve('done');
+  }, { store, concurrency: 1 });
 
-    const results: unknown[] = [];
-    const worker = new Worker('int-test', (job) => {
-      results.push(job.data);
-      return Promise.resolve('done');
-    }, { store, concurrency: 1 });
+  await queue.add('task', { value: 42 });
+  await waitFor(5000);
 
-    await queue.add('task', { value: 42 });
-    await waitFor(3000);
+  expect(results.length).toEqual(1);
+  expect((results[0] as Record<string, unknown>).value).toEqual(42);
 
-    assertEquals(results.length, 1);
-    assertEquals((results[0] as Record<string, unknown>).value, 42);
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
 
-    await worker.close();
-    await queue.close();
-    await store.disconnect();
+test('[PgStore Integration] job retry with backoff', async () => {
+  const store = await createStore();
+  const queue = new Queue('int-retry', { store });
+
+  let attempts = 0;
+  const worker = new Worker('int-retry', () => {
+    attempts++;
+    if (attempts < 3) throw new Error('fail');
+    return Promise.resolve('ok');
+  }, { store, concurrency: 1 });
+
+  await queue.add('retry-task', {}, {
+    attempts: 3,
+    backoff: { type: 'fixed', delay: 200 },
+  });
+  await waitFor(5000);
+
+  expect(attempts).toEqual(3);
+
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
+
+test('[PgStore Integration] stalled job recovery', async () => {
+  const store = await createStore();
+  const queue = new Queue('int-stalled', { store });
+
+  // Add a job and manually simulate a dead worker holding an expired lock
+  const job = await queue.add('stall-task', {}, { attempts: 2 });
+  await store.updateJob('int-stalled', job.id, {
+    state: 'active',
+    lockedBy: 'dead-worker',
+    lockUntil: new Date(Date.now() - 10_000),
   });
 
-  Deno.test('[PgStore Integration] job retry with backoff', testOpts, async () => {
-    const store = await createStore();
-    const queue = new Queue('int-retry', { store });
-
-    let attempts = 0;
-    const worker = new Worker('int-retry', () => {
-      attempts++;
-      if (attempts < 3) throw new Error('fail');
-      return Promise.resolve('ok');
-    }, { store, concurrency: 1 });
-
-    await queue.add('retry-task', {}, {
-      attempts: 3,
-      backoff: { type: 'fixed', delay: 200 },
-    });
-    await waitFor(5000);
-
-    assertEquals(attempts, 3);
-
-    await worker.close();
-    await queue.close();
-    await store.disconnect();
+  // Start a new worker — its stalled checker should detect and re-enqueue the job
+  let processCount = 0;
+  const worker = new Worker('int-stalled', () => {
+    processCount++;
+    return Promise.resolve('recovered');
+  }, {
+    store,
+    concurrency: 1,
+    lockDuration: 30_000,
+    stalledInterval: 500,
   });
 
-  Deno.test('[PgStore Integration] stalled job recovery', testOpts, async () => {
-    const store = await createStore();
-    const queue = new Queue('int-stalled', { store });
+  await waitFor(3000);
 
-    // Add a job and manually simulate a dead worker holding an expired lock
-    const job = await queue.add('stall-task', {}, { attempts: 2 });
-    await store.updateJob('int-stalled', job.id, {
-      state: 'active',
-      lockedBy: 'dead-worker',
-      lockUntil: new Date(Date.now() - 10_000),
-    });
+  // Job should have been detected as stalled and re-processed
+  expect(processCount >= 1).toEqual(true);
 
-    // Start a new worker — its stalled checker should detect and re-enqueue the job
-    let processCount = 0;
-    const worker = new Worker('int-stalled', () => {
-      processCount++;
-      return Promise.resolve('recovered');
-    }, {
-      store,
-      concurrency: 1,
-      lockDuration: 30_000,
-      stalledInterval: 500,
-    });
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
 
-    await waitFor(3000);
+test('[PgStore Integration] delayed job promotion', async () => {
+  const store = await createStore();
+  const queue = new Queue('int-delayed', { store });
 
-    // Job should have been detected as stalled and re-processed
-    assertEquals(processCount >= 1, true);
+  const processed: string[] = [];
+  const worker = new Worker('int-delayed', (job) => {
+    processed.push(job.name);
+    return Promise.resolve('done');
+  }, { store, concurrency: 1 });
 
-    await worker.close();
-    await queue.close();
-    await store.disconnect();
-  });
+  await queue.add('delayed-task', {}, { delay: 1000 });
+  await waitFor(500);
+  expect(processed.length).toEqual(0);
 
-  Deno.test('[PgStore Integration] delayed job promotion', testOpts, async () => {
-    const store = await createStore();
-    const queue = new Queue('int-delayed', { store });
+  await waitFor(3000);
+  expect(processed.length).toEqual(1);
+  expect(processed[0]).toEqual('delayed-task');
 
-    const processed: string[] = [];
-    const worker = new Worker('int-delayed', (job) => {
-      processed.push(job.name);
-      return Promise.resolve('done');
-    }, { store, concurrency: 1 });
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
 
-    await queue.add('delayed-task', {}, { delay: 1000 });
+test('[PgStore Integration] global concurrency via getActiveCount', async () => {
+  const store = await createStore();
+  const queue = new Queue('int-concurrency', { store });
+
+  let maxActive = 0;
+  const worker = new Worker('int-concurrency', async () => {
+    const count = await store.getActiveCount('int-concurrency');
+    if (count > maxActive) maxActive = count;
     await waitFor(500);
-    assertEquals(processed.length, 0);
+    return 'done';
+  }, { store, concurrency: 5, maxGlobalConcurrency: 2 });
 
-    await waitFor(3000);
-    assertEquals(processed.length, 1);
-    assertEquals(processed[0], 'delayed-task');
+  for (let i = 0; i < 5; i++) {
+    await queue.add('conc-task', { i });
+  }
+  await waitFor(5000);
 
-    await worker.close();
-    await queue.close();
-    await store.disconnect();
-  });
+  expect(maxActive <= 2).toEqual(true);
 
-  Deno.test('[PgStore Integration] global concurrency via getActiveCount', testOpts, async () => {
-    const store = await createStore();
-    const queue = new Queue('int-concurrency', { store });
-
-    let maxActive = 0;
-    const worker = new Worker('int-concurrency', async () => {
-      const count = await store.getActiveCount('int-concurrency');
-      if (count > maxActive) maxActive = count;
-      await waitFor(500);
-      return 'done';
-    }, { store, concurrency: 5, maxGlobalConcurrency: 2 });
-
-    for (let i = 0; i < 5; i++) {
-      await queue.add('conc-task', { i });
-    }
-    await waitFor(5000);
-
-    assertEquals(maxActive <= 2, true);
-
-    await worker.close();
-    await queue.close();
-    await store.disconnect();
-  });
-}
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});

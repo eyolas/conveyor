@@ -1,15 +1,14 @@
-import { assertEquals } from '@std/assert';
+import { expect, test } from 'vitest';
 import { Queue, Worker } from '@conveyor/core';
 import { MemoryStore } from '@conveyor/store-memory';
 
 const queueName = 'error-path-tests';
-const testOpts = { sanitizeOps: false, sanitizeResources: false };
 
 function waitFor(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-Deno.test('Worker emits error when store.fetchNextJob throws', testOpts, async () => {
+test('Worker emits error when store.fetchNextJob throws', async () => {
   const store = new MemoryStore();
   await store.connect();
 
@@ -32,16 +31,15 @@ Deno.test('Worker emits error when store.fetchNextJob throws', testOpts, async (
 
   await waitFor(3500);
 
-  assertEquals(errors.length >= 1, true);
-  assertEquals((errors[0] as Error).message, 'fetchNextJob exploded');
+  expect(errors.length >= 1).toEqual(true);
+  expect((errors[0] as Error).message).toEqual('fetchNextJob exploded');
 
   await worker.close();
   await store.disconnect();
 });
 
-Deno.test(
+test(
   'Worker emits error when store.updateJob throws during completion',
-  testOpts,
   async () => {
     const store = new MemoryStore();
     await store.connect();
@@ -65,8 +63,8 @@ Deno.test(
     await queue.add('test-job', { x: 1 });
     await waitFor(3500);
 
-    assertEquals(errors.length >= 1, true);
-    assertEquals((errors[0] as Error).message, 'updateJob exploded');
+    expect(errors.length >= 1).toEqual(true);
+    expect((errors[0] as Error).message).toEqual('updateJob exploded');
 
     await worker.close();
     await queue.close();
@@ -74,9 +72,8 @@ Deno.test(
   },
 );
 
-Deno.test(
+test(
   'onEventHandlerError callback is called when event handler throws',
-  testOpts,
   async () => {
     const handlerErrors: unknown[] = [];
     const store = new MemoryStore({
@@ -96,8 +93,8 @@ Deno.test(
       timestamp: new Date(),
     });
 
-    assertEquals(handlerErrors.length, 1);
-    assertEquals((handlerErrors[0] as Error).message, 'handler boom');
+    expect(handlerErrors.length).toEqual(1);
+    expect((handlerErrors[0] as Error).message).toEqual('handler boom');
 
     await store.disconnect();
   },

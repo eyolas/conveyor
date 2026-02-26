@@ -1,18 +1,18 @@
-import { assertEquals } from '@std/assert';
+import { expect, test } from 'vitest';
 import { EventBus } from '@conveyor/core';
 
-Deno.test('EventBus emits events to handlers', () => {
+test('EventBus emits events to handlers', () => {
   const bus = new EventBus();
   const received: unknown[] = [];
 
   bus.on('waiting', (data) => received.push(data));
   bus.emit('waiting', { id: '1' });
 
-  assertEquals(received.length, 1);
-  assertEquals(received[0], { id: '1' });
+  expect(received.length).toEqual(1);
+  expect(received[0]).toEqual({ id: '1' });
 });
 
-Deno.test('EventBus off removes handler', () => {
+test('EventBus off removes handler', () => {
   const bus = new EventBus();
   const received: unknown[] = [];
 
@@ -21,10 +21,10 @@ Deno.test('EventBus off removes handler', () => {
   bus.off('waiting', handler);
   bus.emit('waiting', { id: '1' });
 
-  assertEquals(received.length, 0);
+  expect(received.length).toEqual(0);
 });
 
-Deno.test('EventBus removeAllListeners clears all', () => {
+test('EventBus removeAllListeners clears all', () => {
   const bus = new EventBus();
   const received: unknown[] = [];
 
@@ -35,10 +35,10 @@ Deno.test('EventBus removeAllListeners clears all', () => {
   bus.emit('waiting', 1);
   bus.emit('active', 2);
 
-  assertEquals(received.length, 0);
+  expect(received.length).toEqual(0);
 });
 
-Deno.test('EventBus handler error emits on error channel', () => {
+test('EventBus handler error emits on error channel', () => {
   const bus = new EventBus();
   const errors: unknown[] = [];
 
@@ -49,11 +49,11 @@ Deno.test('EventBus handler error emits on error channel', () => {
 
   bus.emit('waiting', {});
 
-  assertEquals(errors.length, 1);
-  assertEquals((errors[0] as Error).message, 'handler boom');
+  expect(errors.length).toEqual(1);
+  expect((errors[0] as Error).message).toEqual('handler boom');
 });
 
-Deno.test('EventBus recursion guard prevents infinite loop on error handler throw', () => {
+test('EventBus recursion guard prevents infinite loop on error handler throw', () => {
   const bus = new EventBus();
   const consoleErrors: unknown[] = [];
 
@@ -74,13 +74,13 @@ Deno.test('EventBus recursion guard prevents infinite loop on error handler thro
     bus.emit('waiting', {});
 
     // The recursive error should be caught by console.error
-    assertEquals(consoleErrors.length, 1);
+    expect(consoleErrors.length).toEqual(1);
   } finally {
     console.error = originalError;
   }
 });
 
-Deno.test('EventBus removeAllListeners by event', () => {
+test('EventBus removeAllListeners by event', () => {
   const bus = new EventBus();
   const received: unknown[] = [];
 
@@ -91,6 +91,6 @@ Deno.test('EventBus removeAllListeners by event', () => {
   bus.emit('waiting', 1);
   bus.emit('active', 2);
 
-  assertEquals(received.length, 1);
-  assertEquals(received[0], 2);
+  expect(received.length).toEqual(1);
+  expect(received[0]).toEqual(2);
 });

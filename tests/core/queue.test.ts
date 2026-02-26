@@ -1,4 +1,4 @@
-import { assertEquals, assertExists, assertRejects } from '@std/assert';
+import { expect, test } from 'vitest';
 import { Queue } from '@conveyor/core';
 import { MemoryStore } from '@conveyor/store-memory';
 
@@ -15,13 +15,13 @@ function createQueue(opts?: { defaultJobOptions?: Record<string, unknown> }) {
 
 // ─── defaultJobOptions ───────────────────────────────────────────────
 
-Deno.test('Queue applies defaultJobOptions to added jobs', async () => {
+test('Queue applies defaultJobOptions to added jobs', async () => {
   const { queue, store } = createQueue({ defaultJobOptions: { attempts: 3 } });
   await store.connect();
 
   const job = await queue.add('default-opts-job', { v: 1 });
 
-  assertEquals(job.opts.attempts, 3);
+  expect(job.opts.attempts).toEqual(3);
 
   await queue.close();
   await store.disconnect();
@@ -29,44 +29,44 @@ Deno.test('Queue applies defaultJobOptions to added jobs', async () => {
 
 // ─── add ─────────────────────────────────────────────────────────────
 
-Deno.test('Queue.add creates a waiting job', async () => {
+test('Queue.add creates a waiting job', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
   const job = await queue.add('test-job', { foo: 'bar' });
 
-  assertExists(job.id);
-  assertEquals(job.name, 'test-job');
-  assertEquals(job.data, { foo: 'bar' });
-  assertEquals(job.state, 'waiting');
+  expect(job.id).toBeDefined();
+  expect(job.name).toEqual('test-job');
+  expect(job.data).toEqual({ foo: 'bar' });
+  expect(job.state).toEqual('waiting');
 
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Queue.add with custom jobId', async () => {
+test('Queue.add with custom jobId', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
   const job = await queue.add('test-job', {}, { jobId: 'my-id-123' });
 
-  assertEquals(job.id, 'my-id-123');
+  expect(job.id).toEqual('my-id-123');
 
   const retrieved = await queue.getJob('my-id-123');
-  assertExists(retrieved);
-  assertEquals(retrieved.id, 'my-id-123');
+  expect(retrieved).toBeDefined();
+  expect(retrieved!.id).toEqual('my-id-123');
 
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Queue.add with delay creates delayed job', async () => {
+test('Queue.add with delay creates delayed job', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
   const job = await queue.add('delayed-job', {}, { delay: 5000 });
 
-  assertEquals(job.state, 'delayed');
+  expect(job.state).toEqual('delayed');
 
   await queue.close();
   await store.disconnect();
@@ -74,7 +74,7 @@ Deno.test('Queue.add with delay creates delayed job', async () => {
 
 // ─── addBulk ─────────────────────────────────────────────────────────
 
-Deno.test('Queue.addBulk adds multiple jobs', async () => {
+test('Queue.addBulk adds multiple jobs', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
@@ -84,8 +84,8 @@ Deno.test('Queue.addBulk adds multiple jobs', async () => {
     { name: 'job-3', data: { i: 3 } },
   ]);
 
-  assertEquals(jobs.length, 3);
-  assertEquals(await queue.count('waiting'), 3);
+  expect(jobs.length).toEqual(3);
+  expect(await queue.count('waiting')).toEqual(3);
 
   await queue.close();
   await store.disconnect();
@@ -93,7 +93,7 @@ Deno.test('Queue.addBulk adds multiple jobs', async () => {
 
 // ─── Deduplication ───────────────────────────────────────────────────
 
-Deno.test('Queue.add deduplication by key', async () => {
+test('Queue.add deduplication by key', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
@@ -105,13 +105,13 @@ Deno.test('Queue.add deduplication by key', async () => {
   });
 
   // Should return the same job (dedup hit)
-  assertEquals(job1.id, job2.id);
+  expect(job1.id).toEqual(job2.id);
 
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Queue.add deduplication by hash', async () => {
+test('Queue.add deduplication by hash', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
@@ -124,13 +124,13 @@ Deno.test('Queue.add deduplication by hash', async () => {
     deduplication: { hash: true },
   });
 
-  assertEquals(job1.id, job2.id);
+  expect(job1.id).toEqual(job2.id);
 
   // Different payload should create a new job
   const job3 = await queue.add('dedup', { user: 'xyz' }, {
     deduplication: { hash: true },
   });
-  assertEquals(job3.id !== job1.id, true);
+  expect(job3.id !== job1.id).toEqual(true);
 
   await queue.close();
   await store.disconnect();
@@ -138,52 +138,52 @@ Deno.test('Queue.add deduplication by hash', async () => {
 
 // ─── schedule / now / every ─────────────────────────────────────────
 
-Deno.test('Queue.schedule creates delayed job', async () => {
+test('Queue.schedule creates delayed job', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
   const job = await queue.schedule('5s', 'scheduled-job', {});
 
-  assertEquals(job.state, 'delayed');
+  expect(job.state).toEqual('delayed');
 
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Queue.schedule with "in" prefix', async () => {
+test('Queue.schedule with "in" prefix', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
   const job = await queue.schedule('in 10 minutes', 'scheduled-job', {});
 
-  assertEquals(job.state, 'delayed');
+  expect(job.state).toEqual('delayed');
 
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Queue.now creates immediate job', async () => {
+test('Queue.now creates immediate job', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
   const job = await queue.now('immediate-job', {});
 
-  assertEquals(job.state, 'waiting');
+  expect(job.state).toEqual('waiting');
 
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Queue.every creates a job with repeat options', async () => {
+test('Queue.every creates a job with repeat options', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
   const job = await queue.every('2 hours', 'recurring-job', { task: 'cleanup' });
 
-  assertExists(job.id);
-  assertEquals(job.name, 'recurring-job');
-  assertExists(job.opts.repeat);
-  assertEquals(job.opts.repeat!.every, '2 hours');
+  expect(job.id).toBeDefined();
+  expect(job.name).toEqual('recurring-job');
+  expect(job.opts.repeat).toBeDefined();
+  expect(job.opts.repeat!.every).toEqual('2 hours');
 
   await queue.close();
   await store.disconnect();
@@ -191,7 +191,7 @@ Deno.test('Queue.every creates a job with repeat options', async () => {
 
 // ─── pause / resume ─────────────────────────────────────────────────
 
-Deno.test('Queue.pause and resume (global)', async () => {
+test('Queue.pause and resume (global)', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
@@ -200,17 +200,17 @@ Deno.test('Queue.pause and resume (global)', async () => {
   await queue.pause();
   // When paused, fetchNextJob should return null
   const fetched = await store.fetchNextJob(queueName, 'w1', 30_000);
-  assertEquals(fetched, null);
+  expect(fetched).toEqual(null);
 
   await queue.resume();
   const fetched2 = await store.fetchNextJob(queueName, 'w1', 30_000);
-  assertExists(fetched2);
+  expect(fetched2).toBeDefined();
 
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Queue.pause and resume by job name', async () => {
+test('Queue.pause and resume by job name', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
@@ -221,11 +221,11 @@ Deno.test('Queue.pause and resume by job name', async () => {
 
   // Only SMS should be fetchable
   const fetched = await store.fetchNextJob(queueName, 'w1', 30_000);
-  assertEquals(fetched?.name, 'sms');
+  expect(fetched?.name).toEqual('sms');
 
   await queue.resume({ jobName: 'email' });
   const fetched2 = await store.fetchNextJob(queueName, 'w1', 30_000);
-  assertEquals(fetched2?.name, 'email');
+  expect(fetched2?.name).toEqual('email');
 
   await queue.close();
   await store.disconnect();
@@ -233,7 +233,7 @@ Deno.test('Queue.pause and resume by job name', async () => {
 
 // ─── drain ──────────────────────────────────────────────────────────
 
-Deno.test('Queue.drain removes all waiting/delayed jobs', async () => {
+test('Queue.drain removes all waiting/delayed jobs', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
@@ -243,8 +243,8 @@ Deno.test('Queue.drain removes all waiting/delayed jobs', async () => {
 
   await queue.drain();
 
-  assertEquals(await queue.count('waiting'), 0);
-  assertEquals(await queue.count('delayed'), 0);
+  expect(await queue.count('waiting')).toEqual(0);
+  expect(await queue.count('delayed')).toEqual(0);
 
   await queue.close();
   await store.disconnect();
@@ -252,7 +252,7 @@ Deno.test('Queue.drain removes all waiting/delayed jobs', async () => {
 
 // ─── clean ──────────────────────────────────────────────────────────
 
-Deno.test('Queue.clean removes old completed jobs', async () => {
+test('Queue.clean removes old completed jobs', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
@@ -263,7 +263,7 @@ Deno.test('Queue.clean removes old completed jobs', async () => {
   });
 
   const removed = await queue.clean('completed', 5_000);
-  assertEquals(removed, 1);
+  expect(removed).toEqual(1);
 
   await queue.close();
   await store.disconnect();
@@ -271,7 +271,7 @@ Deno.test('Queue.clean removes old completed jobs', async () => {
 
 // ─── events ─────────────────────────────────────────────────────────
 
-Deno.test('Queue.add emits waiting event', async () => {
+test('Queue.add emits waiting event', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
@@ -280,13 +280,13 @@ Deno.test('Queue.add emits waiting event', async () => {
 
   await queue.add('job', {});
 
-  assertEquals(events, ['waiting']);
+  expect(events).toEqual(['waiting']);
 
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Queue.add emits delayed event for delayed jobs', async () => {
+test('Queue.add emits delayed event for delayed jobs', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
@@ -295,7 +295,7 @@ Deno.test('Queue.add emits delayed event for delayed jobs', async () => {
 
   await queue.add('job', {}, { delay: 5000 });
 
-  assertEquals(events, ['delayed']);
+  expect(events).toEqual(['delayed']);
 
   await queue.close();
   await store.disconnect();
@@ -303,35 +303,31 @@ Deno.test('Queue.add emits delayed event for delayed jobs', async () => {
 
 // ─── close ──────────────────────────────────────────────────────────
 
-Deno.test('Queue.close prevents further operations', async () => {
+test('Queue.close prevents further operations', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
   await queue.close();
 
-  await assertRejects(
-    () => queue.add('job', {}),
-    Error,
-    'closed',
-  );
+  await expect(queue.add('job', {})).rejects.toThrow('closed');
 
   await store.disconnect();
 });
 
 // ─── getJob / getJobs ───────────────────────────────────────────────
 
-Deno.test('Queue.getJob returns null for non-existent job', async () => {
+test('Queue.getJob returns null for non-existent job', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
   const result = await queue.getJob('nonexistent');
-  assertEquals(result, null);
+  expect(result).toEqual(null);
 
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Queue.getJobs returns jobs by state', async () => {
+test('Queue.getJobs returns jobs by state', async () => {
   const { queue, store } = createQueue();
   await store.connect();
 
@@ -339,7 +335,7 @@ Deno.test('Queue.getJobs returns jobs by state', async () => {
   await queue.add('job-2', {});
 
   const jobs = await queue.getJobs('waiting');
-  assertEquals(jobs.length, 2);
+  expect(jobs.length).toEqual(2);
 
   await queue.close();
   await store.disconnect();

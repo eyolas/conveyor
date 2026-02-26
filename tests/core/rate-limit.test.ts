@@ -1,11 +1,9 @@
-import { assertEquals } from '@std/assert';
+import { expect, test } from 'vitest';
 import { Queue, Worker } from '@conveyor/core';
 import type { Job } from '@conveyor/core';
 import { MemoryStore } from '@conveyor/store-memory';
 
 const queueName = 'test-rate-limit';
-
-const testOpts = { sanitizeOps: false, sanitizeResources: false };
 
 function createWorker<T = unknown>(
   store: MemoryStore,
@@ -25,7 +23,7 @@ function waitFor(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-Deno.test('Worker rate limiter processes up to max jobs in duration window', testOpts, async () => {
+test('Worker rate limiter processes up to max jobs in duration window', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -45,14 +43,14 @@ Deno.test('Worker rate limiter processes up to max jobs in duration window', tes
 
   // Wait for initial burst — should process at most 2 in the first window
   await waitFor(2000);
-  assertEquals(processCount <= 2, true, `Expected <= 2, got ${processCount}`);
+  expect(processCount <= 2).toEqual(true);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Worker rate limiter resumes after window expires', testOpts, async () => {
+test('Worker rate limiter resumes after window expires', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -71,14 +69,14 @@ Deno.test('Worker rate limiter resumes after window expires', testOpts, async ()
 
   // After the window expires + processing time, more jobs should process
   await waitFor(5000);
-  assertEquals(processCount >= 4, true, `Expected >= 4 after window expiry, got ${processCount}`);
+  expect(processCount >= 4).toEqual(true);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Worker without rate limiter processes all jobs normally', testOpts, async () => {
+test('Worker without rate limiter processes all jobs normally', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -94,7 +92,7 @@ Deno.test('Worker without rate limiter processes all jobs normally', testOpts, a
   }
 
   await waitFor(7000);
-  assertEquals(processCount, 5);
+  expect(processCount).toEqual(5);
 
   await worker.close();
   await queue.close();

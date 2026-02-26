@@ -1,8 +1,6 @@
-import { assertEquals } from '@std/assert';
+import { expect, test } from 'vitest';
 import { Queue, Worker } from '@conveyor/core';
 import { SqliteStore } from '@conveyor/store-sqlite';
-
-const testOpts = { sanitizeOps: false, sanitizeResources: false };
 
 function waitFor(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -12,9 +10,8 @@ function createStore(): SqliteStore {
   return new SqliteStore({ filename: ':memory:' });
 }
 
-Deno.test(
+test(
   '[SqliteStore Integration] add job -> worker process -> completed',
-  testOpts,
   async () => {
     const store = createStore();
     await store.connect();
@@ -29,8 +26,8 @@ Deno.test(
     await queue.add('task', { value: 42 });
     await waitFor(3000);
 
-    assertEquals(results.length, 1);
-    assertEquals((results[0] as Record<string, unknown>).value, 42);
+    expect(results.length).toEqual(1);
+    expect((results[0] as Record<string, unknown>).value).toEqual(42);
 
     await worker.close();
     await queue.close();
@@ -38,7 +35,7 @@ Deno.test(
   },
 );
 
-Deno.test('[SqliteStore Integration] job retry with backoff', testOpts, async () => {
+test('[SqliteStore Integration] job retry with backoff', async () => {
   const store = createStore();
   await store.connect();
   const queue = new Queue('int-retry', { store });
@@ -56,14 +53,14 @@ Deno.test('[SqliteStore Integration] job retry with backoff', testOpts, async ()
   });
   await waitFor(5000);
 
-  assertEquals(attempts, 3);
+  expect(attempts).toEqual(3);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('[SqliteStore Integration] stalled job recovery', testOpts, async () => {
+test('[SqliteStore Integration] stalled job recovery', async () => {
   const store = createStore();
   await store.connect();
   const queue = new Queue('int-stalled', { store });
@@ -91,14 +88,14 @@ Deno.test('[SqliteStore Integration] stalled job recovery', testOpts, async () =
   await waitFor(3000);
 
   // Job should have been detected as stalled and re-processed
-  assertEquals(processCount >= 1, true);
+  expect(processCount >= 1).toEqual(true);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('[SqliteStore Integration] delayed job promotion', testOpts, async () => {
+test('[SqliteStore Integration] delayed job promotion', async () => {
   const store = createStore();
   await store.connect();
   const queue = new Queue('int-delayed', { store });
@@ -111,18 +108,18 @@ Deno.test('[SqliteStore Integration] delayed job promotion', testOpts, async () 
 
   await queue.add('delayed-task', {}, { delay: 1000 });
   await waitFor(500);
-  assertEquals(processed.length, 0);
+  expect(processed.length).toEqual(0);
 
   await waitFor(3000);
-  assertEquals(processed.length, 1);
-  assertEquals(processed[0], 'delayed-task');
+  expect(processed.length).toEqual(1);
+  expect(processed[0]).toEqual('delayed-task');
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('[SqliteStore Integration] global concurrency via getActiveCount', testOpts, async () => {
+test('[SqliteStore Integration] global concurrency via getActiveCount', async () => {
   const store = createStore();
   await store.connect();
   const queue = new Queue('int-concurrency', { store });
@@ -141,7 +138,7 @@ Deno.test('[SqliteStore Integration] global concurrency via getActiveCount', tes
   await waitFor(5000);
 
   // Max active should never exceed global concurrency limit
-  assertEquals(maxActive <= 2, true);
+  expect(maxActive <= 2).toEqual(true);
 
   await worker.close();
   await queue.close();

@@ -42,11 +42,42 @@ jobs:
           deno-version: ${{ matrix.deno-version }}
 
       - name: Run tests
-        run: deno test --allow-env --allow-read --allow-write --parallel --coverage=coverage/
+        run: deno -A npm:vitest run
 
-      - name: Coverage report
-        if: matrix.deno-version == '2.x'
-        run: deno coverage coverage/
+  test-node:
+    name: Tests (Node.js ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ['22', '24']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npx vitest run
+
+  test-bun:
+    name: Tests (Bun)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run tests
+        run: bunx vitest run
 
   test-sqlite:
     name: Tests (SQLite)
@@ -60,10 +91,10 @@ jobs:
           deno-version: '2.x'
 
       - name: Run SQLite tests
-        run: deno test --allow-env --allow-read --allow-write tests/store-sqlite/
+        run: deno -A npm:vitest run tests/store-sqlite/
 
   test-pg:
-    name: Tests (PostgreSQL)
+    name: Tests (PostgreSQL - Deno)
     runs-on: ubuntu-latest
 
     services:
@@ -92,8 +123,72 @@ jobs:
           deno-version: '2.x'
 
       - name: Run PostgreSQL tests
-        run: deno test --allow-env --allow-read --allow-write --allow-net tests/store-pg/
+        run: deno -A npm:vitest run tests/store-pg/
 
-  # TODO: Add Node.js and Bun CI jobs once tests use a runtime-agnostic test runner
-  # (currently tests use Deno.test, which is not executable by Node/Bun directly).
-  # Tracked for Phase 4 — after JSR publish.
+  test-node-pg:
+    name: Tests (PostgreSQL - Node.js)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: conveyor
+          POSTGRES_PASSWORD: conveyor
+          POSTGRES_DB: conveyor_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PG_URL: postgres://conveyor:conveyor@localhost:5432/conveyor_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run PostgreSQL tests
+        run: npx vitest run tests/store-pg/
+
+  test-bun-pg:
+    name: Tests (PostgreSQL - Bun)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: conveyor
+          POSTGRES_PASSWORD: conveyor
+          POSTGRES_DB: conveyor_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PG_URL: postgres://conveyor:conveyor@localhost:5432/conveyor_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run PostgreSQL tests
+        run: bunx vitest run tests/store-pg/
