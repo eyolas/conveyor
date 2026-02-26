@@ -260,6 +260,9 @@ export interface PauseOptions {
 export interface StoreOptions {
   /** Run migrations automatically on connect() (default: true). */
   autoMigrate?: boolean;
+
+  /** Called when an event handler throws. Defaults to `console.warn`. */
+  onEventHandlerError?: (error: unknown) => void;
 }
 
 /**

@@ -327,7 +327,7 @@ export class Queue<T = unknown> {
    */
   async getJobs(state: JobState, start = 0, end = 100): Promise<Job<T>[]> {
     const jobs = await this.store.listJobs(this.name, state, start, end);
-    return jobs.map((j: JobData) => new Job(j as JobData<T>, this.store));
+    return jobs.map((j) => new Job(j as JobData<T>, this.store));
   }
 
   /**

@@ -667,7 +667,7 @@ identique :
 - [x] Repeated jobs (cron + human-readable)
 - [x] README complet
 - [x] Logo
-- [ ] Benchmarks vs BullMQ
+- [x] Benchmarks vs BullMQ
 - [ ] Publish sur JSR
 
 ### Phase 4 — Ecosystem (V2)
