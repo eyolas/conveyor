@@ -2,17 +2,35 @@
  * @module @conveyor/core/job
  *
  * Job class wraps raw JobData with convenience methods.
- * Jobs are not constructed directly — they are created by Queue.add() and returned by Worker processing.
+ * Jobs are not constructed directly — they are created by Queue.add()
+ * and returned by Worker processing.
  */
 
 import type { JobData, JobOptions, StoreInterface } from '@conveyor/shared';
 
+/**
+ * A job instance wrapping raw {@linkcode JobData} with convenience methods
+ * for updating progress, logging, retrying, and querying state.
+ *
+ * @typeParam T - The type of the job payload.
+ */
 export class Job<T = unknown> {
+  /** Unique job identifier. */
   readonly id: string;
+
+  /** Job name (e.g. `"send-email"`). */
   readonly name: string;
+
+  /** Queue this job belongs to. */
   readonly queueName: string;
+
+  /** The job payload. */
   readonly data: T;
+
+  /** The job options used when creating this job. */
   readonly opts: JobOptions;
+
+  /** When this job was created. */
   readonly createdAt: Date;
 
   private _state: JobData['state'];
@@ -31,6 +49,10 @@ export class Job<T = unknown> {
 
   private readonly store: StoreInterface;
 
+  /**
+   * @param jobData - The raw job data from the store.
+   * @param store - The store instance for persistence operations.
+   */
   constructor(jobData: JobData<T>, store: StoreInterface) {
     this.id = jobData.id;
     this.name = jobData.name;
@@ -56,38 +78,57 @@ export class Job<T = unknown> {
     this.store = store;
   }
 
-  // ─── Getters ─────────────────────────────────────────────────────────
-
+  /** Current state of the job. */
   get state() {
     return this._state;
   }
+
+  /** Current progress (0–100). */
   get progress() {
     return this._progress;
   }
+
+  /** Return value from successful processing. */
   get returnvalue() {
     return this._returnvalue;
   }
+
+  /** Error message if the job failed. */
   get failedReason() {
     return this._failedReason;
   }
+
+  /** Number of processing attempts made. */
   get attemptsMade() {
     return this._attemptsMade;
   }
+
+  /** When the job started processing. */
   get processedAt() {
     return this._processedAt;
   }
+
+  /** When the job completed. */
   get completedAt() {
     return this._completedAt;
   }
+
+  /** When the job failed. */
   get failedAt() {
     return this._failedAt;
   }
+
+  /** Copy of the job's log messages. */
   get logs() {
     return [...this._logs];
   }
 
-  // ─── Methods ─────────────────────────────────────────────────────────
-
+  /**
+   * Update the job's progress and persist it to the store.
+   *
+   * @param progress - A number between 0 and 100.
+   * @throws {RangeError} If progress is outside the 0–100 range.
+   */
   async updateProgress(progress: number): Promise<void> {
     if (progress < 0 || progress > 100) {
       throw new RangeError('Progress must be between 0 and 100');
@@ -96,11 +137,21 @@ export class Job<T = unknown> {
     await this.store.updateJob(this.queueName, this.id, { progress });
   }
 
+  /**
+   * Append a log message to the job.
+   *
+   * @param message - The log message to add.
+   */
   async log(message: string): Promise<void> {
     this._logs.push(message);
     await this.store.updateJob(this.queueName, this.id, { logs: this._logs });
   }
 
+  /**
+   * Manually move the job to the failed state.
+   *
+   * @param error - The error that caused the failure.
+   */
   async moveToFailed(error: Error): Promise<void> {
     this._state = 'failed';
     this._failedReason = error.message;
@@ -114,6 +165,7 @@ export class Job<T = unknown> {
     });
   }
 
+  /** Move a failed job back to waiting for reprocessing. */
   async retry(): Promise<void> {
     this._state = 'waiting';
     this._failedReason = null;
@@ -127,27 +179,45 @@ export class Job<T = unknown> {
     });
   }
 
+  /** Remove the job from the store. */
   async remove(): Promise<void> {
     await this.store.removeJob(this.queueName, this.id);
   }
 
+  /**
+   * Check if the job is completed (reads fresh state from the store).
+   *
+   * @returns `true` if the job's current state is `"completed"`.
+   */
   async isCompleted(): Promise<boolean> {
     const job = await this.store.getJob(this.queueName, this.id);
     return job?.state === 'completed';
   }
 
+  /**
+   * Check if the job has failed (reads fresh state from the store).
+   *
+   * @returns `true` if the job's current state is `"failed"`.
+   */
   async isFailed(): Promise<boolean> {
     const job = await this.store.getJob(this.queueName, this.id);
     return job?.state === 'failed';
   }
 
+  /**
+   * Check if the job is currently active (reads fresh state from the store).
+   *
+   * @returns `true` if the job's current state is `"active"`.
+   */
   async isActive(): Promise<boolean> {
     const job = await this.store.getJob(this.queueName, this.id);
     return job?.state === 'active';
   }
 
   /**
-   * Convert back to raw JobData.
+   * Convert back to raw {@linkcode JobData}.
+   *
+   * @returns A plain JobData object.
    */
   toJSON(): JobData<T> {
     return {

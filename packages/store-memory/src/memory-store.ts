@@ -12,29 +12,36 @@
 import type { FetchOptions, JobData, JobState, StoreEvent, StoreInterface } from '@conveyor/shared';
 import { generateId } from '@conveyor/shared';
 
+/** @internal */
 type EventCallback = (event: StoreEvent) => void;
 
+/**
+ * In-memory implementation of {@linkcode StoreInterface}.
+ *
+ * Data is stored in plain `Map` objects and is lost when the process exits.
+ * Uses `structuredClone` to ensure callers receive isolated copies.
+ *
+ * @example
+ * ```ts
+ * const store = new MemoryStore();
+ * await store.connect();
+ * ```
+ */
 export class MemoryStore implements StoreInterface {
-  /** Jobs indexed by queueName -> jobId -> JobData */
   private jobs = new Map<string, Map<string, JobData>>();
-
-  /** Insertion order counter per queue for stable FIFO/LIFO */
   private insertionOrder = new Map<string, Map<string, number>>();
   private insertionCounter = 0;
-
-  /** Paused job names per queue */
   private pausedNames = new Map<string, Set<string>>();
-
-  /** Event subscribers per queue */
   private subscribers = new Map<string, Set<EventCallback>>();
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
+  /** No-op — memory store requires no connection setup. */
   connect(): Promise<void> {
-    // No-op for memory store
     return Promise.resolve();
   }
 
+  /** Clear all data and subscribers. */
   disconnect(): Promise<void> {
     this.jobs.clear();
     this.insertionOrder.clear();
@@ -51,8 +58,27 @@ export class MemoryStore implements StoreInterface {
   // ─── Jobs CRUD ─────────────────────────────────────────────────────
 
   saveJob(queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
+    // Atomic dedup check: if the job has a deduplicationKey, check for existing match
+    const dedupKey = (job as JobData).deduplicationKey;
+    if (dedupKey) {
+      const queue = this.getQueue(queueName);
+      const now = Date.now();
+      for (const existing of queue.values()) {
+        if (existing.deduplicationKey === dedupKey) {
+          const ttl = existing.opts.deduplication?.ttl;
+          if (ttl !== undefined && existing.createdAt) {
+            const expiresAt = existing.createdAt.getTime() + ttl;
+            if (expiresAt < now) continue; // TTL expired, skip
+          }
+          if (existing.state !== 'completed' && existing.state !== 'failed') {
+            return Promise.resolve(existing.id);
+          }
+        }
+      }
+    }
+
     const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
-    const jobData: JobData = { ...job, id } as JobData;
+    const jobData: JobData = structuredClone({ ...job, id }) as JobData;
 
     this.getQueue(queueName).set(id, jobData);
     this.getInsertionOrder(queueName).set(id, this.insertionCounter++);
@@ -69,7 +95,8 @@ export class MemoryStore implements StoreInterface {
   }
 
   getJob(queueName: string, jobId: string): Promise<JobData | null> {
-    return Promise.resolve(this.getQueue(queueName).get(jobId) ?? null);
+    const job = this.getQueue(queueName).get(jobId);
+    return Promise.resolve(job ? structuredClone(job) : null);
   }
 
   updateJob(
@@ -80,7 +107,7 @@ export class MemoryStore implements StoreInterface {
     const queue = this.getQueue(queueName);
     const job = queue.get(jobId);
     if (job) {
-      queue.set(jobId, { ...job, ...updates });
+      queue.set(jobId, structuredClone({ ...job, ...updates }));
     }
     return Promise.resolve();
   }

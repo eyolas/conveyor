@@ -1,8 +1,21 @@
+/**
+ * @module @conveyor/store-sqlite/migrations
+ *
+ * Auto-versioned migration system for the SQLite store.
+ * Migrations are applied in order and tracked in the `conveyor_migrations` table.
+ */
+
 import type { DatabaseSync } from 'node:sqlite';
 
+/**
+ * A single database migration.
+ */
 export interface Migration {
+  /** Sequential migration version number. */
   version: number;
+  /** Human-readable migration name. */
   name: string;
+  /** SQL statements to apply this migration. */
   up: string;
 }
 
@@ -63,6 +76,12 @@ export const migrations: Migration[] = [
   },
 ];
 
+/**
+ * Apply all pending migrations to the SQLite database.
+ * Each migration is wrapped in a transaction for atomicity.
+ *
+ * @param db - An open `DatabaseSync` instance.
+ */
 export function runMigrations(db: DatabaseSync): void {
   // Ensure migration table exists
   db.exec(`

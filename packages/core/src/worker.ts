@@ -10,11 +10,35 @@ import { calculateBackoff, createJobData, generateWorkerId, parseDelay } from '@
 import { EventBus } from './events.ts';
 import { Job } from './job.ts';
 
+/**
+ * A function that processes a job and returns a result.
+ *
+ * @typeParam T - The type of the job payload.
+ */
 export type ProcessorFn<T = unknown> = (job: Job<T>) => Promise<unknown>;
 
+/**
+ * A worker polls for jobs from a queue, locks them, and executes the
+ * processor function. It handles retries, backoff, lock renewal,
+ * stalled job detection, and repeat scheduling.
+ *
+ * @typeParam T - The type of the job payload.
+ *
+ * @example
+ * ```ts
+ * const worker = new Worker("emails", async (job) => {
+ *   await sendEmail(job.data.to, job.data.subject);
+ * }, { store, concurrency: 5 });
+ * ```
+ */
 export class Worker<T = unknown> {
+  /** The queue name this worker processes. */
   readonly queueName: string;
+
+  /** Unique worker identifier (e.g. `"worker-a1b2c3d4"`). */
   readonly id: string;
+
+  /** Event bus for worker-level events (`active`, `completed`, `failed`, `error`, etc.). */
   readonly events: EventBus;
 
   private readonly store: StoreInterface;
@@ -31,9 +55,14 @@ export class Worker<T = unknown> {
   private stalledTimer: ReturnType<typeof setTimeout> | null = null;
   private lockRenewTimers = new Map<string, ReturnType<typeof setInterval>>();
 
-  /** Polling interval in ms */
+  /** Polling interval in ms. */
   private readonly pollInterval = 1000;
 
+  /**
+   * @param queueName - The name of the queue to process.
+   * @param processor - The function that processes each job.
+   * @param options - Worker configuration (store, concurrency, lock settings, etc.).
+   */
   constructor(
     queueName: string,
     processor: ProcessorFn<T>,
@@ -57,6 +86,12 @@ export class Worker<T = unknown> {
 
   // ─── Event helpers (mirror common pattern) ─────────────────────────
 
+  /**
+   * Register an event handler on the worker's event bus.
+   *
+   * @param event - The event type to listen for.
+   * @param handler - The callback to invoke.
+   */
   on(event: QueueEventType, handler: (...args: unknown[]) => void): void {
     this.events.on(event, handler);
   }
@@ -103,10 +138,12 @@ export class Worker<T = unknown> {
     await this.close();
   }
 
+  /** Pause the worker. Active jobs will finish but no new jobs are fetched. */
   pause(): void {
     this.paused = true;
   }
 
+  /** Resume the worker after pausing, restarting the poll loop. */
   resume(): void {
     this.paused = false;
     this.poll();
@@ -197,14 +234,22 @@ export class Worker<T = unknown> {
       });
 
       // Handle repeat jobs
-      await this.scheduleRepeat(job);
+      try {
+        await this.scheduleRepeat(job);
+      } catch (repeatErr) {
+        this.events.emit('error', repeatErr);
+      }
 
       // Handle removeOnComplete
       if (this.shouldRemove(job.opts.removeOnComplete)) {
         await this.store.removeJob(this.queueName, job.id);
       }
     } catch (err) {
-      await this.handleFailure(job, err as Error);
+      try {
+        await this.handleFailure(job, err as Error);
+      } catch (failureErr) {
+        this.events.emit('error', failureErr);
+      }
     } finally {
       this.stopLockRenewal(job.id);
       this.activeCount--;
@@ -367,7 +412,13 @@ export class Worker<T = unknown> {
 
   private async scheduleRepeat(job: Job<T>): Promise<void> {
     const repeat = job.opts.repeat;
-    if (!repeat?.every) return;
+    if (!repeat) return;
+
+    if (repeat.cron) {
+      throw new Error('Cron scheduling is not yet implemented. Use repeat.every instead.');
+    }
+
+    if (!repeat.every) return;
 
     // Check endDate
     if (repeat.endDate && new Date() >= repeat.endDate) return;

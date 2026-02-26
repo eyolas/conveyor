@@ -1,8 +1,21 @@
+/**
+ * @module @conveyor/store-pg/migrations
+ *
+ * Auto-versioned migration system for the PostgreSQL store.
+ * Migrations are applied in order and tracked in the `conveyor_migrations` table.
+ */
+
 import type postgres from 'postgres';
 
+/**
+ * A single database migration.
+ */
 export interface Migration {
+  /** Sequential migration version number. */
   version: number;
+  /** Human-readable migration name. */
   name: string;
+  /** SQL statements to apply this migration. */
   up: string;
 }
 
@@ -66,6 +79,12 @@ export const migrations: Migration[] = [
   },
 ];
 
+/**
+ * Apply all pending migrations to the database.
+ * Each migration is wrapped in a transaction for atomicity.
+ *
+ * @param sql - An active `postgres` connection instance.
+ */
 export async function runMigrations(sql: postgres.Sql): Promise<void> {
   // Ensure migration table exists
   await sql`

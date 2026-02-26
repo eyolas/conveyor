@@ -12,37 +12,63 @@ import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
 import { runMigrations } from './migrations.ts';
 
+/** @internal */
 type EventCallback = (event: StoreEvent) => void;
 
+/**
+ * Configuration options for {@linkcode PgStore}.
+ */
 export interface PgStoreOptions extends StoreOptions {
+  /** A PostgreSQL connection string (e.g. `"postgres://user:pass@host/db"`) or `postgres` driver options. */
   connection: string | postgres.Options<Record<string, never>>;
 }
 
+/**
+ * PostgreSQL implementation of {@linkcode StoreInterface}.
+ *
+ * Uses `npm:postgres` for connection pooling, `FOR UPDATE SKIP LOCKED`
+ * for atomic job fetching, JSONB for structured columns, and
+ * LISTEN/NOTIFY for cross-process event delivery.
+ *
+ * @example
+ * ```ts
+ * const store = new PgStore({ connection: "postgres://localhost/mydb" });
+ * await store.connect();
+ * ```
+ */
 export class PgStore implements StoreInterface {
   private sql!: postgres.Sql;
   private readonly options: PgStoreOptions;
   private subscribers = new Map<string, Set<EventCallback>>();
   private listeningChannels = new Set<string>();
+  private listenPromises = new Map<string, Promise<{ unlisten: () => Promise<void> }>>();
 
+  /** @param options - PostgreSQL connection and store options. */
   constructor(options: PgStoreOptions) {
     this.options = options;
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
+  /** Connect to PostgreSQL and run pending migrations (unless `autoMigrate` is `false`). */
   async connect(): Promise<void> {
-    if (typeof this.options.connection === 'string') {
-      this.sql = postgres(this.options.connection);
-    } else {
-      this.sql = postgres(this.options.connection);
-    }
+    const conn = this.options.connection;
+    this.sql = typeof conn === 'string' ? postgres(conn) : postgres(conn);
 
     if (this.options.autoMigrate !== false) {
       await runMigrations(this.sql);
     }
   }
 
+  /** Unlisten all channels, clear subscribers, and close the connection pool. */
   async disconnect(): Promise<void> {
+    // Unlisten all channels before closing
+    const unlistenResults = Array.from(this.listenPromises.values()).map(
+      (p) => p.then((sub) => sub.unlisten()).catch(() => {}),
+    );
+    await Promise.all(unlistenResults);
+
+    this.listenPromises.clear();
     this.listeningChannels.clear();
     this.subscribers.clear();
     await this.sql.end();
@@ -55,45 +81,47 @@ export class PgStore implements StoreInterface {
   // ─── Jobs CRUD ─────────────────────────────────────────────────────
 
   async saveJob(_queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
+    const dedupKey = (job as JobData).deduplicationKey;
+
+    // Atomic dedup check inside a transaction
+    if (dedupKey) {
+      const result = await this.sql.begin(async (tx) => {
+        const existing = await tx.unsafe(
+          `SELECT * FROM conveyor_jobs
+          WHERE queue_name = $1
+            AND deduplication_key = $2
+            AND state NOT IN ('completed', 'failed')
+          ORDER BY created_at DESC
+          LIMIT 1
+          FOR UPDATE`,
+          [job.queueName, dedupKey],
+        ) as JobRow[];
+
+        if (existing.length > 0) {
+          const matched = rowToJobData(existing[0]!);
+          const ttl = matched.opts.deduplication?.ttl;
+          if (ttl !== undefined && matched.createdAt) {
+            const expiresAt = matched.createdAt.getTime() + ttl;
+            if (expiresAt >= Date.now()) {
+              return matched.id;
+            }
+          } else {
+            return matched.id;
+          }
+        }
+
+        // No valid dedup match — insert
+        const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
+        await this.insertRow(tx, { ...job, id });
+        return id;
+      });
+
+      return result;
+    }
+
+    // No dedup key — simple insert
     const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
-    const row = jobDataToRow({ ...job, id });
-
-    const params = [
-      row.id,
-      row.queue_name,
-      row.name,
-      row.data,
-      row.state,
-      row.attempts_made,
-      row.progress,
-      row.returnvalue,
-      row.failed_reason,
-      row.opts,
-      row.deduplication_key,
-      row.logs,
-      row.priority,
-      row.created_at,
-      row.processed_at,
-      row.completed_at,
-      row.failed_at,
-      row.delay_until,
-      row.lock_until,
-      row.locked_by,
-    ] as (string | number | Date | null)[];
-
-    await this.sql.unsafe(
-      `INSERT INTO conveyor_jobs (
-        id, queue_name, name, data, state, attempts_made, progress,
-        returnvalue, failed_reason, opts, deduplication_key, logs,
-        priority, created_at, processed_at, completed_at, failed_at,
-        delay_until, lock_until, locked_by
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
-      )`,
-      params,
-    );
-
+    await this.insertRow(this.sql, { ...job, id });
     return id;
   }
 
@@ -148,15 +176,17 @@ export class PgStore implements StoreInterface {
         if (['returnvalue', 'opts', 'logs', 'data'].includes(key)) {
           sets.push(`${col} = $${idx++}`);
           values.push(val !== null && val !== undefined ? JSON.stringify(val) : null);
-        } else if (key === 'state') {
-          sets.push(`${col} = $${idx++}`);
-          values.push(val);
-          // Also update priority if opts are being updated
         } else {
           sets.push(`${col} = $${idx++}`);
           values.push(val ?? null);
         }
       }
+    }
+
+    // Sync priority column when opts are updated
+    if ('opts' in updates && updates.opts) {
+      sets.push(`priority = $${idx++}`);
+      values.push(updates.opts.priority ?? 0);
     }
 
     if (sets.length === 0) return;
@@ -427,6 +457,50 @@ export class PgStore implements StoreInterface {
     `;
   }
 
+  // ─── Helpers ────────────────────────────────────────────────────────
+
+  private async insertRow(
+    sql: postgres.Sql | postgres.TransactionSql,
+    job: Omit<JobData, 'id'> & { id: string },
+  ): Promise<void> {
+    const row = jobDataToRow(job);
+    const params = [
+      row.id,
+      row.queue_name,
+      row.name,
+      row.data,
+      row.state,
+      row.attempts_made,
+      row.progress,
+      row.returnvalue,
+      row.failed_reason,
+      row.opts,
+      row.deduplication_key,
+      row.logs,
+      row.priority,
+      row.created_at,
+      row.processed_at,
+      row.completed_at,
+      row.failed_at,
+      row.delay_until,
+      row.lock_until,
+      row.locked_by,
+    ] as (string | number | Date | null)[];
+
+    await sql.unsafe(
+      `INSERT INTO conveyor_jobs (
+        id, queue_name, name, data, state, attempts_made, progress,
+        returnvalue, failed_reason, opts, deduplication_key, logs,
+        priority, created_at, processed_at, completed_at, failed_at,
+        delay_until, lock_until, locked_by
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+      )`,
+      params,
+    );
+  }
+
   // ─── Events ────────────────────────────────────────────────────────
 
   subscribe(queueName: string, callback: EventCallback): void {
@@ -439,7 +513,7 @@ export class PgStore implements StoreInterface {
     const channel = `conveyor:${queueName}`;
     if (!this.listeningChannels.has(channel)) {
       this.listeningChannels.add(channel);
-      this.sql.listen(channel, (payload) => {
+      const listenPromise = this.sql.listen(channel, (payload) => {
         try {
           const event = JSON.parse(payload) as StoreEvent;
           event.timestamp = new Date(event.timestamp);
@@ -449,7 +523,9 @@ export class PgStore implements StoreInterface {
         }
       }).catch(() => {
         // Ignore listen errors on shutdown
+        return { unlisten: () => Promise.resolve() };
       });
+      this.listenPromises.set(channel, listenPromise);
     }
   }
 
@@ -460,10 +536,26 @@ export class PgStore implements StoreInterface {
         callbacks.delete(callback);
         if (callbacks.size === 0) {
           this.subscribers.delete(queueName);
+          this.stopListening(queueName);
         }
       }
     } else {
       this.subscribers.delete(queueName);
+      this.stopListening(queueName);
+    }
+  }
+
+  private stopListening(queueName: string): void {
+    const channel = `conveyor:${queueName}`;
+    if (this.listeningChannels.has(channel)) {
+      this.listeningChannels.delete(channel);
+      const promise = this.listenPromises.get(channel);
+      if (promise) {
+        this.listenPromises.delete(channel);
+        promise.then((sub) => sub.unlisten()).catch(() => {
+          // Ignore unlisten errors on shutdown
+        });
+      }
     }
   }
 
@@ -492,6 +584,7 @@ export class PgStore implements StoreInterface {
 
   // ─── Utility for tests ────────────────────────────────────────────
 
+  /** Truncate all Conveyor tables. Intended for test cleanup only. */
   async truncateAll(): Promise<void> {
     await this.sql`TRUNCATE conveyor_jobs, conveyor_paused_names`;
   }
