@@ -11,6 +11,7 @@ export type EventHandler<T = unknown> = (data: T) => void;
 
 export class EventBus {
   private handlers = new Map<string, Set<EventHandler>>();
+  private emittingError = false;
 
   on<T = unknown>(event: QueueEventType, handler: EventHandler<T>): void {
     if (!this.handlers.has(event)) {
@@ -31,8 +32,13 @@ export class EventBus {
           handler(data);
         } catch (err) {
           // Emit on 'error' if available, otherwise log
-          if (event !== 'error') {
-            this.emit('error', err);
+          if (event !== 'error' && !this.emittingError) {
+            this.emittingError = true;
+            try {
+              this.emit('error', err);
+            } finally {
+              this.emittingError = false;
+            }
           } else {
             console.error('[Conveyor] Unhandled error in event handler:', err);
           }

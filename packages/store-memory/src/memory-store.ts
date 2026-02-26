@@ -51,6 +51,25 @@ export class MemoryStore implements StoreInterface {
   // ─── Jobs CRUD ─────────────────────────────────────────────────────
 
   saveJob(queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
+    // Atomic dedup check: if the job has a deduplicationKey, check for existing match
+    const dedupKey = (job as JobData).deduplicationKey;
+    if (dedupKey) {
+      const queue = this.getQueue(queueName);
+      const now = Date.now();
+      for (const existing of queue.values()) {
+        if (existing.deduplicationKey === dedupKey) {
+          const ttl = existing.opts.deduplication?.ttl;
+          if (ttl !== undefined && existing.createdAt) {
+            const expiresAt = existing.createdAt.getTime() + ttl;
+            if (expiresAt < now) continue; // TTL expired, skip
+          }
+          if (existing.state !== 'completed' && existing.state !== 'failed') {
+            return Promise.resolve(existing.id);
+          }
+        }
+      }
+    }
+
     const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
     const jobData: JobData = { ...job, id } as JobData;
 
@@ -80,7 +99,7 @@ export class MemoryStore implements StoreInterface {
     const queue = this.getQueue(queueName);
     const job = queue.get(jobId);
     if (job) {
-      queue.set(jobId, { ...job, ...updates });
+      queue.set(jobId, structuredClone({ ...job, ...updates }));
     }
     return Promise.resolve();
   }
