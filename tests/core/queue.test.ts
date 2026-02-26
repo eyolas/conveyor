@@ -13,6 +13,20 @@ function createQueue(opts?: { defaultJobOptions?: Record<string, unknown> }) {
   return { queue, store };
 }
 
+// ─── defaultJobOptions ───────────────────────────────────────────────
+
+Deno.test('Queue applies defaultJobOptions to added jobs', async () => {
+  const { queue, store } = createQueue({ defaultJobOptions: { attempts: 3 } });
+  await store.connect();
+
+  const job = await queue.add('default-opts-job', { v: 1 });
+
+  assertEquals(job.opts.attempts, 3);
+
+  await queue.close();
+  await store.disconnect();
+});
+
 // ─── add ─────────────────────────────────────────────────────────────
 
 Deno.test('Queue.add creates a waiting job', async () => {
