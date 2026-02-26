@@ -665,9 +665,9 @@ identique :
 - [x] Rate limiting
 - [x] Graceful shutdown
 - [x] Repeated jobs (cron + human-readable)
-- [ ] Publish sur JSR
 - [ ] README complet + logo
 - [ ] Benchmarks vs BullMQ
+- [ ] Publish sur JSR
 
 ### Phase 4 — Ecosystem (V2)
 
