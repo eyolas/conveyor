@@ -662,9 +662,9 @@ identique :
 
 ### Phase 3 — Production Ready
 
-- [ ] Rate limiting
-- [ ] Graceful shutdown
-- [ ] Repeated jobs (cron + human-readable)
+- [x] Rate limiting
+- [x] Graceful shutdown
+- [x] Repeated jobs (cron + human-readable)
 - [ ] npm publish via JSR
 - [ ] README complet + logo
 - [ ] Benchmarks vs BullMQ
