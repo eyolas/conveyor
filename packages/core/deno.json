@@ -2,6 +2,9 @@
   "name": "@conveyor/core",
   "version": "0.1.0",
   "exports": "./src/mod.ts",
+  "imports": {
+    "croner": "npm:croner@^10.0.0"
+  },
   "publish": {
     "include": ["src/**/*.ts", "deno.json", "README.md", "LICENSE"]
   },
