@@ -1,4 +1,4 @@
-import type { Database } from '@db/sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 
 export interface Migration {
   version: number;
@@ -63,7 +63,7 @@ export const migrations: Migration[] = [
   },
 ];
 
-export function runMigrations(db: Database): void {
+export function runMigrations(db: DatabaseSync): void {
   // Ensure migration table exists
   db.exec(`
     CREATE TABLE IF NOT EXISTS conveyor_migrations (
@@ -83,12 +83,16 @@ export function runMigrations(db: Database): void {
   for (const migration of migrations) {
     if (migration.version <= currentVersion) continue;
 
-    const run = db.transaction(() => {
+    db.exec('BEGIN');
+    try {
       db.exec(migration.up);
       db.prepare(
         'INSERT INTO conveyor_migrations (version, name, applied_at) VALUES (?, ?, ?)',
       ).run(migration.version, migration.name, Date.now());
-    });
-    run();
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
   }
 }

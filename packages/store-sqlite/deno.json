@@ -2,9 +2,7 @@
   "name": "@conveyor/store-sqlite",
   "version": "0.1.0",
   "exports": "./src/mod.ts",
-  "imports": {
-    "@db/sqlite": "jsr:@db/sqlite@^0.12.0"
-  },
+  "imports": {},
   "lint": {
     "rules": {
       "exclude": ["no-slow-types"]
