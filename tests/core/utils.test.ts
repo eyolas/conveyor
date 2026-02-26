@@ -43,6 +43,14 @@ Deno.test('calculateBackoff: exponential grows', () => {
   assertEquals(delay3 >= 3000 && delay3 <= 5000, true);
 });
 
+Deno.test('calculateBackoff: exponential never returns negative', () => {
+  // Run many iterations to verify Math.max(0, ...) clamp
+  for (let i = 0; i < 100; i++) {
+    const delay = calculateBackoff(1, { type: 'exponential', delay: 1000 });
+    assertEquals(delay >= 0, true, `Expected non-negative delay, got ${delay}`);
+  }
+});
+
 Deno.test('calculateBackoff: custom strategy', () => {
   const result = calculateBackoff(3, {
     type: 'custom',

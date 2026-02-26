@@ -581,4 +581,144 @@ export function runConformanceTests(
 
     await store.disconnect();
   });
+
+  // ─── Atomic Dedup in saveJob ──────────────────────────────────────
+
+  Deno.test(`[${storeName}] saveJob dedup returns existing id`, async () => {
+    store = factory();
+    await store.connect();
+
+    const jobData1 = createJobData(queueName, 'dedup-job', { a: 1 }, {
+      deduplication: { key: 'dup-key-1' },
+    });
+    jobData1.deduplicationKey = 'dup-key-1';
+    const id1 = await store.saveJob(queueName, jobData1);
+
+    // Second save with same dedup key should return existing id
+    const jobData2 = createJobData(queueName, 'dedup-job', { a: 2 }, {
+      deduplication: { key: 'dup-key-1' },
+    });
+    jobData2.deduplicationKey = 'dup-key-1';
+    const id2 = await store.saveJob(queueName, jobData2);
+
+    assertEquals(id1, id2);
+
+    // Only one job should exist
+    const count = await store.countJobs(queueName, 'waiting');
+    assertEquals(count, 1);
+
+    await store.disconnect();
+  });
+
+  Deno.test(`[${storeName}] saveJob dedup respects TTL expiry`, async () => {
+    store = factory();
+    await store.connect();
+
+    const jobData1 = createJobData(queueName, 'dedup-ttl', {}, {
+      deduplication: { key: 'ttl-dup', ttl: 1 },
+    });
+    jobData1.deduplicationKey = 'ttl-dup';
+    jobData1.createdAt = new Date(Date.now() - 100); // Created 100ms ago, TTL is 1ms
+    const id1 = await store.saveJob(queueName, jobData1);
+
+    // TTL expired — should insert a new job
+    const jobData2 = createJobData(queueName, 'dedup-ttl', {}, {
+      deduplication: { key: 'ttl-dup', ttl: 1 },
+    });
+    jobData2.deduplicationKey = 'ttl-dup';
+    const id2 = await store.saveJob(queueName, jobData2);
+
+    assertNotEquals(id1, id2);
+
+    await store.disconnect();
+  });
+
+  // ─── saveBulk Dedup ───────────────────────────────────────────────
+
+  Deno.test(`[${storeName}] saveBulk dedup returns existing ids`, async () => {
+    store = factory();
+    await store.connect();
+
+    // Insert a job with dedup key first
+    const existing = createJobData(queueName, 'bulk-dedup', { i: 0 }, {
+      deduplication: { key: 'bulk-dup' },
+    });
+    existing.deduplicationKey = 'bulk-dup';
+    const existingId = await store.saveJob(queueName, existing);
+
+    // saveBulk with one matching dedup and one new
+    const job1 = createJobData(queueName, 'bulk-dedup', { i: 1 }, {
+      deduplication: { key: 'bulk-dup' },
+    });
+    job1.deduplicationKey = 'bulk-dup';
+
+    const job2 = createJobData(queueName, 'bulk-new', { i: 2 });
+
+    const ids = await store.saveBulk(queueName, [job1, job2]);
+    assertEquals(ids.length, 2);
+    assertEquals(ids[0], existingId); // dedup match
+    assertNotEquals(ids[1], existingId); // new job
+
+    // Should have 2 total jobs (existing + new), not 3
+    const count = await store.countJobs(queueName, 'waiting');
+    assertEquals(count, 2);
+
+    await store.disconnect();
+  });
+
+  // ─── structuredClone Mutation Isolation ────────────────────────────
+
+  Deno.test(`[${storeName}] getJob returns isolated copy`, async () => {
+    store = factory();
+    await store.connect();
+
+    const jobData = createJobData(queueName, 'isolation-test', { nested: { value: 1 } });
+    const id = await store.saveJob(queueName, jobData);
+
+    const job1 = await store.getJob(queueName, id);
+    assertExists(job1);
+
+    // Mutate the returned job's nested data
+    (job1.data as Record<string, Record<string, number>>).nested!.value = 999;
+    job1.logs.push('mutated');
+
+    // Fetch again — should be unaffected
+    const job2 = await store.getJob(queueName, id);
+    assertExists(job2);
+    assertEquals((job2.data as Record<string, Record<string, number>>).nested!.value, 1);
+    assertEquals(job2.logs.length, 0);
+
+    await store.disconnect();
+  });
+
+  // ─── updateJob syncs priority ─────────────────────────────────────
+
+  Deno.test(`[${storeName}] updateJob opts syncs priority`, async () => {
+    store = factory();
+    await store.connect();
+
+    const job1 = createJobData(queueName, 'low', {}, { priority: 10 });
+    const id1 = await store.saveJob(queueName, job1);
+
+    const job2 = createJobData(queueName, 'high', {}, { priority: 5 });
+    const id2 = await store.saveJob(queueName, job2);
+
+    // job2 (priority 5) should be fetched first
+    let next = await store.fetchNextJob(queueName, 'w', 30_000);
+    assertEquals(next?.name, 'high');
+
+    // Return job2 to waiting
+    await store.updateJob(queueName, id2, { state: 'waiting', lockUntil: null, lockedBy: null });
+
+    // Now update job1's priority to be higher (lower number)
+    await store.updateJob(queueName, id1, {
+      opts: { ...job1.opts, priority: 1 },
+    });
+
+    // job1 (now priority 1) should be fetched first
+    next = await store.fetchNextJob(queueName, 'w', 30_000);
+    assertEquals(next?.name, 'low');
+
+    await store.disconnect();
+  });
 }
