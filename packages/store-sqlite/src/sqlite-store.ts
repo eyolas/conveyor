@@ -7,7 +7,11 @@ import type {
   StoreOptions,
 } from '@conveyor/shared';
 import { generateId } from '@conveyor/shared';
-import { type BindValue, Database, type Statement } from '@db/sqlite';
+import {
+  DatabaseSync,
+  type SQLInputValue,
+  type StatementSync,
+} from 'node:sqlite';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
 import { runMigrations } from './migrations.ts';
@@ -19,31 +23,43 @@ export interface SqliteStoreOptions extends StoreOptions {
 }
 
 export class SqliteStore implements StoreInterface {
-  private db!: Database;
+  private db!: DatabaseSync;
   private readonly options: SqliteStoreOptions;
   private subscribers = new Map<string, Set<EventCallback>>();
   private seqCounter = 0;
 
   // Prepared statement cache
   private stmts!: {
-    insertJob: Statement;
-    getJob: Statement;
-    removeJob: Statement;
-    countByState: Statement;
-    activeCount: Statement;
-    insertPaused: Statement;
-    removePaused: Statement;
-    getPaused: Statement;
+    insertJob: StatementSync;
+    getJob: StatementSync;
+    removeJob: StatementSync;
+    countByState: StatementSync;
+    activeCount: StatementSync;
+    insertPaused: StatementSync;
+    removePaused: StatementSync;
+    getPaused: StatementSync;
   };
 
   constructor(options: SqliteStoreOptions) {
     this.options = options;
   }
 
+  private runTransaction<T>(fn: () => T): T {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = fn();
+      this.db.exec('COMMIT');
+      return result;
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
   connect(): Promise<void> {
-    this.db = new Database(this.options.filename, { int64: true });
+    this.db = new DatabaseSync(this.options.filename);
 
     // Enable WAL mode + busy timeout for concurrency
     this.db.exec('PRAGMA journal_mode = WAL');
@@ -119,22 +135,21 @@ export class SqliteStore implements StoreInterface {
     const row = jobDataToRow({ ...job, id });
     row.seq = this.seqCounter++;
 
-    this.stmts.insertJob.run(row as Record<string, BindValue>);
+    this.stmts.insertJob.run(row as Record<string, SQLInputValue>);
     return Promise.resolve(id);
   }
 
   saveBulk(_queueName: string, jobs: Omit<JobData, 'id'>[]): Promise<string[]> {
     const ids: string[] = [];
-    const runBulk = this.db.transaction(() => {
+    this.runTransaction(() => {
       for (const job of jobs) {
         const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
         const row = jobDataToRow({ ...job, id });
         row.seq = this.seqCounter++;
-        this.stmts.insertJob.run(row as Record<string, BindValue>);
+        this.stmts.insertJob.run(row as Record<string, SQLInputValue>);
         ids.push(id);
       }
     });
-    runBulk();
     return Promise.resolve(ids);
   }
 
@@ -192,7 +207,7 @@ export class SqliteStore implements StoreInterface {
 
     values.push(queueName, jobId);
     const query = `UPDATE conveyor_jobs SET ${sets.join(', ')} WHERE queue_name = ? AND id = ?`;
-    this.db.prepare(query).run(...values as BindValue[]);
+    this.db.prepare(query).run(...values as SQLInputValue[]);
     return Promise.resolve();
   }
 
@@ -241,7 +256,7 @@ export class SqliteStore implements StoreInterface {
     const lockUntil = now + lockDuration;
     const order = opts?.lifo ? 'DESC' : 'ASC';
 
-    const result = this.db.transaction(() => {
+    const result = this.runTransaction(() => {
       let query: string;
       const params: unknown[] = [queueName];
 
@@ -266,7 +281,7 @@ export class SqliteStore implements StoreInterface {
         params.push(queueName);
       }
 
-      const candidate = this.db.prepare(query).get(...params as BindValue[]) as
+      const candidate = this.db.prepare(query).get(...params as SQLInputValue[]) as
         | { id: string }
         | undefined;
       if (!candidate) return null;
@@ -278,7 +293,7 @@ export class SqliteStore implements StoreInterface {
       `).run(now, lockUntil, workerId, queueName, candidate.id);
 
       return this.stmts.getJob.get(queueName, candidate.id) as JobRow | undefined;
-    }).immediate();
+    });
 
     if (!result) return Promise.resolve(null);
     return Promise.resolve(rowToJobData(result));
@@ -290,12 +305,12 @@ export class SqliteStore implements StoreInterface {
     duration: number,
   ): Promise<boolean> {
     const lockUntil = Date.now() + duration;
-    const changes = this.db.prepare(`
+    const result = this.db.prepare(`
       UPDATE conveyor_jobs
       SET lock_until = ?
       WHERE queue_name = ? AND id = ? AND state = 'active'
     `).run(lockUntil, queueName, jobId);
-    return Promise.resolve(changes > 0);
+    return Promise.resolve(Number(result.changes) > 0);
   }
 
   releaseLock(queueName: string, jobId: string): Promise<void> {
@@ -328,7 +343,7 @@ export class SqliteStore implements StoreInterface {
       WHERE queue_name = ? AND state = ?
       ORDER BY created_at ASC
       LIMIT ? OFFSET ?
-    `).all(queueName, state, limit, start) as JobRow[];
+    `).all(queueName, state, limit, start) as unknown as JobRow[];
     return Promise.resolve(rows.map(rowToJobData));
   }
 
@@ -352,13 +367,13 @@ export class SqliteStore implements StoreInterface {
   }
 
   promoteDelayedJobs(queueName: string, timestamp: number): Promise<number> {
-    const changes = this.db.prepare(`
+    const result = this.db.prepare(`
       UPDATE conveyor_jobs
       SET state = 'waiting', delay_until = NULL
       WHERE queue_name = ? AND state = 'delayed'
         AND delay_until IS NOT NULL AND delay_until <= ?
     `).run(queueName, timestamp);
-    return Promise.resolve(changes);
+    return Promise.resolve(Number(result.changes));
   }
 
   // ─── Pause/Resume by Job Name ──────────────────────────────────────
@@ -389,35 +404,35 @@ export class SqliteStore implements StoreInterface {
       SELECT * FROM conveyor_jobs
       WHERE queue_name = ? AND state = 'active'
         AND lock_until IS NOT NULL AND lock_until < ?
-    `).all(queueName, now) as JobRow[];
+    `).all(queueName, now) as unknown as JobRow[];
     return Promise.resolve(rows.map(rowToJobData));
   }
 
   clean(queueName: string, state: JobState, grace: number): Promise<number> {
     const cutoff = Date.now() - grace;
 
-    let changes: number;
+    let result: { changes: number | bigint; lastInsertRowid: number | bigint };
     if (state === 'completed') {
-      changes = this.db.prepare(`
+      result = this.db.prepare(`
         DELETE FROM conveyor_jobs
         WHERE queue_name = ? AND state = ?
           AND completed_at IS NOT NULL AND completed_at < ?
       `).run(queueName, state, cutoff);
     } else if (state === 'failed') {
-      changes = this.db.prepare(`
+      result = this.db.prepare(`
         DELETE FROM conveyor_jobs
         WHERE queue_name = ? AND state = ?
           AND failed_at IS NOT NULL AND failed_at < ?
       `).run(queueName, state, cutoff);
     } else {
-      changes = this.db.prepare(`
+      result = this.db.prepare(`
         DELETE FROM conveyor_jobs
         WHERE queue_name = ? AND state = ?
           AND created_at < ?
       `).run(queueName, state, cutoff);
     }
 
-    return Promise.resolve(changes);
+    return Promise.resolve(Number(result.changes));
   }
 
   drain(queueName: string): Promise<void> {
