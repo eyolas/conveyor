@@ -71,7 +71,7 @@ export class MemoryStore implements StoreInterface {
     }
 
     const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
-    const jobData: JobData = { ...job, id } as JobData;
+    const jobData: JobData = structuredClone({ ...job, id }) as JobData;
 
     this.getQueue(queueName).set(id, jobData);
     this.getInsertionOrder(queueName).set(id, this.insertionCounter++);
