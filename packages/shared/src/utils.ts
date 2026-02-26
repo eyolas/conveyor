@@ -109,6 +109,23 @@ function sortDeep(value: unknown): unknown {
   return sorted;
 }
 
+/** Valid job state values. */
+const VALID_JOB_STATES = new Set(['waiting', 'delayed', 'active', 'completed', 'failed']);
+
+/**
+ * Assert that a string is a valid {@linkcode JobState}, throwing if not.
+ *
+ * @param value - The raw state string from the database.
+ * @returns The validated JobState.
+ * @throws {Error} If the value is not a valid job state.
+ */
+export function assertJobState(value: string): import('./types.ts').JobState {
+  if (!VALID_JOB_STATES.has(value)) {
+    throw new Error(`Invalid job state: "${value}"`);
+  }
+  return value as import('./types.ts').JobState;
+}
+
 /**
  * Calculate backoff delay based on strategy.
  *
