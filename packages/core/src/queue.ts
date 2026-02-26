@@ -17,14 +17,33 @@ import { createJobData, hashPayload, parseDelay } from '@conveyor/shared';
 import { EventBus } from './events.ts';
 import { Job } from './job.ts';
 
+/**
+ * A queue manages the creation and lifecycle of jobs.
+ * It delegates all storage operations to the configured {@linkcode StoreInterface}.
+ *
+ * @typeParam T - The type of the job payload.
+ *
+ * @example
+ * ```ts
+ * const queue = new Queue("emails", { store });
+ * const job = await queue.add("send-welcome", { to: "user@example.com" });
+ * ```
+ */
 export class Queue<T = unknown> {
+  /** The queue name. */
   readonly name: string;
+
+  /** Event bus for queue-level events (`waiting`, `delayed`, `paused`, etc.). */
   readonly events: EventBus;
 
   private readonly store: StoreInterface;
   private readonly defaultJobOptions: Partial<JobOptions>;
   private closed = false;
 
+  /**
+   * @param name - The queue name.
+   * @param options - Queue configuration including the store backend.
+   */
   constructor(name: string, options: QueueOptions) {
     this.name = name;
     this.store = options.store;
@@ -36,6 +55,14 @@ export class Queue<T = unknown> {
 
   /**
    * Add a job to the queue.
+   *
+   * If deduplication is configured, an existing matching job may be returned
+   * instead of creating a new one.
+   *
+   * @param name - The job name (e.g. `"send-email"`).
+   * @param data - The job payload.
+   * @param opts - Optional job options (delay, priority, retries, etc.).
+   * @returns The created (or existing deduplicated) job.
    */
   async add(name: string, data: T, opts?: JobOptions): Promise<Job<T>> {
     this.assertNotClosed();
@@ -74,11 +101,19 @@ export class Queue<T = unknown> {
   }
 
   /**
-   * Shortcut: schedule a job with a human-readable delay.
+   * Schedule a job with a human-readable delay.
+   *
+   * @param delay - Delay as milliseconds or a human-readable string (e.g. `"5s"`, `"in 10 minutes"`).
+   * @param name - The job name.
+   * @param data - The job payload.
+   * @param opts - Optional job options.
+   * @returns The created delayed job.
    *
    * @example
+   * ```ts
    * await queue.schedule("in 10 minutes", "send-reminder", payload);
    * await queue.schedule("5s", "quick-task", payload);
+   * ```
    */
   schedule(
     delay: string | number,
@@ -92,18 +127,30 @@ export class Queue<T = unknown> {
   }
 
   /**
-   * Shortcut: add a job for immediate execution.
+   * Add a job for immediate execution (no delay).
+   *
+   * @param name - The job name.
+   * @param data - The job payload.
+   * @param opts - Optional job options.
+   * @returns The created job.
    */
   now(name: string, data: T, opts?: JobOptions): Promise<Job<T>> {
     return this.add(name, data, { ...opts, delay: undefined });
   }
 
   /**
-   * Shortcut: add a recurring job.
+   * Add a recurring job that repeats at a fixed interval.
+   *
+   * @param interval - Repeat interval as milliseconds or a human-readable string (e.g. `"2 hours"`).
+   * @param name - The job name.
+   * @param data - The job payload.
+   * @param opts - Optional job options.
+   * @returns The created job.
    *
    * @example
+   * ```ts
    * await queue.every("2 hours", "cleanup", payload);
-   * await queue.every("0 9 * * *", "daily-report", payload); // cron
+   * ```
    */
   every(
     interval: string | number,
@@ -118,7 +165,10 @@ export class Queue<T = unknown> {
   }
 
   /**
-   * Add multiple jobs at once.
+   * Add multiple jobs at once. Deduplication is applied per-job.
+   *
+   * @param jobs - An array of job descriptors (name, data, opts).
+   * @returns The created (or deduplicated) jobs.
    */
   async addBulk(
     jobs: Array<{ name: string; data: T; opts?: JobOptions }>,
@@ -172,7 +222,9 @@ export class Queue<T = unknown> {
   // ─── Queue Management ────────────────────────────────────────────────
 
   /**
-   * Pause the queue or a specific job name.
+   * Pause the queue. When paused, no new jobs will be processed.
+   *
+   * @param opts - If `jobName` is provided, only that job name is paused.
    */
   async pause(opts?: PauseOptions): Promise<void> {
     this.assertNotClosed();
@@ -189,7 +241,9 @@ export class Queue<T = unknown> {
   }
 
   /**
-   * Resume the queue or a specific job name.
+   * Resume the queue (or a specific job name) after pausing.
+   *
+   * @param opts - If `jobName` is provided, only that job name is resumed.
    */
   async resume(opts?: PauseOptions): Promise<void> {
     this.assertNotClosed();
@@ -204,7 +258,7 @@ export class Queue<T = unknown> {
   }
 
   /**
-   * Remove all waiting jobs.
+   * Remove all waiting jobs from the queue.
    */
   async drain(): Promise<void> {
     this.assertNotClosed();
@@ -213,7 +267,11 @@ export class Queue<T = unknown> {
   }
 
   /**
-   * Remove old completed/failed jobs.
+   * Remove old jobs in the given state that are older than the grace period.
+   *
+   * @param state - The job state to clean (e.g. `"completed"`, `"failed"`).
+   * @param grace - Grace period in milliseconds. Jobs older than this are removed.
+   * @returns The number of jobs removed.
    */
   clean(state: JobState, grace: number): Promise<number> {
     this.assertNotClosed();
@@ -222,22 +280,43 @@ export class Queue<T = unknown> {
 
   // ─── Queries ─────────────────────────────────────────────────────────
 
+  /**
+   * Retrieve a job by its ID.
+   *
+   * @param jobId - The job identifier.
+   * @returns The job, or `null` if not found.
+   */
   async getJob(jobId: string): Promise<Job<T> | null> {
     const data = await this.store.getJob(this.name, jobId);
     return data ? new Job(data as JobData<T>, this.store) : null;
   }
 
+  /**
+   * List jobs in the given state with pagination.
+   *
+   * @param state - The job state to filter by.
+   * @param start - Start index (0-based). Defaults to `0`.
+   * @param end - End index (exclusive). Defaults to `100`.
+   * @returns An array of matching jobs.
+   */
   async getJobs(state: JobState, start = 0, end = 100): Promise<Job<T>[]> {
     const jobs = await this.store.listJobs(this.name, state, start, end);
     return jobs.map((j: JobData) => new Job(j as JobData<T>, this.store));
   }
 
+  /**
+   * Count jobs in the given state.
+   *
+   * @param state - The job state to count.
+   * @returns The number of jobs in that state.
+   */
   count(state: JobState): Promise<number> {
     return this.store.countJobs(this.name, state);
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
+  /** Close the queue and remove all event listeners. */
   close(): Promise<void> {
     this.closed = true;
     this.events.removeAllListeners();

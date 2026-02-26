@@ -309,6 +309,34 @@ Deno.test('Worker respects repeat.limit', testOpts, async () => {
   await store.disconnect();
 });
 
+// ─── Cron Not Implemented ───────────────────────────────────────────
+
+Deno.test('Worker throws on cron repeat', testOpts, async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  const errors: unknown[] = [];
+  const worker = createWorker(store, () => Promise.resolve('done'));
+  worker.on('error', (err) => errors.push(err));
+
+  await queue.add('cron-job', {}, {
+    repeat: { cron: '0 9 * * *' },
+  });
+
+  await waitFor(3000);
+
+  // The cron error should be caught
+  const cronError = errors.find(
+    (e) => e instanceof Error && e.message.includes('Cron scheduling is not yet implemented'),
+  );
+  assertEquals(cronError !== undefined, true);
+
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
+
 // ─── Stalled Detection ──────────────────────────────────────────────
 
 Deno.test('Worker detects and re-enqueues stalled jobs', testOpts, async () => {
@@ -334,6 +362,48 @@ Deno.test('Worker detects and re-enqueues stalled jobs', testOpts, async () => {
   await waitFor(3000);
 
   assertEquals(stalledEvents.length >= 1, true);
+
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
+
+// ─── Error Handling ─────────────────────────────────────────────────
+
+Deno.test('Worker emits error when handleFailure throws', testOpts, async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  const errors: unknown[] = [];
+
+  // Create a worker with a processor that always fails
+  const worker = createWorker(store, () => {
+    return Promise.reject(new Error('processor boom'));
+  });
+
+  worker.on('error', (err) => errors.push(err));
+
+  // Override updateJob to throw on failure path to simulate handleFailure error
+  const origUpdateJob = store.updateJob.bind(store);
+  let callCount = 0;
+  store.updateJob = (qn: string, jid: string, updates: Record<string, unknown>) => {
+    callCount++;
+    // On the failure update (after the processJob catch), throw
+    if (callCount === 1 && updates.state === 'failed') {
+      throw new Error('store update failed');
+    }
+    return origUpdateJob(qn, jid, updates);
+  };
+
+  await queue.add('error-job', {});
+  await waitFor(3000);
+
+  // The error from handleFailure should be caught and emitted
+  assertEquals(errors.length >= 1, true);
+
+  // Restore
+  store.updateJob = origUpdateJob;
 
   await worker.close();
   await queue.close();

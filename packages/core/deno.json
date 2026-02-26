@@ -2,6 +2,9 @@
   "name": "@conveyor/core",
   "version": "0.1.0",
   "exports": "./src/mod.ts",
+  "publish": {
+    "include": ["src/**/*.ts", "deno.json", "README.md", "LICENSE"]
+  },
   "lint": {
     "rules": {
       "exclude": ["no-slow-types"]

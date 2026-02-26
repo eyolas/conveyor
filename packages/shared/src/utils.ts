@@ -6,14 +6,18 @@
  */
 
 /**
- * Generate a unique job ID using crypto.randomUUID (Web Standard).
+ * Generate a unique job ID using `crypto.randomUUID` (Web Standard).
+ *
+ * @returns A UUID v4 string.
  */
 export function generateId(): string {
   return crypto.randomUUID();
 }
 
 /**
- * Generate a unique worker ID.
+ * Generate a unique worker ID with a `worker-` prefix.
+ *
+ * @returns A worker identifier string (e.g. `"worker-a1b2c3d4"`).
  */
 export function generateWorkerId(): string {
   return `worker-${crypto.randomUUID().slice(0, 8)}`;
@@ -24,10 +28,12 @@ export function generateWorkerId(): string {
  *
  * Supported formats:
  * - Number: returned as-is (ms)
- * - "500ms", "5s", "5 seconds", "10m", "10 minutes", "2h", "2 hours", "1d", "1 day"
+ * - `"500ms"`, `"5s"`, `"5 seconds"`, `"10m"`, `"10 minutes"`,
+ *   `"2h"`, `"2 hours"`, `"1d"`, `"1 day"`, `"1w"`, `"1 week"`
  *
- * For V1, we keep this simple and dependency-free.
- * Can be replaced with `ms` or `human-interval` later if needed.
+ * @param value - Delay as a number (ms) or human-readable string.
+ * @returns The delay in milliseconds.
+ * @throws {Error} If the string format is invalid.
  */
 export function parseDelay(value: number | string): number {
   if (typeof value === 'number') return value;
@@ -76,10 +82,11 @@ export function parseDelay(value: number | string): number {
 }
 
 /**
- * Hash a job payload for deduplication.
- * Uses a simple JSON stringify + hash approach.
+ * Hash a job payload for deduplication using SHA-256.
+ * Keys are sorted recursively for deterministic output.
  *
- * Note: Uses Web Crypto API (available in Deno, Node 18+, Bun).
+ * @param data - The data to hash.
+ * @returns A hex-encoded SHA-256 hash string.
  */
 export async function hashPayload(data: unknown): Promise<string> {
   const json = JSON.stringify(sortDeep(data));
@@ -104,6 +111,10 @@ function sortDeep(value: unknown): unknown {
 
 /**
  * Calculate backoff delay based on strategy.
+ *
+ * @param attemptsMade - The number of attempts already made.
+ * @param backoff - The backoff configuration.
+ * @returns The delay in milliseconds before the next retry (always >= 0).
  */
 export function calculateBackoff(
   attemptsMade: number,
@@ -120,7 +131,7 @@ export function calculateBackoff(
       const base = backoff.delay * Math.pow(2, attemptsMade - 1);
       // Add jitter: ±25%
       const jitter = base * 0.25 * (Math.random() * 2 - 1);
-      return Math.floor(base + jitter);
+      return Math.max(0, Math.floor(base + jitter));
     }
     case 'custom':
       if (!backoff.customStrategy) {
@@ -133,7 +144,13 @@ export function calculateBackoff(
 }
 
 /**
- * Create a default JobData object with sensible defaults.
+ * Create a default job data object with sensible defaults.
+ *
+ * @param queueName - The queue name.
+ * @param name - The job name.
+ * @param data - The job payload.
+ * @param opts - Optional job options.
+ * @returns A job data object ready to be saved (ID may be set if `opts.jobId` is provided).
  */
 export function createJobData<T>(
   queueName: string,
