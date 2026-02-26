@@ -42,10 +42,13 @@ export class PgStore implements StoreInterface {
   private subscribers = new Map<string, Set<EventCallback>>();
   private listeningChannels = new Set<string>();
   private listenPromises = new Map<string, Promise<{ unlisten: () => Promise<void> }>>();
+  private readonly onEventHandlerError: (error: unknown) => void;
 
   /** @param options - PostgreSQL connection and store options. */
   constructor(options: PgStoreOptions) {
     this.options = options;
+    this.onEventHandlerError = options.onEventHandlerError ??
+      ((err) => console.warn('[Conveyor] Error in event handler:', err));
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
@@ -575,8 +578,8 @@ export class PgStore implements StoreInterface {
       for (const cb of callbacks) {
         try {
           cb(event);
-        } catch {
-          // Swallow errors in event handlers
+        } catch (err) {
+          this.onEventHandlerError(err);
         }
       }
     }

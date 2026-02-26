@@ -5,6 +5,7 @@
  */
 
 import type { JobData, JobOptions } from '@conveyor/shared';
+import { assertJobState } from '@conveyor/shared';
 
 /**
  * Row shape returned by PostgreSQL queries.
@@ -46,7 +47,7 @@ export function rowToJobData(row: JobRow): JobData {
     queueName: row.queue_name,
     name: row.name,
     data: row.data,
-    state: row.state as JobData['state'],
+    state: assertJobState(row.state),
     attemptsMade: row.attempts_made,
     progress: row.progress,
     returnvalue: row.returnvalue ?? null,

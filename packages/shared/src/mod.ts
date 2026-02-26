@@ -26,6 +26,7 @@ export type {
 } from './types.ts';
 
 export {
+  assertJobState,
   calculateBackoff,
   createJobData,
   generateId,

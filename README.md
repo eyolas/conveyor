@@ -1,7 +1,13 @@
-# Conveyor
+<p align="center">
+  <img src="assets/logo.jpeg" alt="Conveyor" width="200" />
+</p>
 
-A multi-backend job queue for Deno, Node.js, and Bun. BullMQ-like API with PostgreSQL, SQLite, and
-in-memory support.
+<h1 align="center">Conveyor</h1>
+
+<p align="center">
+  A multi-backend job queue for Deno, Node.js, and Bun.<br/>
+  BullMQ-like API with PostgreSQL, SQLite, and in-memory support.
+</p>
 
 ## Why Conveyor?
 
@@ -21,6 +27,8 @@ in-memory support.
 - Per-worker and global concurrency control
 - Pause/Resume by queue or by job name
 - Recurring jobs with `queue.every()`
+- Cron scheduling with `queue.cron()` (5/6/7-field, timezone support)
+- Rate limiting (sliding window per worker)
 - Real-time job lifecycle events
 - Graceful shutdown with timeout
 - Job timeout support
@@ -49,13 +57,13 @@ await queue.close();
 
 ## Packages
 
-| Package                  | Description                | Status  |
-| ------------------------ | -------------------------- | ------- |
-| `@conveyor/core`         | Queue, Worker, Job, Events | Alpha   |
-| `@conveyor/shared`       | Types & utilities          | Alpha   |
-| `@conveyor/store-memory` | In-memory store            | Alpha   |
-| `@conveyor/store-pg`     | PostgreSQL store           | Phase 2 |
-| `@conveyor/store-sqlite` | SQLite store               | Phase 2 |
+| Package                  | Description                | Status |
+| ------------------------ | -------------------------- | ------ |
+| `@conveyor/core`         | Queue, Worker, Job, Events | Alpha  |
+| `@conveyor/shared`       | Types & utilities          | Alpha  |
+| `@conveyor/store-memory` | In-memory store            | Alpha  |
+| `@conveyor/store-pg`     | PostgreSQL store           | Alpha  |
+| `@conveyor/store-sqlite` | SQLite store               | Alpha  |
 
 ## API
 
@@ -105,6 +113,15 @@ await queue.now('urgent-task', payload);
 // Recurring jobs
 await queue.every('2 hours', 'cleanup', payload);
 await queue.every('30s', 'health-check', payload, { repeat: { limit: 100 } });
+
+// Cron scheduling (5/6/7-field expressions)
+await queue.cron('0 9 * * *', 'daily-report', payload);
+await queue.cron('*/30 * * * *', 'health-check', payload);
+
+// Cron with timezone
+await queue.add('task', payload, {
+  repeat: { cron: '0 9 * * *', tz: 'Europe/Paris' },
+});
 ```
 
 #### Deduplication
@@ -163,6 +180,7 @@ const worker = new Worker('queue-name', async (job) => {
   concurrency: 5,
   lockDuration: 30_000,
   stalledInterval: 30_000,
+  limiter: { max: 10, duration: 1000 }, // 10 jobs per second
 });
 ```
 
@@ -186,6 +204,25 @@ worker.resume();
 // Graceful shutdown (waits up to 30s for active jobs)
 await worker.close(30_000);
 ```
+
+### Rate Limiting
+
+Limit the number of jobs a worker processes within a sliding time window:
+
+```typescript
+const worker = new Worker('api-calls', handler, {
+  store,
+  limiter: { max: 10, duration: 1000 }, // 10 jobs per second
+});
+
+// Or more conservative
+const worker2 = new Worker('emails', handler, {
+  store,
+  limiter: { max: 100, duration: 60_000 }, // 100 per minute
+});
+```
+
+Rate limiting is per-worker (local sliding window). Each worker tracks its own window independently.
 
 ### Job
 
@@ -270,6 +307,33 @@ class MyStore implements StoreInterface {
   async getJob(queueName, jobId): Promise<JobData | null> {/* ... */}
   // ... implement all methods from StoreInterface
 }
+```
+
+### Store Setup
+
+#### PostgreSQL
+
+```typescript
+import { PgStore } from '@conveyor/store-pg';
+
+const store = new PgStore({ connection: 'postgres://user:pass@localhost/mydb' });
+await store.connect(); // auto-runs migrations
+// ... use with Queue/Worker
+await store.disconnect();
+```
+
+#### SQLite
+
+```typescript
+import { SqliteStore } from '@conveyor/store-sqlite';
+
+const store = new SqliteStore({ filename: './data/queue.db' });
+await store.connect(); // auto-runs migrations, enables WAL
+// ... use with Queue/Worker
+await store.disconnect();
+
+// Or in-memory for testing
+const memStore = new SqliteStore({ filename: ':memory:' });
 ```
 
 Run the conformance test suite against your store:

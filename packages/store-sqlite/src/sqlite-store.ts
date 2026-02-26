@@ -41,6 +41,7 @@ export class SqliteStore implements StoreInterface {
   private readonly options: SqliteStoreOptions;
   private subscribers = new Map<string, Set<EventCallback>>();
   private seqCounter = 0;
+  private readonly onEventHandlerError: (error: unknown) => void;
 
   // Prepared statement cache
   private stmts!: {
@@ -57,6 +58,8 @@ export class SqliteStore implements StoreInterface {
   /** @param options - SQLite database path and store options. */
   constructor(options: SqliteStoreOptions) {
     this.options = options;
+    this.onEventHandlerError = options.onEventHandlerError ??
+      ((err) => console.warn('[Conveyor] Error in event handler:', err));
   }
 
   /**
@@ -564,8 +567,8 @@ export class SqliteStore implements StoreInterface {
       for (const cb of callbacks) {
         try {
           cb(event);
-        } catch {
-          // Swallow errors in event handlers
+        } catch (err) {
+          this.onEventHandlerError(err);
         }
       }
     }

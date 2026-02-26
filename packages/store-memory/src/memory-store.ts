@@ -9,7 +9,14 @@
  * - Single process only
  */
 
-import type { FetchOptions, JobData, JobState, StoreEvent, StoreInterface } from '@conveyor/shared';
+import type {
+  FetchOptions,
+  JobData,
+  JobState,
+  StoreEvent,
+  StoreInterface,
+  StoreOptions,
+} from '@conveyor/shared';
 import { generateId } from '@conveyor/shared';
 
 /** @internal */
@@ -33,6 +40,12 @@ export class MemoryStore implements StoreInterface {
   private insertionCounter = 0;
   private pausedNames = new Map<string, Set<string>>();
   private subscribers = new Map<string, Set<EventCallback>>();
+  private readonly onEventHandlerError: (error: unknown) => void;
+
+  constructor(options?: StoreOptions) {
+    this.onEventHandlerError = options?.onEventHandlerError ??
+      ((err) => console.warn('[Conveyor] Error in event handler:', err));
+  }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
@@ -411,8 +424,8 @@ export class MemoryStore implements StoreInterface {
       for (const cb of callbacks) {
         try {
           cb(event);
-        } catch {
-          // Swallow errors in event handlers
+        } catch (err) {
+          this.onEventHandlerError(err);
         }
       }
     }
