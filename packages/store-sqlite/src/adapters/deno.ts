@@ -70,12 +70,15 @@ class DenoDatabase implements SqliteDatabase {
 export async function createDatabase(filename: string): Promise<SqliteDatabase> {
   try {
     // Prefer @db/sqlite for optimal FFI-native performance on Deno.
-    const mod = await import(/* @vite-ignore */ '@db/sqlite');
+    // String concatenation makes the specifier opaque to Vite's analysis.
+    const dbSqlite = '@db' + '/sqlite';
+    const mod = await import(/* @vite-ignore */ dbSqlite);
     return new DenoDatabase(new mod.Database(filename) as NativeDb);
   } catch {
     // @db/sqlite is not resolvable under vitest/vite — fall back to node:sqlite
     // which is also built-in on Deno 2.2+.
-    const { DatabaseSync } = await import(/* @vite-ignore */ 'node:sqlite');
+    const nodeSqlite = 'node' + ':sqlite';
+    const { DatabaseSync } = await import(/* @vite-ignore */ nodeSqlite);
     return new DatabaseSync(filename) as unknown as SqliteDatabase;
   }
 }

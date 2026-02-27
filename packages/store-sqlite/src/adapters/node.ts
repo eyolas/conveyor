@@ -11,6 +11,9 @@
 import type { SqliteDatabase } from '../adapter.ts';
 
 export async function createDatabase(filename: string): Promise<SqliteDatabase> {
-  const { DatabaseSync } = await import(/* @vite-ignore */ 'node:sqlite');
+  // String concatenation makes the specifier opaque to both Vite's static
+  // analysis and Bun's eager module pre-resolution.
+  const specifier = 'node' + ':sqlite';
+  const { DatabaseSync } = await import(/* @vite-ignore */ specifier);
   return new DatabaseSync(filename) as unknown as SqliteDatabase;
 }
