@@ -13,6 +13,13 @@ export default defineConfig({
     exclude: ['tests/conformance/store.test.ts'],
     testTimeout: 30_000,
     fileParallelism: false,
+    server: {
+      deps: {
+        // Externalize runtime-specific SQLite builtins so Vite doesn't try to
+        // resolve them during module graph analysis on the wrong runtime.
+        external: [/^bun:sqlite$/, /^node:sqlite$/, /^@db\/sqlite/],
+      },
+    },
   },
   resolve: {
     alias: {
