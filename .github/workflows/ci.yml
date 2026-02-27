@@ -31,6 +31,24 @@ jobs:
     name: Tests (Deno)
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: conveyor
+          POSTGRES_PASSWORD: conveyor
+          POSTGRES_DB: conveyor_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PG_URL: postgres://conveyor:conveyor@localhost:5432/conveyor_test
+
     steps:
       - uses: actions/checkout@v4
 
@@ -38,8 +56,8 @@ jobs:
         with:
           deno-version: '2.x'
 
-      - name: Run tests (exclude PG)
-        run: deno -A npm:vitest run --exclude 'tests/store-pg/**'
+      - name: Run tests
+        run: deno -A npm:vitest run
 
   test-node:
     name: Tests (Node.js ${{ matrix.node-version }})
@@ -47,6 +65,24 @@ jobs:
     strategy:
       matrix:
         node-version: ['22', '24']
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: conveyor
+          POSTGRES_PASSWORD: conveyor
+          POSTGRES_DB: conveyor_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PG_URL: postgres://conveyor:conveyor@localhost:5432/conveyor_test
 
     steps:
       - uses: actions/checkout@v4
@@ -58,109 +94,13 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run tests (exclude PG)
-        run: npx vitest run --exclude 'tests/store-pg/**'
+      - name: Run tests
+        run: npx vitest run
 
   test-bun:
     name: Tests (Bun)
     runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Run tests (exclude PG and SQLite)
-        run: bunx vitest run --exclude 'tests/store-pg/**' --exclude 'tests/store-sqlite/**'
-
-  test-sqlite:
-    name: Tests (SQLite)
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: '2.x'
-
-      - name: Run SQLite tests
-        run: deno -A npm:vitest run tests/store-sqlite/
-
-  test-pg:
-    name: Tests (PostgreSQL - Deno)
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: conveyor
-          POSTGRES_PASSWORD: conveyor
-          POSTGRES_DB: conveyor_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      PG_URL: postgres://conveyor:conveyor@localhost:5432/conveyor_test
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: '2.x'
-
-      - name: Run PostgreSQL tests
-        run: deno -A npm:vitest run tests/store-pg/
-
-  test-node-pg:
-    name: Tests (PostgreSQL - Node.js)
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: conveyor
-          POSTGRES_PASSWORD: conveyor
-          POSTGRES_DB: conveyor_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      PG_URL: postgres://conveyor:conveyor@localhost:5432/conveyor_test
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run PostgreSQL tests
-        run: npx vitest run tests/store-pg/
-
-  test-bun-pg:
-    name: Tests (PostgreSQL - Bun)
-    runs-on: ubuntu-latest
-
     services:
       postgres:
         image: postgres:16
@@ -187,5 +127,5 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Run PostgreSQL tests
-        run: bunx vitest run tests/store-pg/
+      - name: Run tests
+        run: bunx vitest run
