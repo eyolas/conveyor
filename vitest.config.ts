@@ -11,9 +11,10 @@ export default defineConfig({
     fileParallelism: false,
     server: {
       deps: {
-        // @db/sqlite is a jsr: specifier resolved via Deno import maps —
-        // Vite cannot resolve it, so let the runtime handle it.
-        external: [/^@db\/sqlite/],
+        // Each runtime has its own SQLite built-in that doesn't exist on other
+        // runtimes. Externalize all three so Vite doesn't try to resolve them
+        // during module graph analysis — only the correct adapter is loaded at runtime.
+        external: [/^@db\/sqlite/, /^node:sqlite$/, /^bun:sqlite$/],
       },
     },
   },
