@@ -5,7 +5,7 @@
  * Migrations are applied in order and tracked in the `conveyor_migrations` table.
  */
 
-import type { DatabaseSync } from 'node:sqlite';
+import type { SqliteDatabase } from './adapter.ts';
 
 /**
  * A single database migration.
@@ -80,9 +80,9 @@ export const migrations: Migration[] = [
  * Apply all pending migrations to the SQLite database.
  * Each migration is wrapped in a transaction for atomicity.
  *
- * @param db - An open `DatabaseSync` instance.
+ * @param db - An open {@linkcode SqliteDatabase} instance.
  */
-export function runMigrations(db: DatabaseSync): void {
+export function runMigrations(db: SqliteDatabase): void {
   // Ensure migration table exists
   db.exec(`
     CREATE TABLE IF NOT EXISTS conveyor_migrations (

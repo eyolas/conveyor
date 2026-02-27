@@ -7,7 +7,8 @@ import type {
   StoreOptions,
 } from '@conveyor/shared';
 import { generateId } from '@conveyor/shared';
-import { DatabaseSync, type SQLInputValue, type StatementSync } from 'node:sqlite';
+import type { SqliteDatabase, SqliteStatement } from './adapter.ts';
+import { openDatabase } from './adapter.ts';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
 import { runMigrations } from './migrations.ts';
@@ -26,8 +27,7 @@ export interface SqliteStoreOptions extends StoreOptions {
 /**
  * SQLite implementation of {@linkcode StoreInterface}.
  *
- * Uses `node:sqlite` (DatabaseSync) which is built-in to
- * Node.js 22.13+, Deno 2.2+, and Bun 1.2+.
+ * Uses `node:sqlite` (Node.js 22.13+, Deno 2.2+) or `bun:sqlite` (Bun 1.2+).
  * WAL mode and prepared statements provide good concurrency and performance.
  *
  * @example
@@ -37,7 +37,7 @@ export interface SqliteStoreOptions extends StoreOptions {
  * ```
  */
 export class SqliteStore implements StoreInterface {
-  private db!: DatabaseSync;
+  private db!: SqliteDatabase;
   private readonly options: SqliteStoreOptions;
   private subscribers = new Map<string, Set<EventCallback>>();
   private seqCounter = 0;
@@ -45,14 +45,14 @@ export class SqliteStore implements StoreInterface {
 
   // Prepared statement cache
   private stmts!: {
-    insertJob: StatementSync;
-    getJob: StatementSync;
-    removeJob: StatementSync;
-    countByState: StatementSync;
-    activeCount: StatementSync;
-    insertPaused: StatementSync;
-    removePaused: StatementSync;
-    getPaused: StatementSync;
+    insertJob: SqliteStatement;
+    getJob: SqliteStatement;
+    removeJob: SqliteStatement;
+    countByState: SqliteStatement;
+    activeCount: SqliteStatement;
+    insertPaused: SqliteStatement;
+    removePaused: SqliteStatement;
+    getPaused: SqliteStatement;
   };
 
   /** @param options - SQLite database path and store options. */
@@ -81,8 +81,8 @@ export class SqliteStore implements StoreInterface {
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
   /** Open the database, enable WAL mode, run migrations, and prepare statements. */
-  connect(): Promise<void> {
-    this.db = new DatabaseSync(this.options.filename);
+  async connect(): Promise<void> {
+    this.db = await openDatabase(this.options.filename);
 
     // Enable WAL mode + busy timeout for concurrency
     this.db.exec('PRAGMA journal_mode = WAL');
@@ -135,8 +135,6 @@ export class SqliteStore implements StoreInterface {
         'SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?',
       ),
     };
-
-    return Promise.resolve();
   }
 
   /** Close the database and clear all subscribers. */
@@ -185,7 +183,7 @@ export class SqliteStore implements StoreInterface {
         const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
         const row = jobDataToRow({ ...job, id });
         row.seq = this.seqCounter++;
-        this.stmts.insertJob.run(row as Record<string, SQLInputValue>);
+        this.stmts.insertJob.run(row as Record<string, unknown>);
         return id;
       });
 
@@ -197,7 +195,7 @@ export class SqliteStore implements StoreInterface {
     const row = jobDataToRow({ ...job, id });
     row.seq = this.seqCounter++;
 
-    this.stmts.insertJob.run(row as Record<string, SQLInputValue>);
+    this.stmts.insertJob.run(row as Record<string, unknown>);
     return Promise.resolve(id);
   }
 
@@ -235,7 +233,7 @@ export class SqliteStore implements StoreInterface {
         const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
         const row = jobDataToRow({ ...job, id });
         row.seq = this.seqCounter++;
-        this.stmts.insertJob.run(row as Record<string, SQLInputValue>);
+        this.stmts.insertJob.run(row as Record<string, unknown>);
         ids.push(id);
       }
     });
@@ -302,7 +300,7 @@ export class SqliteStore implements StoreInterface {
 
     values.push(queueName, jobId);
     const query = `UPDATE conveyor_jobs SET ${sets.join(', ')} WHERE queue_name = ? AND id = ?`;
-    this.db.prepare(query).run(...values as SQLInputValue[]);
+    this.db.prepare(query).run(...values as unknown[]);
     return Promise.resolve();
   }
 
@@ -376,7 +374,7 @@ export class SqliteStore implements StoreInterface {
         params.push(queueName);
       }
 
-      const candidate = this.db.prepare(query).get(...params as SQLInputValue[]) as
+      const candidate = this.db.prepare(query).get(...params as unknown[]) as
         | { id: string }
         | undefined;
       if (!candidate) return null;
