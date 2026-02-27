@@ -29,7 +29,7 @@
     "test:memory": "deno -A npm:vitest run tests/conformance/",
     "test:pg": "deno -A npm:vitest run tests/store-pg/",
     "test:sqlite:node": "deno -A npm:vitest run --config vitest.sqlite.config.ts tests/store-sqlite/",
-    "test:sqlite:bun": "deno -A npm:vitest run --config vitest.sqlite.config.ts tests/store-sqlite-bun/",
+    "test:sqlite:bun": "bun test tests/store-sqlite-bun/",
     "test:sqlite:deno": "deno -A npm:vitest run --config vitest.sqlite.config.ts tests/store-sqlite-deno/",
     "bench": "deno bench --allow-env --allow-read --allow-write benchmarks/",
     "lint": "deno lint",
@@ -44,7 +44,8 @@
   "lint": {
     "rules": {
       "tags": ["recommended"]
-    }
+    },
+    "exclude": ["tests/bun-vitest-shim.ts", "bunfig.toml"]
   },
   "compilerOptions": {
     "strict": true,

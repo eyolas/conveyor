@@ -137,4 +137,4 @@ jobs:
         run: bunx vitest run
 
       - name: Run SQLite tests (Bun)
-        run: bunx vitest run --config vitest.sqlite.config.ts tests/store-sqlite-bun/
+        run: bun test tests/store-sqlite-bun/
