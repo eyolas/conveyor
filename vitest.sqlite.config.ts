@@ -3,15 +3,14 @@ import { defineConfig } from 'vitest/config';
 
 const root = import.meta.dirname!;
 
+/**
+ * Vitest config for per-runtime SQLite tests.
+ * Usage: vitest run --config vitest.sqlite.config.ts tests/store-sqlite/
+ */
 export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
-    exclude: [
-      'tests/conformance/store.test.ts',
-      'tests/store-sqlite/**',
-      'tests/store-sqlite-bun/**',
-      'tests/store-sqlite-deno/**',
-    ],
+    exclude: ['tests/conformance/store.test.ts'],
     testTimeout: 30_000,
     fileParallelism: false,
   },

@@ -1,3 +1,10 @@
+/**
+ * @module @conveyor/store-sqlite-core/sqlite-store
+ *
+ * Base SQLite store implementation with injected database opener.
+ * Runtime-specific packages extend this class and provide their own opener.
+ */
+
 import type {
   FetchOptions,
   JobData,
@@ -7,8 +14,7 @@ import type {
   StoreOptions,
 } from '@conveyor/shared';
 import { generateId } from '@conveyor/shared';
-import type { SqliteDatabase, SqliteStatement } from './adapter.ts';
-import { openDatabase } from './adapter.ts';
+import type { DatabaseOpener, SqliteDatabase, SqliteStatement } from './types.ts';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
 import { runMigrations } from './migrations.ts';
@@ -17,28 +23,25 @@ import { runMigrations } from './migrations.ts';
 type EventCallback = (event: StoreEvent) => void;
 
 /**
- * Configuration options for {@linkcode SqliteStore}.
+ * Configuration options for {@linkcode BaseSqliteStore}.
  */
-export interface SqliteStoreOptions extends StoreOptions {
+export interface BaseSqliteStoreOptions extends StoreOptions {
   /** Path to the SQLite database file (e.g. `"./data/queue.db"` or `":memory:"`). */
   filename: string;
+  /** Runtime-specific function that opens a SQLite database. */
+  openDatabase: DatabaseOpener;
 }
 
 /**
- * SQLite implementation of {@linkcode StoreInterface}.
+ * Base SQLite implementation of {@linkcode StoreInterface}.
  *
- * Uses `node:sqlite` (Node.js 22.13+, Deno 2.2+) or `bun:sqlite` (Bun 1.2+).
+ * Uses an injected `openDatabase` function to support different SQLite
+ * drivers across runtimes (node:sqlite, bun:sqlite, @db/sqlite).
  * WAL mode and prepared statements provide good concurrency and performance.
- *
- * @example
- * ```ts
- * const store = new SqliteStore({ filename: ":memory:" });
- * await store.connect();
- * ```
  */
-export class SqliteStore implements StoreInterface {
+export class BaseSqliteStore implements StoreInterface {
   private db!: SqliteDatabase;
-  private readonly options: SqliteStoreOptions;
+  protected readonly options: BaseSqliteStoreOptions;
   private subscribers = new Map<string, Set<EventCallback>>();
   private seqCounter = 0;
   private readonly onEventHandlerError: (error: unknown) => void;
@@ -55,8 +58,8 @@ export class SqliteStore implements StoreInterface {
     getPaused: SqliteStatement;
   };
 
-  /** @param options - SQLite database path and store options. */
-  constructor(options: SqliteStoreOptions) {
+  /** @param options - SQLite database path, opener, and store options. */
+  constructor(options: BaseSqliteStoreOptions) {
     this.options = options;
     this.onEventHandlerError = options.onEventHandlerError ??
       ((err) => console.warn('[Conveyor] Error in event handler:', err));
@@ -82,7 +85,7 @@ export class SqliteStore implements StoreInterface {
 
   /** Open the database, enable WAL mode, run migrations, and prepare statements. */
   async connect(): Promise<void> {
-    this.db = await openDatabase(this.options.filename);
+    this.db = await this.options.openDatabase(this.options.filename);
 
     // Enable WAL mode + busy timeout for concurrency
     this.db.exec('PRAGMA journal_mode = WAL');

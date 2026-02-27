@@ -5,14 +5,20 @@
     "./packages/shared",
     "./packages/store-memory",
     "./packages/store-pg",
-    "./packages/store-sqlite"
+    "./packages/store-sqlite-core",
+    "./packages/store-sqlite",
+    "./packages/store-sqlite-bun",
+    "./packages/store-sqlite-deno"
   ],
   "imports": {
     "@conveyor/core": "./packages/core/src/mod.ts",
     "@conveyor/shared": "./packages/shared/src/mod.ts",
     "@conveyor/store-memory": "./packages/store-memory/src/mod.ts",
     "@conveyor/store-pg": "./packages/store-pg/src/mod.ts",
+    "@conveyor/store-sqlite-core": "./packages/store-sqlite-core/src/mod.ts",
     "@conveyor/store-sqlite": "./packages/store-sqlite/src/mod.ts",
+    "@conveyor/store-sqlite-bun": "./packages/store-sqlite-bun/src/mod.ts",
+    "@conveyor/store-sqlite-deno": "./packages/store-sqlite-deno/src/mod.ts",
     "@db/sqlite": "jsr:@db/sqlite@^0.13",
     "vitest": "npm:vitest@^3"
   },
@@ -22,7 +28,9 @@
     "test:core": "deno -A npm:vitest run tests/core/ tests/conformance/",
     "test:memory": "deno -A npm:vitest run tests/conformance/",
     "test:pg": "deno -A npm:vitest run tests/store-pg/",
-    "test:sqlite": "deno -A npm:vitest run tests/store-sqlite/",
+    "test:sqlite:node": "deno -A npm:vitest run --config vitest.sqlite.config.ts tests/store-sqlite/",
+    "test:sqlite:bun": "deno -A npm:vitest run --config vitest.sqlite.config.ts tests/store-sqlite-bun/",
+    "test:sqlite:deno": "deno -A npm:vitest run --config vitest.sqlite.config.ts tests/store-sqlite-deno/",
     "bench": "deno bench --allow-env --allow-read --allow-write benchmarks/",
     "lint": "deno lint",
     "fmt": "deno fmt",

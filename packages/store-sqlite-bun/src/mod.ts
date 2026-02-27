@@ -1,7 +1,7 @@
 /**
- * @module @conveyor/store-sqlite
+ * @module @conveyor/store-sqlite-bun
  *
- * SQLite store for Node.js, using `node:sqlite` (DatabaseSync, built-in 22.13+).
+ * SQLite store for Bun, using `bun:sqlite` (native, strict mode).
  */
 
 import { BaseSqliteStore } from '@conveyor/store-sqlite-core';
@@ -16,13 +16,14 @@ export interface SqliteStoreOptions extends StoreOptions {
   filename: string;
 }
 
-async function openNodeDatabase(filename: string): Promise<SqliteDatabase> {
-  const { DatabaseSync } = await import('node:sqlite');
-  return new DatabaseSync(filename) as unknown as SqliteDatabase;
+async function openBunDatabase(filename: string): Promise<SqliteDatabase> {
+  const specifier = 'bun' + ':sqlite';
+  const { Database } = await import(/* @vite-ignore */ specifier);
+  return new Database(filename, { strict: true }) as unknown as SqliteDatabase;
 }
 
 /**
- * Node.js SQLite store backed by `node:sqlite` (DatabaseSync).
+ * Bun SQLite store backed by `bun:sqlite`.
  *
  * @example
  * ```ts
@@ -32,6 +33,6 @@ async function openNodeDatabase(filename: string): Promise<SqliteDatabase> {
  */
 export class SqliteStore extends BaseSqliteStore {
   constructor(options: SqliteStoreOptions) {
-    super({ ...options, openDatabase: openNodeDatabase });
+    super({ ...options, openDatabase: openBunDatabase });
   }
 }

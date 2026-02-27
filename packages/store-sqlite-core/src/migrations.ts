@@ -1,11 +1,11 @@
 /**
- * @module @conveyor/store-sqlite/migrations
+ * @module @conveyor/store-sqlite-core/migrations
  *
  * Auto-versioned migration system for the SQLite store.
  * Migrations are applied in order and tracked in the `conveyor_migrations` table.
  */
 
-import type { SqliteDatabase } from './adapter.ts';
+import type { SqliteDatabase } from './types.ts';
 
 /**
  * A single database migration.
