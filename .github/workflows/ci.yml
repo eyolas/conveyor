@@ -73,8 +73,8 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Run tests (exclude PG)
-        run: bunx vitest run --exclude 'tests/store-pg/**'
+      - name: Run tests (exclude PG and SQLite)
+        run: bunx vitest run --exclude 'tests/store-pg/**' --exclude 'tests/store-sqlite/**'
 
   test-sqlite:
     name: Tests (SQLite)
