@@ -1,8 +1,12 @@
 import { describe, expect, test } from 'vitest';
 
-// Build module name dynamically to prevent bundler static analysis
-const sqliteModuleName = ['node', 'sqlite'].join(':');
-const hasSqlite = await import(sqliteModuleName).then(() => true, () => false);
+let hasSqlite = false;
+try {
+  await import(['node', 'sqlite'].join(':'));
+  hasSqlite = true;
+} catch {
+  // node:sqlite not available (e.g. Bun)
+}
 
 describe.skipIf(!hasSqlite)('SqliteStore error paths', async () => {
   const { SqliteStore } = await import('@conveyor/store-sqlite');
