@@ -2,7 +2,14 @@
  * @module @conveyor/store-sqlite/adapter
  *
  * Runtime-agnostic SQLite database adapter.
- * Dynamically imports `node:sqlite` (Node.js/Deno) or `bun:sqlite` (Bun).
+ * Dispatches to the correct runtime-specific driver:
+ * - Node.js → `node:sqlite` (adapters/node.ts)
+ * - Bun     → `bun:sqlite` (adapters/bun.ts)
+ * - Deno    → `@db/sqlite` (adapters/deno.ts)
+ *
+ * All adapter files use dynamic imports internally so that Vite never
+ * statically resolves a runtime-specific module (node:sqlite, bun:sqlite,
+ * or @db/sqlite) that doesn't exist on the current runtime.
  */
 
 /** Result from a statement's `.run()` call. */
@@ -25,24 +32,21 @@ export interface SqliteDatabase {
   close(): void;
 }
 
-const isBun = 'Bun' in globalThis;
-
 /**
  * Open a SQLite database using the appropriate runtime driver.
- * - On Bun: uses `bun:sqlite` with `strict: true` for prefix-free named parameters.
- * - On Node.js/Deno: uses `node:sqlite` (DatabaseSync).
+ * - On Bun:  uses `bun:sqlite` (native, strict mode)
+ * - On Deno: uses `@db/sqlite` (FFI native)
+ * - On Node: uses `node:sqlite` (DatabaseSync, built-in 22.13+)
  *
  * @param filename - Path to the database file, or `":memory:"` for in-memory.
  */
 export async function openDatabase(
   filename: string,
 ): Promise<SqliteDatabase> {
-  if (isBun) {
-    const { Database } = await import(/* @vite-ignore */ 'bun:sqlite');
-    return new Database(filename, {
-      strict: true,
-    }) as unknown as SqliteDatabase;
-  }
-  const { DatabaseSync } = await import(/* @vite-ignore */ 'node:sqlite');
-  return new DatabaseSync(filename) as unknown as SqliteDatabase;
+  const runtime = 'Bun' in globalThis ? 'bun' : 'Deno' in globalThis ? 'deno' : 'node';
+  const importPath = './adapters/' + runtime + '.ts';
+  const mod: { createDatabase: (f: string) => Promise<SqliteDatabase> } = await import(
+    /* @vite-ignore */ importPath
+  );
+  return mod.createDatabase(filename);
 }

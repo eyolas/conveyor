@@ -13,6 +13,7 @@
     "@conveyor/store-memory": "./packages/store-memory/src/mod.ts",
     "@conveyor/store-pg": "./packages/store-pg/src/mod.ts",
     "@conveyor/store-sqlite": "./packages/store-sqlite/src/mod.ts",
+    "@db/sqlite": "jsr:@db/sqlite@^0.13",
     "vitest": "npm:vitest@^3"
   },
   "tasks": {

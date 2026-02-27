@@ -9,6 +9,13 @@ export default defineConfig({
     exclude: ['tests/conformance/store.test.ts'],
     testTimeout: 30_000,
     fileParallelism: false,
+    server: {
+      deps: {
+        // @db/sqlite is a jsr: specifier resolved via Deno import maps —
+        // Vite cannot resolve it, so let the runtime handle it.
+        external: [/^@db\/sqlite/],
+      },
+    },
   },
   resolve: {
     alias: {
