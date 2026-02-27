@@ -2,24 +2,24 @@
   <img src="https://raw.githubusercontent.com/eyolas/conveyor/main/assets/logo.jpeg" alt="Conveyor" width="120" />
 </p>
 
-# @conveyor/store-sqlite
+# @conveyor/store-sqlite-deno
 
-SQLite storage backend for the [Conveyor](../../README.md) job queue, for **Node.js**.
+SQLite storage backend for the [Conveyor](../../README.md) job queue, optimized for Deno.
 
-Uses `node:sqlite` (`DatabaseSync`) which is built-in to Node.js 22.13+. No native dependencies
-required.
+Uses `@db/sqlite` (FFI native) as the primary driver with an automatic fallback to `node:sqlite`
+(built-in on Deno 2.2+) when running under vitest or environments where `@db/sqlite` is unavailable.
 
 ## Install
 
 ```ts
-import { SqliteStore } from '@conveyor/store-sqlite';
+import { SqliteStore } from '@conveyor/store-sqlite-deno';
 ```
 
 ## Usage
 
 ```ts
 import { Queue, Worker } from '@conveyor/core';
-import { SqliteStore } from '@conveyor/store-sqlite';
+import { SqliteStore } from '@conveyor/store-sqlite-deno';
 
 const store = new SqliteStore({ filename: './data/queue.db' });
 await store.connect(); // auto-runs migrations, enables WAL mode
@@ -47,12 +47,12 @@ const store = new SqliteStore({ filename: ':memory:' });
 - Automatic schema migrations
 - WAL mode for better concurrent read/write performance
 - Prepared statement caching
-- Zero native dependencies (`node:sqlite` is built-in)
+- `@db/sqlite` (FFI native) with `node:sqlite` fallback — no external native dependencies
 
 ## See also
 
+- [`@conveyor/store-sqlite`](../store-sqlite) — Node.js (`node:sqlite`)
 - [`@conveyor/store-sqlite-bun`](../store-sqlite-bun) — Bun (`bun:sqlite`)
-- [`@conveyor/store-sqlite-deno`](../store-sqlite-deno) — Deno (`@db/sqlite`)
 - [`@conveyor/store-sqlite-core`](../store-sqlite-core) — Shared base package
 
 ## License
