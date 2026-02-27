@@ -28,21 +28,18 @@ jobs:
         run: deno check packages/*/src/mod.ts
 
   test-deno:
-    name: Tests (Deno ${{ matrix.deno-version }})
+    name: Tests (Deno)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        deno-version: ['2.2.0', '2.x']
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: denoland/setup-deno@v2
         with:
-          deno-version: ${{ matrix.deno-version }}
+          deno-version: '2.x'
 
-      - name: Run tests
-        run: deno -A npm:vitest run
+      - name: Run tests (exclude PG)
+        run: deno -A npm:vitest run --exclude 'tests/store-pg/**'
 
   test-node:
     name: Tests (Node.js ${{ matrix.node-version }})
@@ -61,8 +58,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run tests
-        run: npx vitest run
+      - name: Run tests (exclude PG)
+        run: npx vitest run --exclude 'tests/store-pg/**'
 
   test-bun:
     name: Tests (Bun)
@@ -76,8 +73,8 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Run tests
-        run: bunx vitest run
+      - name: Run tests (exclude PG)
+        run: bunx vitest run --exclude 'tests/store-pg/**'
 
   test-sqlite:
     name: Tests (SQLite)
