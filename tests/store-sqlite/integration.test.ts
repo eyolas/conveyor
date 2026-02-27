@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import { Queue, Worker } from '@conveyor/core';
 
-const hasSqlite = await import('node:sqlite').then(() => true, () => false);
+// Build module name dynamically to prevent bundler static analysis
+const sqliteModuleName = ['node', 'sqlite'].join(':');
+const hasSqlite = await import(sqliteModuleName).then(() => true, () => false);
 
 function waitFor(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
