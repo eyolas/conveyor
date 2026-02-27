@@ -1,15 +1,15 @@
-import { describe, expect, test } from 'vitest';
+import { expect, test } from 'vitest';
 
 let hasSqlite = false;
 try {
-  await import(['node', 'sqlite'].join(':'));
+  await import(/* @vite-ignore */ ['node', 'sqlite'].join(':'));
   hasSqlite = true;
 } catch {
   // node:sqlite not available (e.g. Bun)
 }
 
-describe.skipIf(!hasSqlite)('SqliteStore error paths', async () => {
-  const { SqliteStore } = await import('@conveyor/store-sqlite');
+if (hasSqlite) {
+  const { SqliteStore } = await import(/* @vite-ignore */ '@conveyor/store-sqlite');
 
   test('SqliteStore: connect() throws with invalid path', () => {
     const store = new SqliteStore({ filename: '/nonexistent/path/to/nowhere/db.sqlite' });
@@ -27,4 +27,6 @@ describe.skipIf(!hasSqlite)('SqliteStore error paths', async () => {
       () => store.getJob('q', 'j'),
     ).toThrow();
   });
-});
+} else {
+  test.skip('SqliteStore error paths (node:sqlite not available)', () => {});
+}

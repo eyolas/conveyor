@@ -1,9 +1,9 @@
-import { describe, expect, test } from 'vitest';
+import { expect, test } from 'vitest';
 import { Queue, Worker } from '@conveyor/core';
 
 let hasSqlite = false;
 try {
-  await import(['node', 'sqlite'].join(':'));
+  await import(/* @vite-ignore */ ['node', 'sqlite'].join(':'));
   hasSqlite = true;
 } catch {
   // node:sqlite not available (e.g. Bun)
@@ -13,12 +13,10 @@ function waitFor(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-describe.skipIf(!hasSqlite)('SqliteStore integration', async () => {
-  const { SqliteStore } = await import('@conveyor/store-sqlite');
+if (hasSqlite) {
+  const { SqliteStore } = await import(/* @vite-ignore */ '@conveyor/store-sqlite');
 
-  function createStore() {
-    return new SqliteStore({ filename: ':memory:' });
-  }
+  const createStore = () => new SqliteStore({ filename: ':memory:' });
 
   test(
     '[SqliteStore Integration] add job -> worker process -> completed',
@@ -75,7 +73,6 @@ describe.skipIf(!hasSqlite)('SqliteStore integration', async () => {
     await store.connect();
     const queue = new Queue('int-stalled', { store });
 
-    // Add a job and manually simulate a dead worker holding an expired lock
     const job = await queue.add('stall-task', {}, { attempts: 2 });
     await store.updateJob('int-stalled', job.id, {
       state: 'active',
@@ -83,7 +80,6 @@ describe.skipIf(!hasSqlite)('SqliteStore integration', async () => {
       lockUntil: new Date(Date.now() - 10_000),
     });
 
-    // Start a new worker — its stalled checker should detect and re-enqueue the job
     let processCount = 0;
     const worker = new Worker('int-stalled', () => {
       processCount++;
@@ -97,7 +93,6 @@ describe.skipIf(!hasSqlite)('SqliteStore integration', async () => {
 
     await waitFor(3000);
 
-    // Job should have been detected as stalled and re-processed
     expect(processCount >= 1).toEqual(true);
 
     await worker.close();
@@ -147,11 +142,12 @@ describe.skipIf(!hasSqlite)('SqliteStore integration', async () => {
     }
     await waitFor(5000);
 
-    // Max active should never exceed global concurrency limit
     expect(maxActive <= 2).toEqual(true);
 
     await worker.close();
     await queue.close();
     await store.disconnect();
   });
-});
+} else {
+  test.skip('SqliteStore integration (node:sqlite not available)', () => {});
+}
