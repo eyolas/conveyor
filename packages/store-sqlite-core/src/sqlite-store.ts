@@ -1,3 +1,10 @@
+/**
+ * @module @conveyor/store-sqlite-core/sqlite-store
+ *
+ * Base SQLite store implementation with injected database opener.
+ * Runtime-specific packages extend this class and provide their own opener.
+ */
+
 import type {
   FetchOptions,
   JobData,
@@ -7,7 +14,7 @@ import type {
   StoreOptions,
 } from '@conveyor/shared';
 import { generateId } from '@conveyor/shared';
-import { DatabaseSync, type SQLInputValue, type StatementSync } from 'node:sqlite';
+import type { DatabaseOpener, SqliteDatabase, SqliteStatement } from './types.ts';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
 import { runMigrations } from './migrations.ts';
@@ -16,47 +23,43 @@ import { runMigrations } from './migrations.ts';
 type EventCallback = (event: StoreEvent) => void;
 
 /**
- * Configuration options for {@linkcode SqliteStore}.
+ * Configuration options for {@linkcode BaseSqliteStore}.
  */
-export interface SqliteStoreOptions extends StoreOptions {
+export interface BaseSqliteStoreOptions extends StoreOptions {
   /** Path to the SQLite database file (e.g. `"./data/queue.db"` or `":memory:"`). */
   filename: string;
+  /** Runtime-specific function that opens a SQLite database. */
+  openDatabase: DatabaseOpener;
 }
 
 /**
- * SQLite implementation of {@linkcode StoreInterface}.
+ * Base SQLite implementation of {@linkcode StoreInterface}.
  *
- * Uses `node:sqlite` (DatabaseSync) which is built-in to
- * Node.js 22.13+, Deno 2.2+, and Bun 1.2+.
+ * Uses an injected `openDatabase` function to support different SQLite
+ * drivers across runtimes (node:sqlite, bun:sqlite, @db/sqlite).
  * WAL mode and prepared statements provide good concurrency and performance.
- *
- * @example
- * ```ts
- * const store = new SqliteStore({ filename: ":memory:" });
- * await store.connect();
- * ```
  */
-export class SqliteStore implements StoreInterface {
-  private db!: DatabaseSync;
-  private readonly options: SqliteStoreOptions;
+export class BaseSqliteStore implements StoreInterface {
+  private db!: SqliteDatabase;
+  protected readonly options: BaseSqliteStoreOptions;
   private subscribers = new Map<string, Set<EventCallback>>();
   private seqCounter = 0;
   private readonly onEventHandlerError: (error: unknown) => void;
 
   // Prepared statement cache
   private stmts!: {
-    insertJob: StatementSync;
-    getJob: StatementSync;
-    removeJob: StatementSync;
-    countByState: StatementSync;
-    activeCount: StatementSync;
-    insertPaused: StatementSync;
-    removePaused: StatementSync;
-    getPaused: StatementSync;
+    insertJob: SqliteStatement;
+    getJob: SqliteStatement;
+    removeJob: SqliteStatement;
+    countByState: SqliteStatement;
+    activeCount: SqliteStatement;
+    insertPaused: SqliteStatement;
+    removePaused: SqliteStatement;
+    getPaused: SqliteStatement;
   };
 
-  /** @param options - SQLite database path and store options. */
-  constructor(options: SqliteStoreOptions) {
+  /** @param options - SQLite database path, opener, and store options. */
+  constructor(options: BaseSqliteStoreOptions) {
     this.options = options;
     this.onEventHandlerError = options.onEventHandlerError ??
       ((err) => console.warn('[Conveyor] Error in event handler:', err));
@@ -81,8 +84,8 @@ export class SqliteStore implements StoreInterface {
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
   /** Open the database, enable WAL mode, run migrations, and prepare statements. */
-  connect(): Promise<void> {
-    this.db = new DatabaseSync(this.options.filename);
+  async connect(): Promise<void> {
+    this.db = await this.options.openDatabase(this.options.filename);
 
     // Enable WAL mode + busy timeout for concurrency
     this.db.exec('PRAGMA journal_mode = WAL');
@@ -135,8 +138,6 @@ export class SqliteStore implements StoreInterface {
         'SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?',
       ),
     };
-
-    return Promise.resolve();
   }
 
   /** Close the database and clear all subscribers. */
@@ -185,7 +186,7 @@ export class SqliteStore implements StoreInterface {
         const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
         const row = jobDataToRow({ ...job, id });
         row.seq = this.seqCounter++;
-        this.stmts.insertJob.run(row as Record<string, SQLInputValue>);
+        this.stmts.insertJob.run(row as Record<string, unknown>);
         return id;
       });
 
@@ -197,24 +198,25 @@ export class SqliteStore implements StoreInterface {
     const row = jobDataToRow({ ...job, id });
     row.seq = this.seqCounter++;
 
-    this.stmts.insertJob.run(row as Record<string, SQLInputValue>);
+    this.stmts.insertJob.run(row as Record<string, unknown>);
     return Promise.resolve(id);
   }
 
   saveBulk(_queueName: string, jobs: Omit<JobData, 'id'>[]): Promise<string[]> {
     const ids: string[] = [];
+    const dedupStmt = this.db.prepare(`
+      SELECT * FROM conveyor_jobs
+      WHERE queue_name = ? AND deduplication_key = ?
+        AND state NOT IN ('completed', 'failed')
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
     this.runTransaction(() => {
       for (const job of jobs) {
         const dedupKey = (job as JobData).deduplicationKey;
 
         if (dedupKey) {
-          const existing = this.db.prepare(`
-            SELECT * FROM conveyor_jobs
-            WHERE queue_name = ? AND deduplication_key = ?
-              AND state NOT IN ('completed', 'failed')
-            ORDER BY created_at DESC
-            LIMIT 1
-          `).get(job.queueName, dedupKey) as JobRow | undefined;
+          const existing = dedupStmt.get(job.queueName, dedupKey) as JobRow | undefined;
 
           if (existing) {
             const matched = rowToJobData(existing);
@@ -235,7 +237,7 @@ export class SqliteStore implements StoreInterface {
         const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
         const row = jobDataToRow({ ...job, id });
         row.seq = this.seqCounter++;
-        this.stmts.insertJob.run(row as Record<string, SQLInputValue>);
+        this.stmts.insertJob.run(row as Record<string, unknown>);
         ids.push(id);
       }
     });
@@ -302,7 +304,7 @@ export class SqliteStore implements StoreInterface {
 
     values.push(queueName, jobId);
     const query = `UPDATE conveyor_jobs SET ${sets.join(', ')} WHERE queue_name = ? AND id = ?`;
-    this.db.prepare(query).run(...values as SQLInputValue[]);
+    this.db.prepare(query).run(...values as unknown[]);
     return Promise.resolve();
   }
 
@@ -361,22 +363,24 @@ export class SqliteStore implements StoreInterface {
           WHERE queue_name = ? AND state = 'waiting'
             AND name = ?
             AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
           ORDER BY priority ASC, seq ${order}
           LIMIT 1
         `;
-        params.push(opts.jobName, queueName);
+        params.push(opts.jobName, queueName, queueName);
       } else {
         query = `
           SELECT id FROM conveyor_jobs
           WHERE queue_name = ? AND state = 'waiting'
             AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
           ORDER BY priority ASC, seq ${order}
           LIMIT 1
         `;
-        params.push(queueName);
+        params.push(queueName, queueName);
       }
 
-      const candidate = this.db.prepare(query).get(...params as SQLInputValue[]) as
+      const candidate = this.db.prepare(query).get(...params as unknown[]) as
         | { id: string }
         | undefined;
       if (!candidate) return null;

@@ -1,11 +1,9 @@
-import { assertEquals } from '@std/assert';
+import { expect, test } from 'vitest';
 import { Queue, Worker } from '@conveyor/core';
 import type { Job } from '@conveyor/core';
 import { MemoryStore } from '@conveyor/store-memory';
 
 const queueName = 'test-cron';
-
-const testOpts = { sanitizeOps: false, sanitizeResources: false };
 
 function createWorker<T = unknown>(
   store: MemoryStore,
@@ -27,7 +25,7 @@ function waitFor(ms: number): Promise<void> {
 
 // ─── Cron Scheduling ──────────────────────────────────────────────────
 
-Deno.test('Worker schedules next cron job after completion', testOpts, async () => {
+test('Worker schedules next cron job after completion', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -46,14 +44,14 @@ Deno.test('Worker schedules next cron job after completion', testOpts, async () 
   await waitFor(4000);
 
   // Should have processed initial + at least 1 scheduled repeat
-  assertEquals(processCount >= 2, true, `Expected >= 2, got ${processCount}`);
+  expect(processCount >= 2).toEqual(true);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Worker cron respects repeat.limit', testOpts, async () => {
+test('Worker cron respects repeat.limit', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -72,15 +70,15 @@ Deno.test('Worker cron respects repeat.limit', testOpts, async () => {
   await waitFor(6000);
 
   // initial (limit=2) + 1st repeat (limit=1) + 2nd repeat (limit=0) = 3 max
-  assertEquals(processCount >= 2, true, `Expected >= 2, got ${processCount}`);
-  assertEquals(processCount <= 4, true, `Expected <= 4, got ${processCount}`);
+  expect(processCount >= 2).toEqual(true);
+  expect(processCount <= 4).toEqual(true);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Worker cron respects endDate', testOpts, async () => {
+test('Worker cron respects endDate', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -103,14 +101,14 @@ Deno.test('Worker cron respects endDate', testOpts, async () => {
   const finalCount = processCount;
   await waitFor(2000);
   // After endDate + extra wait, count should not grow
-  assertEquals(processCount, finalCount);
+  expect(processCount).toEqual(finalCount);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Worker cron supports 6-field expressions (seconds)', testOpts, async () => {
+test('Worker cron supports 6-field expressions (seconds)', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -128,14 +126,14 @@ Deno.test('Worker cron supports 6-field expressions (seconds)', testOpts, async 
 
   await waitFor(7000);
 
-  assertEquals(processCount >= 2, true, `Expected >= 2, got ${processCount}`);
+  expect(processCount >= 2).toEqual(true);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Worker cron respects timezone', testOpts, async () => {
+test('Worker cron respects timezone', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -153,14 +151,14 @@ Deno.test('Worker cron respects timezone', testOpts, async () => {
 
   await waitFor(4000);
 
-  assertEquals(processCount >= 2, true, `Expected >= 2, got ${processCount}`);
+  expect(processCount >= 2).toEqual(true);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Worker cron invalid expression emits error', testOpts, async () => {
+test('Worker cron invalid expression emits error', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -178,14 +176,14 @@ Deno.test('Worker cron invalid expression emits error', testOpts, async () => {
   const cronError = errors.find(
     (e) => e instanceof Error,
   );
-  assertEquals(cronError !== undefined, true);
+  expect(cronError !== undefined).toEqual(true);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Queue.cron() convenience method creates repeat job', testOpts, async () => {
+test('Queue.cron() convenience method creates repeat job', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -202,7 +200,7 @@ Deno.test('Queue.cron() convenience method creates repeat job', testOpts, async 
 
   await waitFor(4000);
 
-  assertEquals(processCount >= 2, true, `Expected >= 2, got ${processCount}`);
+  expect(processCount >= 2).toEqual(true);
 
   await worker.close();
   await queue.close();

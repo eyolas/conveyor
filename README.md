@@ -57,13 +57,16 @@ await queue.close();
 
 ## Packages
 
-| Package                  | Description                | Status |
-| ------------------------ | -------------------------- | ------ |
-| `@conveyor/core`         | Queue, Worker, Job, Events | Alpha  |
-| `@conveyor/shared`       | Types & utilities          | Alpha  |
-| `@conveyor/store-memory` | In-memory store            | Alpha  |
-| `@conveyor/store-pg`     | PostgreSQL store           | Alpha  |
-| `@conveyor/store-sqlite` | SQLite store               | Alpha  |
+| Package                       | Description                | Status |
+| ----------------------------- | -------------------------- | ------ |
+| `@conveyor/core`              | Queue, Worker, Job, Events | Alpha  |
+| `@conveyor/shared`            | Types & utilities          | Alpha  |
+| `@conveyor/store-memory`      | In-memory store            | Alpha  |
+| `@conveyor/store-pg`          | PostgreSQL store           | Alpha  |
+| `@conveyor/store-sqlite`      | SQLite store (Node.js)     | Alpha  |
+| `@conveyor/store-sqlite-bun`  | SQLite store (Bun)         | Alpha  |
+| `@conveyor/store-sqlite-deno` | SQLite store (Deno)        | Alpha  |
+| `@conveyor/store-sqlite-core` | SQLite shared base         | Alpha  |
 
 ## API
 
@@ -324,9 +327,20 @@ await store.disconnect();
 
 #### SQLite
 
+Choose the package matching your runtime:
+
 ```typescript
+// Node.js
 import { SqliteStore } from '@conveyor/store-sqlite';
 
+// Bun
+import { SqliteStore } from '@conveyor/store-sqlite-bun';
+
+// Deno
+import { SqliteStore } from '@conveyor/store-sqlite-deno';
+```
+
+```typescript
 const store = new SqliteStore({ filename: './data/queue.db' });
 await store.connect(); // auto-runs migrations, enables WAL
 // ... use with Queue/Worker

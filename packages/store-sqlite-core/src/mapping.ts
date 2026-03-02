@@ -1,5 +1,5 @@
 /**
- * @module @conveyor/store-sqlite/mapping
+ * @module @conveyor/store-sqlite-core/mapping
  *
  * Mapping functions between {@linkcode JobData} and SQLite row format.
  * JSON columns are stored as TEXT and timestamps as INTEGER (ms since epoch).

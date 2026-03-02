@@ -209,7 +209,7 @@ export class MemoryStore implements StoreInterface {
     };
 
     queue.set(job.id, locked);
-    return Promise.resolve(locked);
+    return Promise.resolve(structuredClone(locked));
   }
 
   extendLock(
@@ -365,8 +365,10 @@ export class MemoryStore implements StoreInterface {
     for (const [id, job] of queue.entries()) {
       if (job.state !== state) continue;
 
-      const completedAt = job.completedAt?.getTime() ?? job.failedAt?.getTime() ?? 0;
-      if (now - completedAt > grace) {
+      const timestamp = job.completedAt?.getTime() ??
+        job.failedAt?.getTime() ??
+        job.createdAt.getTime();
+      if (now - timestamp > grace) {
         toRemove.push(id);
       }
     }

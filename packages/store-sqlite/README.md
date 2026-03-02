@@ -4,10 +4,10 @@
 
 # @conveyor/store-sqlite
 
-SQLite storage backend for the [Conveyor](../../README.md) job queue.
+SQLite storage backend for the [Conveyor](../../README.md) job queue, for **Node.js**.
 
-Uses `node:sqlite` (`DatabaseSync`) which is built-in to Node.js 22.13+, Deno 2.2+, and Bun 1.2+. No
-native dependencies required.
+Uses `node:sqlite` (`DatabaseSync`) which is built-in to Node.js 22.13+. No native dependencies
+required.
 
 ## Install
 
@@ -48,6 +48,12 @@ const store = new SqliteStore({ filename: ':memory:' });
 - WAL mode for better concurrent read/write performance
 - Prepared statement caching
 - Zero native dependencies (`node:sqlite` is built-in)
+
+## See also
+
+- [`@conveyor/store-sqlite-bun`](../store-sqlite-bun) — Bun (`bun:sqlite`)
+- [`@conveyor/store-sqlite-deno`](../store-sqlite-deno) — Deno (`@db/sqlite`)
+- [`@conveyor/store-sqlite-core`](../store-sqlite-core) — Shared base package
 
 ## License
 

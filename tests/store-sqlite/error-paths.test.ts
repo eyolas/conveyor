@@ -1,19 +1,18 @@
-import { assertThrows } from '@std/assert';
+import { expect, test } from 'vitest';
 import { SqliteStore } from '@conveyor/store-sqlite';
+import { runErrorPathTests } from '../error-paths/store-error-paths.test.ts';
 
-Deno.test('SqliteStore: connect() throws with invalid path', () => {
-  const store = new SqliteStore({ filename: '/nonexistent/path/to/nowhere/db.sqlite' });
-  assertThrows(
-    () => store.connect(),
-  );
-});
+runErrorPathTests(
+  'SqliteStore',
+  () => new SqliteStore({ filename: '/nonexistent/path/to/nowhere/db.sqlite' }),
+);
 
-Deno.test('SqliteStore: getJob() throws after disconnect()', async () => {
+test('SqliteStore: getJob() throws after disconnect()', async () => {
   const store = new SqliteStore({ filename: ':memory:' });
   await store.connect();
   await store.disconnect();
 
-  assertThrows(
+  expect(
     () => store.getJob('q', 'j'),
-  );
+  ).toThrow();
 });

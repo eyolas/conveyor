@@ -1,25 +1,21 @@
-import { assertRejects } from '@std/assert';
+import process from 'node:process';
+import { expect, test } from 'vitest';
 import { PgStore } from '@conveyor/store-pg';
+import { runErrorPathTests } from '../error-paths/store-error-paths.test.ts';
 
-const PG_URL = Deno.env.get('PG_URL');
+const PG_URL = process.env.PG_URL ??
+  'postgres://conveyor:conveyor@localhost:5432/conveyor_test';
 
-if (!PG_URL) {
-  console.warn('⚠ PG_URL not set — skipping PgStore error-path tests');
-} else {
-  Deno.test('PgStore: connect() rejects with invalid host', async () => {
-    const store = new PgStore({
+runErrorPathTests(
+  'PgStore',
+  () =>
+    new PgStore({
       connection: 'postgres://user:pass@invalid-host-that-does-not-exist:5432/db',
-    });
-    await assertRejects(
-      () => store.connect(),
-    );
-  });
+    }),
+);
 
-  Deno.test('PgStore: getJob() rejects on non-connected store', async () => {
-    const store = new PgStore({ connection: PG_URL! });
-    // Do NOT call connect()
-    await assertRejects(
-      () => store.getJob('q', 'j'),
-    );
-  });
-}
+test('PgStore: getJob() rejects on non-connected store', async () => {
+  const store = new PgStore({ connection: PG_URL });
+  // Do NOT call connect()
+  await expect(store.getJob('q', 'j')).rejects.toThrow();
+});

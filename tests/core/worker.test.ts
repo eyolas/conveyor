@@ -1,14 +1,9 @@
-import { assertEquals } from '@std/assert';
+import { expect, test } from 'vitest';
 import { Queue, Worker } from '@conveyor/core';
 import type { Job } from '@conveyor/core';
 import { MemoryStore } from '@conveyor/store-memory';
 
 const queueName = 'test-queue';
-
-// Worker tests need sanitizers disabled because Worker creates persistent
-// timers (poll loop, stalled check, lock renewal) that are cleaned up on close()
-// but Deno's test sanitizer sees them as leaks between tests.
-const testOpts = { sanitizeOps: false, sanitizeResources: false };
 
 function createWorker<T = unknown>(
   store: MemoryStore,
@@ -30,7 +25,7 @@ function waitFor(ms: number): Promise<void> {
 
 // ─── Basic Processing ────────────────────────────────────────────────
 
-Deno.test('Worker processes a job', testOpts, async () => {
+test('Worker processes a job', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -44,14 +39,14 @@ Deno.test('Worker processes a job', testOpts, async () => {
   await queue.add('my-job', { value: 1 });
   await waitFor(2500);
 
-  assertEquals(processed, ['my-job']);
+  expect(processed).toEqual(['my-job']);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Worker emits active and completed events', testOpts, async () => {
+test('Worker emits active and completed events', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -65,8 +60,8 @@ Deno.test('Worker emits active and completed events', testOpts, async () => {
   await queue.add('event-job', {});
   await waitFor(2500);
 
-  assertEquals(events.includes('active'), true);
-  assertEquals(events.includes('completed'), true);
+  expect(events.includes('active')).toEqual(true);
+  expect(events.includes('completed')).toEqual(true);
 
   await worker.close();
   await queue.close();
@@ -75,7 +70,7 @@ Deno.test('Worker emits active and completed events', testOpts, async () => {
 
 // ─── Failure + Retry ─────────────────────────────────────────────────
 
-Deno.test('Worker handles job failure', testOpts, async () => {
+test('Worker handles job failure', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -90,14 +85,14 @@ Deno.test('Worker handles job failure', testOpts, async () => {
   await queue.add('fail-job', {});
   await waitFor(2500);
 
-  assertEquals(events.includes('failed'), true);
+  expect(events.includes('failed')).toEqual(true);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Worker retries job on failure', testOpts, async () => {
+test('Worker retries job on failure', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -112,14 +107,14 @@ Deno.test('Worker retries job on failure', testOpts, async () => {
   await queue.add('retry-job', {}, { attempts: 3 });
   await waitFor(5000);
 
-  assertEquals(attempts, 3);
+  expect(attempts).toEqual(3);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Worker retries with backoff delay', testOpts, async () => {
+test('Worker retries with backoff delay', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -138,7 +133,7 @@ Deno.test('Worker retries with backoff delay', testOpts, async () => {
 
   await waitFor(3500);
 
-  assertEquals(attempts >= 2, true);
+  expect(attempts >= 2).toEqual(true);
 
   await worker.close();
   await queue.close();
@@ -147,7 +142,7 @@ Deno.test('Worker retries with backoff delay', testOpts, async () => {
 
 // ─── Concurrency ─────────────────────────────────────────────────────
 
-Deno.test('Worker respects concurrency limit', testOpts, async () => {
+test('Worker respects concurrency limit', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -172,7 +167,7 @@ Deno.test('Worker respects concurrency limit', testOpts, async () => {
 
   await waitFor(5000);
 
-  assertEquals(maxConcurrent <= 2, true);
+  expect(maxConcurrent <= 2).toEqual(true);
 
   await worker.close();
   await queue.close();
@@ -181,7 +176,7 @@ Deno.test('Worker respects concurrency limit', testOpts, async () => {
 
 // ─── Timeout ─────────────────────────────────────────────────────────
 
-Deno.test('Worker fails job on timeout', testOpts, async () => {
+test('Worker fails job on timeout', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -197,7 +192,7 @@ Deno.test('Worker fails job on timeout', testOpts, async () => {
   await queue.add('timeout-job', {}, { timeout: 100 });
   await waitFor(3000);
 
-  assertEquals(events.includes('failed'), true);
+  expect(events.includes('failed')).toEqual(true);
 
   await worker.close();
   await queue.close();
@@ -206,7 +201,7 @@ Deno.test('Worker fails job on timeout', testOpts, async () => {
 
 // ─── Pause / Resume ─────────────────────────────────────────────────
 
-Deno.test('Worker pause stops processing', testOpts, async () => {
+test('Worker pause stops processing', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -224,12 +219,12 @@ Deno.test('Worker pause stops processing', testOpts, async () => {
   await waitFor(2500);
 
   // Should not have processed while paused
-  assertEquals(processed.length, 0);
+  expect(processed.length).toEqual(0);
 
   worker.resume();
   await waitFor(2500);
 
-  assertEquals(processed, ['paused-job']);
+  expect(processed).toEqual(['paused-job']);
 
   await worker.close();
   await queue.close();
@@ -238,7 +233,7 @@ Deno.test('Worker pause stops processing', testOpts, async () => {
 
 // ─── Graceful Shutdown ──────────────────────────────────────────────
 
-Deno.test('Worker.close waits for active jobs', testOpts, async () => {
+test('Worker.close waits for active jobs', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -254,7 +249,7 @@ Deno.test('Worker.close waits for active jobs', testOpts, async () => {
   await waitFor(1500);
 
   await worker.close(5000);
-  assertEquals(completed, true);
+  expect(completed).toEqual(true);
 
   await queue.close();
   await store.disconnect();
@@ -262,7 +257,7 @@ Deno.test('Worker.close waits for active jobs', testOpts, async () => {
 
 // ─── Repeat Jobs ─────────────────────────────────────────────────────
 
-Deno.test('Worker schedules next repeat job after completion', testOpts, async () => {
+test('Worker schedules next repeat job after completion', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -276,14 +271,14 @@ Deno.test('Worker schedules next repeat job after completion', testOpts, async (
   await queue.every('100ms', 'repeat-job', { task: 'ping' });
   await waitFor(4000);
 
-  assertEquals(processCount >= 2, true);
+  expect(processCount >= 2).toEqual(true);
 
   await worker.close();
   await queue.close();
   await store.disconnect();
 });
 
-Deno.test('Worker respects repeat.limit', testOpts, async () => {
+test('Worker respects repeat.limit', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -301,8 +296,8 @@ Deno.test('Worker respects repeat.limit', testOpts, async () => {
   await waitFor(5000);
 
   // initial (limit=2) + repeat (limit=1) + repeat (limit=0) = 3 max
-  assertEquals(processCount >= 2, true);
-  assertEquals(processCount <= 4, true);
+  expect(processCount >= 2).toEqual(true);
+  expect(processCount <= 4).toEqual(true);
 
   await worker.close();
   await queue.close();
@@ -311,7 +306,7 @@ Deno.test('Worker respects repeat.limit', testOpts, async () => {
 
 // ─── Stalled Detection ──────────────────────────────────────────────
 
-Deno.test('Worker detects and re-enqueues stalled jobs', testOpts, async () => {
+test('Worker detects and re-enqueues stalled jobs', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -333,7 +328,7 @@ Deno.test('Worker detects and re-enqueues stalled jobs', testOpts, async () => {
 
   await waitFor(3000);
 
-  assertEquals(stalledEvents.length >= 1, true);
+  expect(stalledEvents.length >= 1).toEqual(true);
 
   await worker.close();
   await queue.close();
@@ -342,7 +337,7 @@ Deno.test('Worker detects and re-enqueues stalled jobs', testOpts, async () => {
 
 // ─── Error Handling ─────────────────────────────────────────────────
 
-Deno.test('Worker emits error when handleFailure throws', testOpts, async () => {
+test('Worker emits error when handleFailure throws', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -372,7 +367,7 @@ Deno.test('Worker emits error when handleFailure throws', testOpts, async () => 
   await waitFor(3000);
 
   // The error from handleFailure should be caught and emitted
-  assertEquals(errors.length >= 1, true);
+  expect(errors.length >= 1).toEqual(true);
 
   // Restore
   store.updateJob = origUpdateJob;
@@ -384,7 +379,7 @@ Deno.test('Worker emits error when handleFailure throws', testOpts, async () => 
 
 // ─── removeOnComplete ────────────────────────────────────────────────
 
-Deno.test('Worker removes job on fail when configured', testOpts, async () => {
+test('Worker removes job on fail when configured', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -395,7 +390,7 @@ Deno.test('Worker removes job on fail when configured', testOpts, async () => {
   await waitFor(2500);
 
   const stored = await store.getJob(queueName, job.id);
-  assertEquals(stored, null);
+  expect(stored).toEqual(null);
 
   await worker.close();
   await queue.close();
@@ -404,7 +399,7 @@ Deno.test('Worker removes job on fail when configured', testOpts, async () => {
 
 // ─── maxGlobalConcurrency ─────────────────────────────────────────────
 
-Deno.test('Worker respects maxGlobalConcurrency', testOpts, async () => {
+test('Worker respects maxGlobalConcurrency', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -428,7 +423,7 @@ Deno.test('Worker respects maxGlobalConcurrency', testOpts, async () => {
 
   await waitFor(5000);
 
-  assertEquals(maxConcurrent, 1);
+  expect(maxConcurrent).toEqual(1);
 
   await worker.close();
   await queue.close();
@@ -437,7 +432,7 @@ Deno.test('Worker respects maxGlobalConcurrency', testOpts, async () => {
 
 // ─── removeOnComplete ────────────────────────────────────────────────
 
-Deno.test('Worker removes job on complete when configured', testOpts, async () => {
+test('Worker removes job on complete when configured', async () => {
   const store = new MemoryStore();
   await store.connect();
   const queue = new Queue(queueName, { store });
@@ -448,7 +443,7 @@ Deno.test('Worker removes job on complete when configured', testOpts, async () =
   await waitFor(2500);
 
   const stored = await store.getJob(queueName, job.id);
-  assertEquals(stored, null);
+  expect(stored).toEqual(null);
 
   await worker.close();
   await queue.close();

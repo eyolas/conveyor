@@ -55,6 +55,7 @@ export class Worker<T = unknown> {
   private readonly lockDuration: number;
   private readonly stalledInterval: number;
   private readonly limiter: LimiterOptions | null;
+  private readonly lifo: boolean;
   private rateLimitTimestamps: number[] = [];
 
   private activeCount = 0;
@@ -88,8 +89,18 @@ export class Worker<T = unknown> {
     this.lockDuration = options.lockDuration ?? 30_000;
     this.stalledInterval = options.stalledInterval ?? 30_000;
     this.limiter = options.limiter ?? null;
+    this.lifo = options.lifo ?? false;
 
-    // Start processing
+    // Start processing unless autoStart is explicitly false
+    if (options.autoStart !== false) {
+      this.start();
+    }
+  }
+
+  /** Start polling for jobs and stalled-job detection. No-op if already running or closed. */
+  start(): void {
+    if (this.closed || (!this.paused && this.pollTimer !== null)) return;
+    this.paused = false;
     this.poll();
     this.startStalledCheck();
   }
@@ -155,7 +166,13 @@ export class Worker<T = unknown> {
 
   /** Resume the worker after pausing, restarting the poll loop. */
   resume(): void {
+    if (!this.paused) return;
     this.paused = false;
+    // Clear existing timer to prevent duplicate poll chains
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
     this.poll();
   }
 
@@ -177,37 +194,38 @@ export class Worker<T = unknown> {
   }
 
   private async fetchAndProcess(): Promise<void> {
-    // Check local concurrency
-    if (this.activeCount >= this.concurrency) return;
-
-    // Check rate limiter
-    if (this.isRateLimited()) return;
-
-    // Check global concurrency
-    if (this.maxGlobalConcurrency !== null) {
-      const globalActive = await this.store.getActiveCount(this.queueName);
-      if (globalActive >= this.maxGlobalConcurrency) return;
-    }
-
-    // Promote delayed jobs
+    // Promote delayed jobs once per poll cycle
     await this.store.promoteDelayedJobs(this.queueName, Date.now());
 
-    // Fetch next job
-    const jobData = await this.store.fetchNextJob(
-      this.queueName,
-      this.id,
-      this.lockDuration,
-    );
+    // Fetch up to available concurrency slots
+    while (this.activeCount < this.concurrency && !this.closed && !this.paused) {
+      // Check rate limiter
+      if (this.isRateLimited()) break;
 
-    if (!jobData) return;
+      // Check global concurrency
+      if (this.maxGlobalConcurrency !== null) {
+        const globalActive = await this.store.getActiveCount(this.queueName);
+        if (globalActive >= this.maxGlobalConcurrency) break;
+      }
 
-    // Record timestamp for rate limiting
-    this.recordRateLimitTimestamp();
+      // Fetch next job
+      const jobData = await this.store.fetchNextJob(
+        this.queueName,
+        this.id,
+        this.lockDuration,
+        { lifo: this.lifo },
+      );
 
-    // Process the job (don't await — allows concurrency)
-    this.processJob(jobData as JobData<T>).catch((err) => {
-      this.events.emit('error', err);
-    });
+      if (!jobData) break;
+
+      // Record timestamp for rate limiting
+      this.recordRateLimitTimestamp();
+
+      // Process the job (don't await — allows concurrency)
+      this.processJob(jobData as JobData<T>).catch((err) => {
+        this.events.emit('error', err);
+      });
+    }
   }
 
   private async processJob(jobData: JobData<T>): Promise<void> {
@@ -501,15 +519,13 @@ export class Worker<T = unknown> {
   // ─── Helpers ───────────────────────────────────────────────────────
 
   /**
-   * Determine whether a job should be removed based on removeOnComplete/removeOnFail.
+   * Determine whether a job should be removed immediately.
    * - true: remove immediately
-   * - number (max age in ms): remove immediately (time-based cleanup is handled by Queue.clean())
+   * - number (max age in ms): do NOT remove immediately — left for Queue.clean() to handle
    * - false/undefined: do not remove
    */
   private shouldRemove(value: boolean | number | undefined): boolean {
-    if (value === true) return true;
-    if (typeof value === 'number' && value >= 0) return true;
-    return false;
+    return value === true;
   }
 
   private withTimeout<R>(promise: Promise<R>, ms: number): Promise<R> {

@@ -43,6 +43,7 @@ export class PgStore implements StoreInterface {
   private listeningChannels = new Set<string>();
   private listenPromises = new Map<string, Promise<{ unlisten: () => Promise<void> }>>();
   private readonly onEventHandlerError: (error: unknown) => void;
+  private readonly instanceId = crypto.randomUUID();
 
   /** @param options - PostgreSQL connection and store options. */
   constructor(options: PgStoreOptions) {
@@ -128,13 +129,46 @@ export class PgStore implements StoreInterface {
     return id;
   }
 
-  async saveBulk(queueName: string, jobs: Omit<JobData, 'id'>[]): Promise<string[]> {
-    const ids: string[] = [];
-    for (const job of jobs) {
-      const id = await this.saveJob(queueName, job);
-      ids.push(id);
-    }
-    return ids;
+  async saveBulk(_queueName: string, jobs: Omit<JobData, 'id'>[]): Promise<string[]> {
+    return await this.sql.begin(async (tx) => {
+      const ids: string[] = [];
+      for (const job of jobs) {
+        const dedupKey = (job as JobData).deduplicationKey;
+
+        if (dedupKey) {
+          const existing = await tx.unsafe(
+            `SELECT * FROM conveyor_jobs
+            WHERE queue_name = $1
+              AND deduplication_key = $2
+              AND state NOT IN ('completed', 'failed')
+            ORDER BY created_at DESC
+            LIMIT 1
+            FOR UPDATE`,
+            [job.queueName, dedupKey],
+          ) as JobRow[];
+
+          if (existing.length > 0) {
+            const matched = rowToJobData(existing[0]!);
+            const ttl = matched.opts.deduplication?.ttl;
+            if (ttl !== undefined && matched.createdAt) {
+              const expiresAt = matched.createdAt.getTime() + ttl;
+              if (expiresAt >= Date.now()) {
+                ids.push(matched.id);
+                continue;
+              }
+            } else {
+              ids.push(matched.id);
+              continue;
+            }
+          }
+        }
+
+        const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
+        await this.insertRow(tx, { ...job, id });
+        ids.push(id);
+      }
+      return ids;
+    });
   }
 
   async getJob(queueName: string, jobId: string): Promise<JobData | null> {
@@ -259,6 +293,7 @@ export class PgStore implements StoreInterface {
           WHERE queue_name = $1 AND state = 'waiting'
             AND name = $2
             AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = $1)
+            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = $1 AND job_name = '__all__')
           ORDER BY priority ASC, seq ${order}
           LIMIT 1
           FOR UPDATE SKIP LOCKED
@@ -276,6 +311,7 @@ export class PgStore implements StoreInterface {
           SELECT id FROM conveyor_jobs
           WHERE queue_name = $1 AND state = 'waiting'
             AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = $1)
+            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = $1 AND job_name = '__all__')
           ORDER BY priority ASC, seq ${order}
           LIMIT 1
           FOR UPDATE SKIP LOCKED
@@ -518,9 +554,12 @@ export class PgStore implements StoreInterface {
       this.listeningChannels.add(channel);
       const listenPromise = this.sql.listen(channel, (payload) => {
         try {
-          const event = JSON.parse(payload) as StoreEvent;
-          event.timestamp = new Date(event.timestamp);
-          this.deliverEvent(event);
+          const parsed = JSON.parse(payload) as StoreEvent & { _src?: string };
+          // Skip events published by this instance (already delivered locally)
+          if (parsed._src === this.instanceId) return;
+          parsed.timestamp = new Date(parsed.timestamp);
+          delete parsed._src;
+          this.deliverEvent(parsed);
         } catch (err) {
           this.onEventHandlerError(err);
         }
@@ -563,12 +602,13 @@ export class PgStore implements StoreInterface {
   }
 
   async publish(event: StoreEvent): Promise<void> {
-    // Deliver locally first
+    // Always deliver locally first (synchronous, no latency)
     this.deliverEvent(event);
 
-    // Then NOTIFY for other processes
+    // NOTIFY for other processes, tagged with instance ID so our own
+    // listener skips the echo and avoids duplicate delivery.
     const channel = `conveyor:${event.queueName}`;
-    const payload = JSON.stringify(event);
+    const payload = JSON.stringify({ ...event, _src: this.instanceId });
     await this.sql.notify(channel, payload);
   }
 
