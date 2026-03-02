@@ -1,0 +1,82 @@
+name: Publish to JSR
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.x'
+
+      - name: Verify package versions match tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "Tag version: $TAG"
+          MISMATCH=0
+          for pkg in packages/*/deno.json; do
+            PKG_VERSION=$(deno eval "const c = JSON.parse(Deno.readTextFileSync('$pkg')); console.log(c.version)")
+            PKG_NAME=$(deno eval "const c = JSON.parse(Deno.readTextFileSync('$pkg')); console.log(c.name)")
+            if [ "$PKG_VERSION" != "$TAG" ]; then
+              echo "::error::Version mismatch in $PKG_NAME: expected $TAG, got $PKG_VERSION"
+              MISMATCH=1
+            else
+              echo "OK: $PKG_NAME@$PKG_VERSION"
+            fi
+          done
+          if [ "$MISMATCH" -eq 1 ]; then
+            exit 1
+          fi
+
+      - name: Dry run
+        run: deno publish --dry-run
+
+      - name: Publish to JSR
+        run: deno publish
+
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        env:
+          OUTPUT: CHANGES.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: CHANGES.md
+          generate_release_notes: false
+
+      - name: Generate full changelog
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --verbose
+        env:
+          OUTPUT: CHANGELOG.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Commit CHANGELOG.md
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG.md for ${GITHUB_REF#refs/tags/}"
+          git push origin HEAD:main
