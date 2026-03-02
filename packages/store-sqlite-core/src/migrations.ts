@@ -102,7 +102,7 @@ export function runMigrations(db: SqliteDatabase): void {
   for (const migration of migrations) {
     if (migration.version <= currentVersion) continue;
 
-    db.exec('BEGIN');
+    db.exec('BEGIN IMMEDIATE');
     try {
       db.exec(migration.up);
       db.prepare(

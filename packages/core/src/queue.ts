@@ -201,10 +201,12 @@ export class Queue<T = unknown> {
   ): Promise<Job<T>[]> {
     this.assertNotClosed();
 
-    const results: Job<T>[] = [];
+    const results: (Job<T> | null)[] = new Array(jobs.length).fill(null);
     const toSave: Omit<JobData<T>, 'id'>[] = [];
+    const toSaveIndices: number[] = [];
 
-    for (const { name, data, opts } of jobs) {
+    for (let i = 0; i < jobs.length; i++) {
+      const { name, data, opts } = jobs[i]!;
       const mergedOpts = { ...this.defaultJobOptions, ...opts };
       const jobData = createJobData(this.name, name, data, mergedOpts);
 
@@ -215,21 +217,24 @@ export class Queue<T = unknown> {
 
         const existing = await this.store.findByDeduplicationKey(this.name, dedupKey);
         if (existing) {
-          results.push(new Job(existing as JobData<T>, this.store));
+          results[i] = new Job(existing as JobData<T>, this.store);
           continue;
         }
       }
 
       toSave.push(jobData);
+      toSaveIndices.push(i);
     }
 
     if (toSave.length > 0) {
       const ids = await this.store.saveBulk(this.name, toSave);
 
-      for (const id of ids) {
+      for (let j = 0; j < ids.length; j++) {
+        const id = ids[j]!;
+        const idx = toSaveIndices[j]!;
         const saved = await this.store.getJob(this.name, id);
         if (saved) {
-          results.push(new Job(saved as JobData<T>, this.store));
+          results[idx] = new Job(saved as JobData<T>, this.store);
 
           this.events.emit(saved.state === 'delayed' ? 'delayed' : 'waiting', saved);
           await this.store.publish({
@@ -242,7 +247,7 @@ export class Queue<T = unknown> {
       }
     }
 
-    return results;
+    return results.filter((r): r is Job<T> => r !== null);
   }
 
   // ─── Queue Management ────────────────────────────────────────────────

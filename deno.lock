@@ -674,12 +674,41 @@
     "members": {
       "packages/core": {
         "dependencies": [
+          "jsr:@conveyor/shared@0.1",
           "npm:croner@10"
+        ]
+      },
+      "packages/store-memory": {
+        "dependencies": [
+          "jsr:@conveyor/shared@0.1"
         ]
       },
       "packages/store-pg": {
         "dependencies": [
           "npm:postgres@^3.4.0"
+        ]
+      },
+      "packages/store-sqlite": {
+        "dependencies": [
+          "jsr:@conveyor/shared@0.1",
+          "jsr:@conveyor/store-sqlite-core@0.1"
+        ]
+      },
+      "packages/store-sqlite-bun": {
+        "dependencies": [
+          "jsr:@conveyor/shared@0.1",
+          "jsr:@conveyor/store-sqlite-core@0.1"
+        ]
+      },
+      "packages/store-sqlite-core": {
+        "dependencies": [
+          "jsr:@conveyor/shared@0.1"
+        ]
+      },
+      "packages/store-sqlite-deno": {
+        "dependencies": [
+          "jsr:@conveyor/shared@0.1",
+          "jsr:@conveyor/store-sqlite-core@0.1"
         ]
       }
     }

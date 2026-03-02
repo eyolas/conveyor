@@ -204,18 +204,19 @@ export class BaseSqliteStore implements StoreInterface {
 
   saveBulk(_queueName: string, jobs: Omit<JobData, 'id'>[]): Promise<string[]> {
     const ids: string[] = [];
+    const dedupStmt = this.db.prepare(`
+      SELECT * FROM conveyor_jobs
+      WHERE queue_name = ? AND deduplication_key = ?
+        AND state NOT IN ('completed', 'failed')
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
     this.runTransaction(() => {
       for (const job of jobs) {
         const dedupKey = (job as JobData).deduplicationKey;
 
         if (dedupKey) {
-          const existing = this.db.prepare(`
-            SELECT * FROM conveyor_jobs
-            WHERE queue_name = ? AND deduplication_key = ?
-              AND state NOT IN ('completed', 'failed')
-            ORDER BY created_at DESC
-            LIMIT 1
-          `).get(job.queueName, dedupKey) as JobRow | undefined;
+          const existing = dedupStmt.get(job.queueName, dedupKey) as JobRow | undefined;
 
           if (existing) {
             const matched = rowToJobData(existing);
@@ -362,19 +363,21 @@ export class BaseSqliteStore implements StoreInterface {
           WHERE queue_name = ? AND state = 'waiting'
             AND name = ?
             AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
           ORDER BY priority ASC, seq ${order}
           LIMIT 1
         `;
-        params.push(opts.jobName, queueName);
+        params.push(opts.jobName, queueName, queueName);
       } else {
         query = `
           SELECT id FROM conveyor_jobs
           WHERE queue_name = ? AND state = 'waiting'
             AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
           ORDER BY priority ASC, seq ${order}
           LIMIT 1
         `;
-        params.push(queueName);
+        params.push(queueName, queueName);
       }
 
       const candidate = this.db.prepare(query).get(...params as unknown[]) as

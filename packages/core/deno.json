@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "exports": "./src/mod.ts",
   "imports": {
+    "@conveyor/shared": "jsr:@conveyor/shared@^0.1.0",
     "croner": "npm:croner@^10.0.0"
   },
   "publish": {
