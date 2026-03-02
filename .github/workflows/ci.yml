@@ -3,8 +3,25 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint-and-check:
@@ -13,10 +30,20 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.x'
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/deno
+            node_modules
+          key: deno-${{ runner.os }}-${{ hashFiles('deno.lock') }}
+          restore-keys: deno-${{ runner.os }}-
 
       - name: Verify formatting
         run: deno fmt --check
@@ -51,10 +78,20 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - uses: denoland/setup-deno@v2
         with:
           deno-version: '2.x'
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/deno
+            node_modules
+          key: deno-${{ runner.os }}-${{ hashFiles('deno.lock') }}
+          restore-keys: deno-${{ runner.os }}-
 
       - name: Run tests (core + memory + pg)
         run: deno -A npm:vitest run
@@ -66,6 +103,7 @@ jobs:
     name: Tests (Node.js ${{ matrix.node-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         node-version: ['22', '24']
 
@@ -89,10 +127,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+
+      - uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: npm-${{ runner.os }}-node${{ matrix.node-version }}-${{ hashFiles('package.json') }}
+          restore-keys: npm-${{ runner.os }}-node${{ matrix.node-version }}-
 
       - name: Install dependencies
         run: npm install
@@ -127,8 +173,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: bun-${{ runner.os }}-${{ hashFiles('package.json') }}
+          restore-keys: bun-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install
