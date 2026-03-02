@@ -1,10 +1,11 @@
 import { expect, test } from 'vitest';
 import { SqliteStore } from '@conveyor/store-sqlite';
+import { runErrorPathTests } from '../error-paths/store-error-paths.test.ts';
 
-test('SqliteStore: connect() rejects with invalid path', async () => {
-  const store = new SqliteStore({ filename: '/nonexistent/path/to/nowhere/db.sqlite' });
-  await expect(store.connect()).rejects.toThrow();
-});
+runErrorPathTests(
+  'SqliteStore',
+  () => new SqliteStore({ filename: '/nonexistent/path/to/nowhere/db.sqlite' }),
+);
 
 test('SqliteStore: getJob() throws after disconnect()', async () => {
   const store = new SqliteStore({ filename: ':memory:' });

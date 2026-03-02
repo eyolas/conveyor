@@ -10,7 +10,11 @@ const root = import.meta.dirname!;
 export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
-    exclude: ['tests/conformance/store.test.ts'],
+    exclude: [
+      'tests/conformance/store.test.ts',
+      'tests/integration/store-integration.test.ts',
+      'tests/error-paths/store-error-paths.test.ts',
+    ],
     testTimeout: 30_000,
     fileParallelism: false,
     server: {

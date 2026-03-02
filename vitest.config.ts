@@ -8,6 +8,8 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     exclude: [
       'tests/conformance/store.test.ts',
+      'tests/integration/store-integration.test.ts',
+      'tests/error-paths/store-error-paths.test.ts',
       'tests/store-sqlite/**',
       'tests/store-sqlite-bun/**',
       'tests/store-sqlite-deno/**',
