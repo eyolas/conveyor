@@ -35,8 +35,22 @@ export interface JobRow {
   locked_by: string | null;
 }
 
+/** Parse a value that may already be a JS object (driver auto-parsed) or a JSON string. */
+function ensureParsed<T>(val: unknown, fallback?: T): T {
+  if (typeof val !== 'string') return val as T;
+  try {
+    return JSON.parse(val) as T;
+  } catch {
+    console.warn('[Conveyor] Failed to parse JSON value:', val);
+    return (fallback ?? val) as T;
+  }
+}
+
 /**
  * Convert a PostgreSQL row into a {@linkcode JobData} object.
+ *
+ * JSONB columns may come pre-parsed (tagged template queries) or as raw
+ * strings (`sql.unsafe()`). {@linkcode ensureParsed} handles both cases.
  *
  * @param row - The raw row from the database.
  * @returns A fully typed JobData object.
@@ -46,15 +60,15 @@ export function rowToJobData(row: JobRow): JobData {
     id: row.id,
     queueName: row.queue_name,
     name: row.name,
-    data: row.data,
+    data: ensureParsed(row.data),
     state: assertJobState(row.state),
     attemptsMade: row.attempts_made,
     progress: row.progress,
-    returnvalue: row.returnvalue ?? null,
+    returnvalue: row.returnvalue != null ? ensureParsed(row.returnvalue) : null,
     failedReason: row.failed_reason,
-    opts: row.opts,
+    opts: ensureParsed<JobOptions>(row.opts),
     deduplicationKey: row.deduplication_key,
-    logs: row.logs ?? [],
+    logs: ensureParsed<string[]>(row.logs) ?? [],
     createdAt: new Date(row.created_at),
     processedAt: row.processed_at ? new Date(row.processed_at) : null,
     completedAt: row.completed_at ? new Date(row.completed_at) : null,

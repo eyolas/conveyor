@@ -6,7 +6,7 @@
  * and returned by Worker processing.
  */
 
-import type { JobData, JobOptions, StoreInterface } from '@conveyor/shared';
+import type { JobData, JobOptions, JobState, StoreInterface } from '@conveyor/shared';
 
 /**
  * A job instance wrapping raw {@linkcode JobData} with convenience methods
@@ -79,47 +79,47 @@ export class Job<T = unknown> {
   }
 
   /** Current state of the job. */
-  get state() {
+  get state(): JobState {
     return this._state;
   }
 
   /** Current progress (0–100). */
-  get progress() {
+  get progress(): number {
     return this._progress;
   }
 
   /** Return value from successful processing. */
-  get returnvalue() {
+  get returnvalue(): unknown {
     return this._returnvalue;
   }
 
   /** Error message if the job failed. */
-  get failedReason() {
+  get failedReason(): string | null {
     return this._failedReason;
   }
 
   /** Number of processing attempts made. */
-  get attemptsMade() {
+  get attemptsMade(): number {
     return this._attemptsMade;
   }
 
   /** When the job started processing. */
-  get processedAt() {
+  get processedAt(): Date | null {
     return this._processedAt;
   }
 
   /** When the job completed. */
-  get completedAt() {
+  get completedAt(): Date | null {
     return this._completedAt;
   }
 
   /** When the job failed. */
-  get failedAt() {
+  get failedAt(): Date | null {
     return this._failedAt;
   }
 
   /** Copy of the job's log messages. */
-  get logs() {
+  get logs(): string[] {
     return [...this._logs];
   }
 

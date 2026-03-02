@@ -191,6 +191,12 @@ export interface WorkerOptions {
 
   /** Stalled check interval in ms (default: 30_000). */
   stalledInterval?: number;
+
+  /** Start polling immediately on construction (default: true). Set to false to call start() manually. */
+  autoStart?: boolean;
+
+  /** LIFO mode: fetch most recently added job first (default: false). */
+  lifo?: boolean;
 }
 
 /** Event types emitted by the store (used for cross-process pub/sub). */

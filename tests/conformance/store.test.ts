@@ -9,7 +9,7 @@
  *   runConformanceTests('MemoryStore', () => new MemoryStore());
  */
 
-import { assertEquals, assertExists, assertNotEquals } from '@std/assert';
+import { expect, test } from 'vitest';
 import type { StoreEvent, StoreInterface } from '@conveyor/shared';
 import { createJobData, hashPayload } from '@conveyor/shared';
 
@@ -23,25 +23,25 @@ export function runConformanceTests(
 
   // ─── CRUD ────────────────────────────────────────────────────────────
 
-  Deno.test(`[${storeName}] saveJob and getJob`, async () => {
+  test(`[${storeName}] saveJob and getJob`, async () => {
     store = factory();
     await store.connect();
 
     const jobData = createJobData(queueName, 'test-job', { foo: 'bar' });
     const id = await store.saveJob(queueName, jobData);
 
-    assertExists(id);
+    expect(id).toBeDefined();
 
     const retrieved = await store.getJob(queueName, id);
-    assertExists(retrieved);
-    assertEquals(retrieved.name, 'test-job');
-    assertEquals(retrieved.data, { foo: 'bar' });
-    assertEquals(retrieved.state, 'waiting');
+    expect(retrieved).toBeDefined();
+    expect(retrieved!.name).toEqual('test-job');
+    expect(retrieved!.data).toEqual({ foo: 'bar' });
+    expect(retrieved!.state).toEqual('waiting');
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] saveBulk`, async () => {
+  test(`[${storeName}] saveBulk`, async () => {
     store = factory();
     await store.connect();
 
@@ -52,15 +52,15 @@ export function runConformanceTests(
     ];
 
     const ids = await store.saveBulk(queueName, jobs);
-    assertEquals(ids.length, 3);
+    expect(ids.length).toEqual(3);
 
     const count = await store.countJobs(queueName, 'waiting');
-    assertEquals(count, 3);
+    expect(count).toEqual(3);
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] updateJob`, async () => {
+  test(`[${storeName}] updateJob`, async () => {
     store = factory();
     await store.connect();
 
@@ -70,12 +70,12 @@ export function runConformanceTests(
     await store.updateJob(queueName, id, { progress: 50 });
 
     const updated = await store.getJob(queueName, id);
-    assertEquals(updated?.progress, 50);
+    expect(updated?.progress).toEqual(50);
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] removeJob`, async () => {
+  test(`[${storeName}] removeJob`, async () => {
     store = factory();
     await store.connect();
 
@@ -85,14 +85,14 @@ export function runConformanceTests(
     await store.removeJob(queueName, id);
 
     const removed = await store.getJob(queueName, id);
-    assertEquals(removed, null);
+    expect(removed).toEqual(null);
 
     await store.disconnect();
   });
 
   // ─── Fetch & Locking ─────────────────────────────────────────────────
 
-  Deno.test(`[${storeName}] fetchNextJob locks the job`, async () => {
+  test(`[${storeName}] fetchNextJob locks the job`, async () => {
     store = factory();
     await store.connect();
 
@@ -100,19 +100,19 @@ export function runConformanceTests(
     await store.saveJob(queueName, jobData);
 
     const fetched = await store.fetchNextJob(queueName, 'worker-1', 30_000);
-    assertExists(fetched);
-    assertEquals(fetched.state, 'active');
-    assertEquals(fetched.lockedBy, 'worker-1');
-    assertExists(fetched.lockUntil);
+    expect(fetched).toBeDefined();
+    expect(fetched!.state).toEqual('active');
+    expect(fetched!.lockedBy).toEqual('worker-1');
+    expect(fetched!.lockUntil).toBeDefined();
 
     // Second fetch should return null (no more waiting jobs)
     const second = await store.fetchNextJob(queueName, 'worker-2', 30_000);
-    assertEquals(second, null);
+    expect(second).toEqual(null);
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] fetchNextJob respects FIFO order`, async () => {
+  test(`[${storeName}] fetchNextJob respects FIFO order`, async () => {
     store = factory();
     await store.connect();
 
@@ -122,12 +122,12 @@ export function runConformanceTests(
     await store.saveJob(queueName, job2);
 
     const fetched = await store.fetchNextJob(queueName, 'worker-1', 30_000);
-    assertEquals(fetched?.name, 'first');
+    expect(fetched?.name).toEqual('first');
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] fetchNextJob respects LIFO order`, async () => {
+  test(`[${storeName}] fetchNextJob respects LIFO order`, async () => {
     store = factory();
     await store.connect();
 
@@ -137,12 +137,12 @@ export function runConformanceTests(
     await store.saveJob(queueName, job2);
 
     const fetched = await store.fetchNextJob(queueName, 'worker-1', 30_000, { lifo: true });
-    assertEquals(fetched?.name, 'second');
+    expect(fetched?.name).toEqual('second');
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] fetchNextJob respects priority`, async () => {
+  test(`[${storeName}] fetchNextJob respects priority`, async () => {
     store = factory();
     await store.connect();
 
@@ -152,14 +152,14 @@ export function runConformanceTests(
     await store.saveJob(queueName, high);
 
     const fetched = await store.fetchNextJob(queueName, 'worker-1', 30_000);
-    assertEquals(fetched?.name, 'high-priority');
+    expect(fetched?.name).toEqual('high-priority');
 
     await store.disconnect();
   });
 
   // ─── Delayed Jobs ────────────────────────────────────────────────────
 
-  Deno.test(`[${storeName}] delayed jobs are promoted`, async () => {
+  test(`[${storeName}] delayed jobs are promoted`, async () => {
     store = factory();
     await store.connect();
 
@@ -168,23 +168,23 @@ export function runConformanceTests(
 
     // Should not be fetchable yet
     const beforePromote = await store.fetchNextJob(queueName, 'worker-1', 30_000);
-    assertEquals(beforePromote, null);
+    expect(beforePromote).toEqual(null);
 
     // Promote (simulate time passing)
     const promoted = await store.promoteDelayedJobs(queueName, Date.now() + 200);
-    assertEquals(promoted, 1);
+    expect(promoted).toEqual(1);
 
     // Should now be fetchable
     const afterPromote = await store.fetchNextJob(queueName, 'worker-1', 30_000);
-    assertExists(afterPromote);
-    assertEquals(afterPromote.name, 'delayed-job');
+    expect(afterPromote).toBeDefined();
+    expect(afterPromote!.name).toEqual('delayed-job');
 
     await store.disconnect();
   });
 
   // ─── Pause/Resume by Job Name ────────────────────────────────────────
 
-  Deno.test(`[${storeName}] pause/resume by job name`, async () => {
+  test(`[${storeName}] pause/resume by job name`, async () => {
     store = factory();
     await store.connect();
 
@@ -197,23 +197,23 @@ export function runConformanceTests(
     await store.pauseJobName(queueName, 'send-email');
 
     const paused = await store.getPausedJobNames(queueName);
-    assertEquals(paused.includes('send-email'), true);
+    expect(paused.includes('send-email')).toEqual(true);
 
     // Fetch should only return send-sms
     const fetched = await store.fetchNextJob(queueName, 'worker-1', 30_000);
-    assertEquals(fetched?.name, 'send-sms');
+    expect(fetched?.name).toEqual('send-sms');
 
     // Resume and fetch again
     await store.resumeJobName(queueName, 'send-email');
     const fetched2 = await store.fetchNextJob(queueName, 'worker-1', 30_000);
-    assertEquals(fetched2?.name, 'send-email');
+    expect(fetched2?.name).toEqual('send-email');
 
     await store.disconnect();
   });
 
   // ─── Deduplication ───────────────────────────────────────────────────
 
-  Deno.test(`[${storeName}] deduplication by key`, async () => {
+  test(`[${storeName}] deduplication by key`, async () => {
     store = factory();
     await store.connect();
 
@@ -222,18 +222,18 @@ export function runConformanceTests(
     await store.saveJob(queueName, jobData);
 
     const found = await store.findByDeduplicationKey(queueName, 'user-abc');
-    assertExists(found);
-    assertEquals(found.name, 'dedup-job');
+    expect(found).toBeDefined();
+    expect(found!.name).toEqual('dedup-job');
 
     const notFound = await store.findByDeduplicationKey(queueName, 'user-xyz');
-    assertEquals(notFound, null);
+    expect(notFound).toEqual(null);
 
     await store.disconnect();
   });
 
   // ─── Maintenance ─────────────────────────────────────────────────────
 
-  Deno.test(`[${storeName}] drain removes waiting and delayed jobs`, async () => {
+  test(`[${storeName}] drain removes waiting and delayed jobs`, async () => {
     store = factory();
     await store.connect();
 
@@ -243,33 +243,33 @@ export function runConformanceTests(
 
     await store.drain(queueName);
 
-    assertEquals(await store.countJobs(queueName, 'waiting'), 0);
-    assertEquals(await store.countJobs(queueName, 'delayed'), 0);
+    expect(await store.countJobs(queueName, 'waiting')).toEqual(0);
+    expect(await store.countJobs(queueName, 'delayed')).toEqual(0);
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] getActiveCount`, async () => {
+  test(`[${storeName}] getActiveCount`, async () => {
     store = factory();
     await store.connect();
 
     await store.saveJob(queueName, createJobData(queueName, 'job-1', {}));
     await store.saveJob(queueName, createJobData(queueName, 'job-2', {}));
 
-    assertEquals(await store.getActiveCount(queueName), 0);
+    expect(await store.getActiveCount(queueName)).toEqual(0);
 
     await store.fetchNextJob(queueName, 'worker-1', 30_000);
-    assertEquals(await store.getActiveCount(queueName), 1);
+    expect(await store.getActiveCount(queueName)).toEqual(1);
 
     await store.fetchNextJob(queueName, 'worker-2', 30_000);
-    assertEquals(await store.getActiveCount(queueName), 2);
+    expect(await store.getActiveCount(queueName)).toEqual(2);
 
     await store.disconnect();
   });
 
   // ─── Stalled Jobs ───────────────────────────────────────────────────
 
-  Deno.test(`[${storeName}] getStalledJobs detects stalled jobs`, async () => {
+  test(`[${storeName}] getStalledJobs detects stalled jobs`, async () => {
     store = factory();
     await store.connect();
 
@@ -277,19 +277,19 @@ export function runConformanceTests(
 
     // Fetch with very short lock (1ms)
     const fetched = await store.fetchNextJob(queueName, 'worker-1', 1);
-    assertExists(fetched);
+    expect(fetched).toBeDefined();
 
     // Wait for lock to expire
     await new Promise((r) => setTimeout(r, 10));
 
     const stalled = await store.getStalledJobs(queueName, 30_000);
-    assertEquals(stalled.length, 1);
-    assertEquals(stalled[0]!.name, 'stalled-job');
+    expect(stalled.length).toEqual(1);
+    expect(stalled[0]!.name).toEqual('stalled-job');
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] getStalledJobs ignores jobs with valid locks`, async () => {
+  test(`[${storeName}] getStalledJobs ignores jobs with valid locks`, async () => {
     store = factory();
     await store.connect();
 
@@ -297,14 +297,14 @@ export function runConformanceTests(
     await store.fetchNextJob(queueName, 'worker-1', 60_000);
 
     const stalled = await store.getStalledJobs(queueName, 30_000);
-    assertEquals(stalled.length, 0);
+    expect(stalled.length).toEqual(0);
 
     await store.disconnect();
   });
 
   // ─── Clean ──────────────────────────────────────────────────────────
 
-  Deno.test(`[${storeName}] clean completed jobs with grace period`, async () => {
+  test(`[${storeName}] clean completed jobs with grace period`, async () => {
     store = factory();
     await store.connect();
 
@@ -316,15 +316,15 @@ export function runConformanceTests(
 
     // Grace period of 5s — job completed 10s ago, should be cleaned
     const removed = await store.clean(queueName, 'completed', 5_000);
-    assertEquals(removed, 1);
+    expect(removed).toEqual(1);
 
     const job = await store.getJob(queueName, id);
-    assertEquals(job, null);
+    expect(job).toEqual(null);
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] clean respects grace period`, async () => {
+  test(`[${storeName}] clean respects grace period`, async () => {
     store = factory();
     await store.connect();
 
@@ -336,15 +336,15 @@ export function runConformanceTests(
 
     // Grace period of 60s — job just completed, should NOT be cleaned
     const removed = await store.clean(queueName, 'completed', 60_000);
-    assertEquals(removed, 0);
+    expect(removed).toEqual(0);
 
     const job = await store.getJob(queueName, id);
-    assertExists(job);
+    expect(job).toBeDefined();
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] clean failed jobs`, async () => {
+  test(`[${storeName}] clean failed jobs`, async () => {
     store = factory();
     await store.connect();
 
@@ -355,14 +355,14 @@ export function runConformanceTests(
     });
 
     const removed = await store.clean(queueName, 'failed', 5_000);
-    assertEquals(removed, 1);
+    expect(removed).toEqual(1);
 
     await store.disconnect();
   });
 
   // ─── Events ─────────────────────────────────────────────────────────
 
-  Deno.test(`[${storeName}] publish and subscribe`, async () => {
+  test(`[${storeName}] publish and subscribe`, async () => {
     store = factory();
     await store.connect();
 
@@ -378,14 +378,14 @@ export function runConformanceTests(
       timestamp: new Date(),
     });
 
-    assertEquals(received.length, 1);
-    assertEquals(received[0]!.type, 'job:waiting');
-    assertEquals(received[0]!.jobId, 'test-id');
+    expect(received.length).toEqual(1);
+    expect(received[0]!.type).toEqual('job:waiting');
+    expect(received[0]!.jobId).toEqual('test-id');
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] unsubscribe stops events`, async () => {
+  test(`[${storeName}] unsubscribe stops events`, async () => {
     store = factory();
     await store.connect();
 
@@ -403,64 +403,64 @@ export function runConformanceTests(
       timestamp: new Date(),
     });
 
-    assertEquals(received.length, 0);
+    expect(received.length).toEqual(0);
 
     await store.disconnect();
   });
 
   // ─── Lock Management ────────────────────────────────────────────────
 
-  Deno.test(`[${storeName}] extendLock extends active job lock`, async () => {
+  test(`[${storeName}] extendLock extends active job lock`, async () => {
     store = factory();
     await store.connect();
 
     await store.saveJob(queueName, createJobData(queueName, 'locked-job', {}));
     const fetched = await store.fetchNextJob(queueName, 'worker-1', 5_000);
-    assertExists(fetched);
+    expect(fetched).toBeDefined();
 
-    const extended = await store.extendLock(queueName, fetched.id, 60_000);
-    assertEquals(extended, true);
+    const extended = await store.extendLock(queueName, fetched!.id, 60_000);
+    expect(extended).toEqual(true);
 
-    const job = await store.getJob(queueName, fetched.id);
-    assertExists(job);
-    assertExists(job.lockUntil);
+    const job = await store.getJob(queueName, fetched!.id);
+    expect(job).toBeDefined();
+    expect(job!.lockUntil).toBeDefined();
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] extendLock returns false for non-active jobs`, async () => {
+  test(`[${storeName}] extendLock returns false for non-active jobs`, async () => {
     store = factory();
     await store.connect();
 
     const id = await store.saveJob(queueName, createJobData(queueName, 'waiting-job', {}));
 
     const extended = await store.extendLock(queueName, id, 60_000);
-    assertEquals(extended, false);
+    expect(extended).toEqual(false);
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] releaseLock clears lock fields`, async () => {
+  test(`[${storeName}] releaseLock clears lock fields`, async () => {
     store = factory();
     await store.connect();
 
     await store.saveJob(queueName, createJobData(queueName, 'locked-job', {}));
     const fetched = await store.fetchNextJob(queueName, 'worker-1', 30_000);
-    assertExists(fetched);
+    expect(fetched).toBeDefined();
 
-    await store.releaseLock(queueName, fetched.id);
+    await store.releaseLock(queueName, fetched!.id);
 
-    const job = await store.getJob(queueName, fetched.id);
-    assertExists(job);
-    assertEquals(job.lockUntil, null);
-    assertEquals(job.lockedBy, null);
+    const job = await store.getJob(queueName, fetched!.id);
+    expect(job).toBeDefined();
+    expect(job!.lockUntil).toEqual(null);
+    expect(job!.lockedBy).toEqual(null);
 
     await store.disconnect();
   });
 
   // ─── Deduplication with TTL ─────────────────────────────────────────
 
-  Deno.test(`[${storeName}] findByDeduplicationKey with expired TTL`, async () => {
+  test(`[${storeName}] findByDeduplicationKey with expired TTL`, async () => {
     store = factory();
     await store.connect();
 
@@ -473,12 +473,12 @@ export function runConformanceTests(
 
     // TTL is 1ms, created 100ms ago — should be expired
     const found = await store.findByDeduplicationKey(queueName, 'ttl-key');
-    assertEquals(found, null);
+    expect(found).toEqual(null);
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] findByDeduplicationKey with valid TTL`, async () => {
+  test(`[${storeName}] findByDeduplicationKey with valid TTL`, async () => {
     store = factory();
     await store.connect();
 
@@ -489,15 +489,15 @@ export function runConformanceTests(
     await store.saveJob(queueName, jobData);
 
     const found = await store.findByDeduplicationKey(queueName, 'valid-key');
-    assertExists(found);
-    assertEquals(found.name, 'dedup-ttl-job');
+    expect(found).toBeDefined();
+    expect(found!.name).toEqual('dedup-ttl-job');
 
     await store.disconnect();
   });
 
   // ─── countJobs ──────────────────────────────────────────────────────
 
-  Deno.test(`[${storeName}] countJobs by state`, async () => {
+  test(`[${storeName}] countJobs by state`, async () => {
     store = factory();
     await store.connect();
 
@@ -505,23 +505,23 @@ export function runConformanceTests(
     await store.saveJob(queueName, createJobData(queueName, 'w2', {}));
     await store.saveJob(queueName, createJobData(queueName, 'd1', {}, { delay: 60_000 }));
 
-    assertEquals(await store.countJobs(queueName, 'waiting'), 2);
-    assertEquals(await store.countJobs(queueName, 'delayed'), 1);
-    assertEquals(await store.countJobs(queueName, 'active'), 0);
-    assertEquals(await store.countJobs(queueName, 'completed'), 0);
-    assertEquals(await store.countJobs(queueName, 'failed'), 0);
+    expect(await store.countJobs(queueName, 'waiting')).toEqual(2);
+    expect(await store.countJobs(queueName, 'delayed')).toEqual(1);
+    expect(await store.countJobs(queueName, 'active')).toEqual(0);
+    expect(await store.countJobs(queueName, 'completed')).toEqual(0);
+    expect(await store.countJobs(queueName, 'failed')).toEqual(0);
 
     await store.disconnect();
   });
 
   // ─── getNextDelayedTimestamp ─────────────────────────────────────────
 
-  Deno.test(`[${storeName}] getNextDelayedTimestamp`, async () => {
+  test(`[${storeName}] getNextDelayedTimestamp`, async () => {
     store = factory();
     await store.connect();
 
     // No delayed jobs
-    assertEquals(await store.getNextDelayedTimestamp(queueName), null);
+    expect(await store.getNextDelayedTimestamp(queueName)).toEqual(null);
 
     const job1 = createJobData(queueName, 'delayed-1', {}, { delay: 10_000 });
     const job2 = createJobData(queueName, 'delayed-2', {}, { delay: 5_000 });
@@ -529,17 +529,17 @@ export function runConformanceTests(
     await store.saveJob(queueName, job2);
 
     const next = await store.getNextDelayedTimestamp(queueName);
-    assertExists(next);
+    expect(next).toBeDefined();
     // The 5s delay job should be the earliest
     const job2Delay = job2.delayUntil!.getTime();
-    assertEquals(next, job2Delay);
+    expect(next).toEqual(job2Delay);
 
     await store.disconnect();
   });
 
   // ─── Hash-based deduplication ───────────────────────────────────────
 
-  Deno.test(`[${storeName}] deduplication by hash`, async () => {
+  test(`[${storeName}] deduplication by hash`, async () => {
     store = factory();
     await store.connect();
 
@@ -551,40 +551,40 @@ export function runConformanceTests(
     await store.saveJob(queueName, jobData);
 
     const found = await store.findByDeduplicationKey(queueName, hash);
-    assertExists(found);
-    assertEquals(found.name, 'hash-job');
+    expect(found).toBeDefined();
+    expect(found!.name).toEqual('hash-job');
 
     // Different hash should not match
     const differentHash = await hashPayload({ user: 'xyz' });
-    assertNotEquals(hash, differentHash);
+    expect(hash).not.toEqual(differentHash);
     const notFound = await store.findByDeduplicationKey(queueName, differentHash);
-    assertEquals(notFound, null);
+    expect(notFound).toEqual(null);
 
     await store.disconnect();
   });
 
   // ─── Custom jobId ───────────────────────────────────────────────────
 
-  Deno.test(`[${storeName}] saveJob with custom jobId`, async () => {
+  test(`[${storeName}] saveJob with custom jobId`, async () => {
     store = factory();
     await store.connect();
 
     const jobData = createJobData(queueName, 'custom-id-job', {}, { jobId: 'my-custom-id' });
     const id = await store.saveJob(queueName, jobData);
 
-    assertEquals(id, 'my-custom-id');
+    expect(id).toEqual('my-custom-id');
 
     const retrieved = await store.getJob(queueName, 'my-custom-id');
-    assertExists(retrieved);
-    assertEquals(retrieved.id, 'my-custom-id');
-    assertEquals(retrieved.name, 'custom-id-job');
+    expect(retrieved).toBeDefined();
+    expect(retrieved!.id).toEqual('my-custom-id');
+    expect(retrieved!.name).toEqual('custom-id-job');
 
     await store.disconnect();
   });
 
   // ─── Atomic Dedup in saveJob ──────────────────────────────────────
 
-  Deno.test(`[${storeName}] saveJob dedup returns existing id`, async () => {
+  test(`[${storeName}] saveJob dedup returns existing id`, async () => {
     store = factory();
     await store.connect();
 
@@ -601,16 +601,16 @@ export function runConformanceTests(
     jobData2.deduplicationKey = 'dup-key-1';
     const id2 = await store.saveJob(queueName, jobData2);
 
-    assertEquals(id1, id2);
+    expect(id1).toEqual(id2);
 
     // Only one job should exist
     const count = await store.countJobs(queueName, 'waiting');
-    assertEquals(count, 1);
+    expect(count).toEqual(1);
 
     await store.disconnect();
   });
 
-  Deno.test(`[${storeName}] saveJob dedup respects TTL expiry`, async () => {
+  test(`[${storeName}] saveJob dedup respects TTL expiry`, async () => {
     store = factory();
     await store.connect();
 
@@ -628,14 +628,14 @@ export function runConformanceTests(
     jobData2.deduplicationKey = 'ttl-dup';
     const id2 = await store.saveJob(queueName, jobData2);
 
-    assertNotEquals(id1, id2);
+    expect(id1).not.toEqual(id2);
 
     await store.disconnect();
   });
 
   // ─── saveBulk Dedup ───────────────────────────────────────────────
 
-  Deno.test(`[${storeName}] saveBulk dedup returns existing ids`, async () => {
+  test(`[${storeName}] saveBulk dedup returns existing ids`, async () => {
     store = factory();
     await store.connect();
 
@@ -655,20 +655,20 @@ export function runConformanceTests(
     const job2 = createJobData(queueName, 'bulk-new', { i: 2 });
 
     const ids = await store.saveBulk(queueName, [job1, job2]);
-    assertEquals(ids.length, 2);
-    assertEquals(ids[0], existingId); // dedup match
-    assertNotEquals(ids[1], existingId); // new job
+    expect(ids.length).toEqual(2);
+    expect(ids[0]).toEqual(existingId); // dedup match
+    expect(ids[1]).not.toEqual(existingId); // new job
 
     // Should have 2 total jobs (existing + new), not 3
     const count = await store.countJobs(queueName, 'waiting');
-    assertEquals(count, 2);
+    expect(count).toEqual(2);
 
     await store.disconnect();
   });
 
   // ─── structuredClone Mutation Isolation ────────────────────────────
 
-  Deno.test(`[${storeName}] getJob returns isolated copy`, async () => {
+  test(`[${storeName}] getJob returns isolated copy`, async () => {
     store = factory();
     await store.connect();
 
@@ -676,24 +676,24 @@ export function runConformanceTests(
     const id = await store.saveJob(queueName, jobData);
 
     const job1 = await store.getJob(queueName, id);
-    assertExists(job1);
+    expect(job1).toBeDefined();
 
     // Mutate the returned job's nested data
-    (job1.data as Record<string, Record<string, number>>).nested!.value = 999;
-    job1.logs.push('mutated');
+    (job1!.data as Record<string, Record<string, number>>).nested!.value = 999;
+    job1!.logs.push('mutated');
 
     // Fetch again — should be unaffected
     const job2 = await store.getJob(queueName, id);
-    assertExists(job2);
-    assertEquals((job2.data as Record<string, Record<string, number>>).nested!.value, 1);
-    assertEquals(job2.logs.length, 0);
+    expect(job2).toBeDefined();
+    expect((job2!.data as Record<string, Record<string, number>>).nested!.value).toEqual(1);
+    expect(job2!.logs.length).toEqual(0);
 
     await store.disconnect();
   });
 
   // ─── updateJob syncs priority ─────────────────────────────────────
 
-  Deno.test(`[${storeName}] updateJob opts syncs priority`, async () => {
+  test(`[${storeName}] updateJob opts syncs priority`, async () => {
     store = factory();
     await store.connect();
 
@@ -705,7 +705,7 @@ export function runConformanceTests(
 
     // job2 (priority 5) should be fetched first
     let next = await store.fetchNextJob(queueName, 'w', 30_000);
-    assertEquals(next?.name, 'high');
+    expect(next?.name).toEqual('high');
 
     // Return job2 to waiting
     await store.updateJob(queueName, id2, { state: 'waiting', lockUntil: null, lockedBy: null });
@@ -717,7 +717,7 @@ export function runConformanceTests(
 
     // job1 (now priority 1) should be fetched first
     next = await store.fetchNextJob(queueName, 'w', 30_000);
-    assertEquals(next?.name, 'low');
+    expect(next?.name).toEqual('low');
 
     await store.disconnect();
   });

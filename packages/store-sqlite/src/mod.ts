@@ -1,10 +1,37 @@
 /**
  * @module @conveyor/store-sqlite
  *
- * SQLite store backend for the Conveyor job queue.
- * Uses `node:sqlite` (DatabaseSync) which is built-in to
- * Node.js 22.13+, Deno 2.2+, and Bun 1.2+.
- * WAL mode and prepared statements are used for performance.
+ * SQLite store for Node.js, using `node:sqlite` (DatabaseSync, built-in 22.13+).
  */
-export { SqliteStore } from './sqlite-store.ts';
-export type { SqliteStoreOptions } from './sqlite-store.ts';
+
+import { BaseSqliteStore } from '@conveyor/store-sqlite-core';
+import type { SqliteDatabase } from '@conveyor/store-sqlite-core';
+import type { StoreOptions } from '@conveyor/shared';
+
+/**
+ * Configuration options for {@linkcode SqliteStore}.
+ */
+export interface SqliteStoreOptions extends StoreOptions {
+  /** Path to the SQLite database file (e.g. `"./data/queue.db"` or `":memory:"`). */
+  filename: string;
+}
+
+async function openNodeDatabase(filename: string): Promise<SqliteDatabase> {
+  const { DatabaseSync } = await import('node:sqlite');
+  return new DatabaseSync(filename) as unknown as SqliteDatabase;
+}
+
+/**
+ * Node.js SQLite store backed by `node:sqlite` (DatabaseSync).
+ *
+ * @example
+ * ```ts
+ * const store = new SqliteStore({ filename: ":memory:" });
+ * await store.connect();
+ * ```
+ */
+export class SqliteStore extends BaseSqliteStore {
+  constructor(options: SqliteStoreOptions) {
+    super({ ...options, openDatabase: openNodeDatabase });
+  }
+}
