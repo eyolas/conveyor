@@ -34,7 +34,8 @@
     "bench": "deno bench --allow-env --allow-read --allow-write benchmarks/",
     "lint": "deno lint",
     "fmt": "deno fmt",
-    "check": "deno check packages/*/src/mod.ts"
+    "check": "deno check packages/*/src/mod.ts",
+    "setup": "git config core.hooksPath .githooks"
   },
   "fmt": {
     "lineWidth": 100,
