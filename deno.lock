@@ -685,13 +685,8 @@
       },
       "packages/store-pg": {
         "dependencies": [
-          "npm:postgres@^3.4.0"
-        ]
-      },
-      "packages/store-sqlite": {
-        "dependencies": [
           "jsr:@conveyor/shared@0.1",
-          "jsr:@conveyor/store-sqlite-core@0.1"
+          "npm:postgres@^3.4.0"
         ]
       },
       "packages/store-sqlite-bun": {
@@ -706,6 +701,12 @@
         ]
       },
       "packages/store-sqlite-deno": {
+        "dependencies": [
+          "jsr:@conveyor/shared@0.1",
+          "jsr:@conveyor/store-sqlite-core@0.1"
+        ]
+      },
+      "packages/store-sqlite-node": {
         "dependencies": [
           "jsr:@conveyor/shared@0.1",
           "jsr:@conveyor/store-sqlite-core@0.1"

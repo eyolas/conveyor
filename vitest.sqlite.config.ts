@@ -5,7 +5,7 @@ const root = import.meta.dirname!;
 
 /**
  * Vitest config for per-runtime SQLite tests.
- * Usage: vitest run --config vitest.sqlite.config.ts tests/store-sqlite/
+ * Usage: vitest run --config vitest.sqlite.config.ts tests/store-sqlite-node/
  */
 export default defineConfig({
   test: {
@@ -32,7 +32,7 @@ export default defineConfig({
       '@conveyor/store-memory': resolve(root, 'packages/store-memory/src/mod.ts'),
       '@conveyor/store-pg': resolve(root, 'packages/store-pg/src/mod.ts'),
       '@conveyor/store-sqlite-core': resolve(root, 'packages/store-sqlite-core/src/mod.ts'),
-      '@conveyor/store-sqlite': resolve(root, 'packages/store-sqlite/src/mod.ts'),
+      '@conveyor/store-sqlite-node': resolve(root, 'packages/store-sqlite-node/src/mod.ts'),
       '@conveyor/store-sqlite-bun': resolve(root, 'packages/store-sqlite-bun/src/mod.ts'),
       '@conveyor/store-sqlite-deno': resolve(root, 'packages/store-sqlite-deno/src/mod.ts'),
     },

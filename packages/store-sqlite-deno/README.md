@@ -51,7 +51,7 @@ const store = new SqliteStore({ filename: ':memory:' });
 
 ## See also
 
-- [`@conveyor/store-sqlite`](../store-sqlite) — Node.js (`node:sqlite`)
+- [`@conveyor/store-sqlite-node`](../store-sqlite-node) — Node.js (`node:sqlite`)
 - [`@conveyor/store-sqlite-bun`](../store-sqlite-bun) — Bun (`bun:sqlite`)
 - [`@conveyor/store-sqlite-core`](../store-sqlite-core) — Shared base package
 

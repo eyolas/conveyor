@@ -1,5 +1,5 @@
 /**
- * @module @conveyor/store-sqlite
+ * @module @conveyor/store-sqlite-node
  *
  * SQLite store for Node.js, using `node:sqlite` (DatabaseSync, built-in 22.13+).
  */

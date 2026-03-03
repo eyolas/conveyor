@@ -1,5 +1,5 @@
 {
-  "name": "@conveyor/store-sqlite",
+  "name": "@conveyor/store-sqlite-node",
   "version": "0.1.0",
   "exports": "./src/mod.ts",
   "imports": {

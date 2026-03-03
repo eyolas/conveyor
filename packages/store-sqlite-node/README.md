@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/eyolas/conveyor/main/assets/logo.jpeg" alt="Conveyor" width="120" />
 </p>
 
-# @conveyor/store-sqlite
+# @conveyor/store-sqlite-node
 
 SQLite storage backend for the [Conveyor](../../README.md) job queue, for **Node.js**.
 
@@ -12,14 +12,14 @@ required.
 ## Install
 
 ```ts
-import { SqliteStore } from '@conveyor/store-sqlite';
+import { SqliteStore } from '@conveyor/store-sqlite-node';
 ```
 
 ## Usage
 
 ```ts
 import { Queue, Worker } from '@conveyor/core';
-import { SqliteStore } from '@conveyor/store-sqlite';
+import { SqliteStore } from '@conveyor/store-sqlite-node';
 
 const store = new SqliteStore({ filename: './data/queue.db' });
 await store.connect(); // auto-runs migrations, enables WAL mode

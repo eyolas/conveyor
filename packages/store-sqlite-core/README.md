@@ -7,8 +7,8 @@
 Shared base for all SQLite storage backends in the [Conveyor](../../README.md) job queue.
 
 This package provides `BaseSqliteStore`, common types, migrations, and mapping logic.
-Runtime-specific packages (`store-sqlite`, `store-sqlite-bun`, `store-sqlite-deno`) extend it and
-inject their own database opener.
+Runtime-specific packages (`store-sqlite-node`, `store-sqlite-bun`, `store-sqlite-deno`) extend it
+and inject their own database opener.
 
 ## Install
 
@@ -48,7 +48,7 @@ export class MySqliteStore extends BaseSqliteStore {
 
 ## See also
 
-- [`@conveyor/store-sqlite`](../store-sqlite) — Node.js (`node:sqlite`)
+- [`@conveyor/store-sqlite-node`](../store-sqlite-node) — Node.js (`node:sqlite`)
 - [`@conveyor/store-sqlite-bun`](../store-sqlite-bun) — Bun (`bun:sqlite`)
 - [`@conveyor/store-sqlite-deno`](../store-sqlite-deno) — Deno (`@db/sqlite`)
 

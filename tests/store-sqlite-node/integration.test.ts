@@ -1,4 +1,4 @@
-import { SqliteStore } from '@conveyor/store-sqlite';
+import { SqliteStore } from '@conveyor/store-sqlite-node';
 import { runIntegrationTests } from '../integration/store-integration.test.ts';
 
 const createStore = async () => {

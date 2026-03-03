@@ -147,7 +147,7 @@ jobs:
         run: npx vitest run
 
       - name: Run SQLite tests (Node.js)
-        run: npx vitest run --config vitest.sqlite.config.ts tests/store-sqlite/
+        run: npx vitest run --config vitest.sqlite.config.ts tests/store-sqlite-node/
 
   test-bun:
     name: Tests (Bun)
