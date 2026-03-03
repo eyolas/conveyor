@@ -43,10 +43,10 @@ jobs:
           fi
 
       - name: Dry run
-        run: deno publish --dry-run
+        run: deno publish --dry-run --allow-dirty
 
       - name: Publish to JSR
-        run: deno publish
+        run: deno publish --allow-dirty
 
       - name: Generate changelog
         id: changelog
