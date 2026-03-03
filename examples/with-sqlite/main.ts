@@ -8,7 +8,7 @@
  */
 
 import { Queue, Worker } from '@conveyor/core';
-import { SqliteStore } from '@conveyor/store-sqlite';
+import { SqliteStore } from '@conveyor/store-sqlite-node';
 
 // ─── Store Setup ────────────────────────────────────────────────────
 

@@ -63,7 +63,7 @@ await queue.close();
 | `@conveyor/shared`            | Types & utilities          | Alpha  |
 | `@conveyor/store-memory`      | In-memory store            | Alpha  |
 | `@conveyor/store-pg`          | PostgreSQL store           | Alpha  |
-| `@conveyor/store-sqlite`      | SQLite store (Node.js)     | Alpha  |
+| `@conveyor/store-sqlite-node` | SQLite store (Node.js)     | Alpha  |
 | `@conveyor/store-sqlite-bun`  | SQLite store (Bun)         | Alpha  |
 | `@conveyor/store-sqlite-deno` | SQLite store (Deno)        | Alpha  |
 | `@conveyor/store-sqlite-core` | SQLite shared base         | Alpha  |
@@ -331,7 +331,7 @@ Choose the package matching your runtime:
 
 ```typescript
 // Node.js
-import { SqliteStore } from '@conveyor/store-sqlite';
+import { SqliteStore } from '@conveyor/store-sqlite-node';
 
 // Bun
 import { SqliteStore } from '@conveyor/store-sqlite-bun';

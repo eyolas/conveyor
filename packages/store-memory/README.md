@@ -40,7 +40,7 @@ await store.disconnect();
 - Single process only
 
 For production use, see [`@conveyor/store-pg`](../store-pg) or
-[`@conveyor/store-sqlite`](../store-sqlite).
+[`@conveyor/store-sqlite-node`](../store-sqlite-node).
 
 ## License
 

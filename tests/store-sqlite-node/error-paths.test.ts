@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { SqliteStore } from '@conveyor/store-sqlite';
+import { SqliteStore } from '@conveyor/store-sqlite-node';
 import { runErrorPathTests } from '../error-paths/store-error-paths.test.ts';
 
 runErrorPathTests(

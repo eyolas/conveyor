@@ -58,7 +58,7 @@ conveyor/
 │   │       ├── mod.ts
 │   │       ├── pg-store.ts
 │   │       └── migrations/
-│   └── store-sqlite/          # @conveyor/store-sqlite
+│   └── store-sqlite-node/     # @conveyor/store-sqlite-node
 │       ├── deno.json
 │       └── src/
 │           ├── mod.ts
@@ -549,7 +549,7 @@ await queue.close();
 - **Version minimum** : PostgreSQL 12+
 - **Driver** : `postgres` (deno-postgres) ou configurable
 
-### 5.3 SQLite Store (`@conveyor/store-sqlite`)
+### 5.3 SQLite Store (`@conveyor/store-sqlite-node`)
 
 - **Usage** : apps embarquées, Electron, dev local, edge/serverless
 - **Persistence** : durable (fichier local)
@@ -613,7 +613,7 @@ tests/
 ├── core/              # tests unitaires du core (mock store)
 ├── store-memory/      # tests de l'adapter memory
 ├── store-pg/          # tests avec PostgreSQL (testcontainers ou pg embarqué)
-├── store-sqlite/      # tests avec SQLite
+├── store-sqlite-node/ # tests avec SQLite (Node.js)
 └── conformance/       # suite de tests commune à tous les stores
     └── store.test.ts  # vérifie le contrat StoreInterface
 ```
@@ -655,7 +655,7 @@ identique :
 ### Phase 2 — Persistent Stores
 
 - [x] `@conveyor/store-pg` : PostgreSQL adapter
-- [x] `@conveyor/store-sqlite` : SQLite adapter
+- [x] `@conveyor/store-sqlite-node` : SQLite adapter
 - [x] Migrations automatiques (PG + SQLite)
 - [x] Global concurrency (cross-workers)
 - [x] Tests d'intégration (conformance + integration)
