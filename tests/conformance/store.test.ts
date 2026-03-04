@@ -691,6 +691,130 @@ export function runConformanceTests(
     await store.disconnect();
   });
 
+  // ─── Job Data Round-Trip ────────────────────────────────────────────
+
+  test(`[${storeName}] data round-trip: nested objects`, async () => {
+    store = factory();
+    await store.connect();
+
+    const data = {
+      user: { name: 'Alice', address: { city: 'Paris', zip: '75001' } },
+      tags: ['urgent', 'billing'],
+      metadata: { count: 42, active: true, ratio: 3.14 },
+    };
+
+    const id = await store.saveJob(queueName, createJobData(queueName, 'nested', data));
+    const job = await store.getJob(queueName, id);
+
+    expect(job).toBeDefined();
+    expect(job!.data).toEqual(data);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] data round-trip: null, boolean and numeric values`, async () => {
+    store = factory();
+    await store.connect();
+
+    const data = {
+      nullField: null,
+      boolTrue: true,
+      boolFalse: false,
+      zero: 0,
+      negative: -1,
+      float: 0.123,
+      emptyString: '',
+    };
+
+    const id = await store.saveJob(queueName, createJobData(queueName, 'scalars', data));
+    const job = await store.getJob(queueName, id);
+
+    expect(job).toBeDefined();
+    expect(job!.data).toEqual(data);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] data round-trip: arrays and empty structures`, async () => {
+    store = factory();
+    await store.connect();
+
+    const data = {
+      emptyArray: [],
+      emptyObject: {},
+      nestedArrays: [[1, 2], [3, [4, 5]]],
+      mixedArray: [1, 'two', true, null, { key: 'val' }],
+    };
+
+    const id = await store.saveJob(queueName, createJobData(queueName, 'arrays', data));
+    const job = await store.getJob(queueName, id);
+
+    expect(job).toBeDefined();
+    expect(job!.data).toEqual(data);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] data round-trip: unicode and special strings`, async () => {
+    store = factory();
+    await store.connect();
+
+    const data = {
+      emoji: '🚀🎉',
+      cjk: '日本語テスト',
+      arabic: 'مرحبا',
+      newlines: 'line1\nline2\ttab',
+      quotes: 'He said "hello" and it\'s fine',
+      backslash: 'path\\to\\file',
+    };
+
+    const id = await store.saveJob(queueName, createJobData(queueName, 'unicode', data));
+    const job = await store.getJob(queueName, id);
+
+    expect(job).toBeDefined();
+    expect(job!.data).toEqual(data);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] data round-trip: large payload`, async () => {
+    store = factory();
+    await store.connect();
+
+    const items = Array.from({ length: 1000 }, (_, i) => ({
+      id: i,
+      label: `item-${i}`,
+      active: i % 2 === 0,
+    }));
+    const data = { items, total: 1000 };
+
+    const id = await store.saveJob(queueName, createJobData(queueName, 'large', data));
+    const job = await store.getJob(queueName, id);
+
+    expect(job).toBeDefined();
+    expect(job!.data).toEqual(data);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] data round-trip via fetchNextJob`, async () => {
+    store = factory();
+    await store.connect();
+
+    const data = {
+      user: { id: 123, roles: ['admin', 'editor'] },
+      payload: { nested: { deep: true } },
+    };
+
+    await store.saveJob(queueName, createJobData(queueName, 'fetch-data', data));
+    const fetched = await store.fetchNextJob(queueName, 'worker-1', 30_000);
+
+    expect(fetched).toBeDefined();
+    expect(fetched!.data).toEqual(data);
+
+    await store.disconnect();
+  });
+
   // ─── updateJob syncs priority ─────────────────────────────────────
 
   test(`[${storeName}] updateJob opts syncs priority`, async () => {
