@@ -386,7 +386,7 @@ export class MemoryStore implements StoreInterface {
     const orderMap = this.getInsertionOrder(queueName);
     const toRemove: string[] = [];
     for (const [id, job] of queue.entries()) {
-      if (job.state === 'waiting' || job.state === 'delayed') {
+      if (job.state === 'waiting' || job.state === 'delayed' || job.state === 'waiting-children') {
         toRemove.push(id);
       }
     }
@@ -395,6 +395,65 @@ export class MemoryStore implements StoreInterface {
       orderMap.delete(id);
     }
     return Promise.resolve();
+  }
+
+  // ─── Flow (Parent-Child) ─────────────────────────────────────────
+
+  async saveFlow(jobs: Array<{ queueName: string; job: Omit<JobData, 'id'> }>): Promise<string[]> {
+    const ids: string[] = [];
+    for (const entry of jobs) {
+      const id = await this.saveJob(entry.queueName, entry.job);
+      ids.push(id);
+    }
+    return ids;
+  }
+
+  notifyChildCompleted(parentQueueName: string, parentId: string): Promise<JobState> {
+    const queue = this.getQueue(parentQueueName);
+    const parent = queue.get(parentId);
+    if (!parent) return Promise.resolve('completed' as JobState);
+
+    const newCount = parent.pendingChildrenCount - 1;
+    if (newCount <= 0) {
+      queue.set(parentId, { ...parent, pendingChildrenCount: 0, state: 'waiting' });
+      return Promise.resolve('waiting' as JobState);
+    }
+
+    queue.set(parentId, { ...parent, pendingChildrenCount: newCount });
+    return Promise.resolve(parent.state);
+  }
+
+  failParentOnChildFailure(
+    parentQueueName: string,
+    parentId: string,
+    reason: string,
+  ): Promise<boolean> {
+    const queue = this.getQueue(parentQueueName);
+    const parent = queue.get(parentId);
+    if (!parent) return Promise.resolve(false);
+
+    queue.set(parentId, {
+      ...parent,
+      state: 'failed',
+      failedReason: `Child failed: ${reason}`,
+      failedAt: new Date(),
+      lockUntil: null,
+      lockedBy: null,
+    });
+    return Promise.resolve(true);
+  }
+
+  getChildrenJobs(parentQueueName: string, parentId: string): Promise<JobData[]> {
+    const children: JobData[] = [];
+    // Search across ALL queues for children pointing to this parent
+    for (const [, queue] of this.jobs) {
+      for (const job of queue.values()) {
+        if (job.parentId === parentId && job.parentQueueName === parentQueueName) {
+          children.push(structuredClone(job));
+        }
+      }
+    }
+    return Promise.resolve(children);
   }
 
   // ─── Events ────────────────────────────────────────────────────────

@@ -74,6 +74,16 @@ export const migrations: Migration[] = [
         ON conveyor_jobs (queue_name, state, lock_until);
     `,
   },
+  {
+    version: 2,
+    name: 'add_parent_child_fields',
+    up: `
+      ALTER TABLE conveyor_jobs ADD COLUMN parent_id TEXT;
+      ALTER TABLE conveyor_jobs ADD COLUMN parent_queue_name TEXT;
+      ALTER TABLE conveyor_jobs ADD COLUMN pending_children_count INTEGER NOT NULL DEFAULT 0;
+      CREATE INDEX idx_parent ON conveyor_jobs (parent_queue_name, parent_id);
+    `,
+  },
 ];
 
 /**

@@ -11,6 +11,8 @@ export type {
   DeduplicationOptions,
   Delay,
   FetchOptions,
+  FlowJob,
+  FlowResult,
   HumanDuration,
   JobData,
   JobOptions,

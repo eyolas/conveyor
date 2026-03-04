@@ -35,6 +35,9 @@ export interface JobRow {
   delay_until: number | null;
   lock_until: number | null;
   locked_by: string | null;
+  parent_id: string | null;
+  parent_queue_name: string | null;
+  pending_children_count: number;
 }
 
 /** @internal Parse a JSON string, throwing on parse failure. */
@@ -87,6 +90,9 @@ export function rowToJobData(row: JobRow): JobData {
     delayUntil: tsToDate(row.delay_until),
     lockUntil: tsToDate(row.lock_until),
     lockedBy: row.locked_by,
+    parentId: row.parent_id ?? null,
+    parentQueueName: row.parent_queue_name ?? null,
+    pendingChildrenCount: row.pending_children_count ?? 0,
   };
 }
 
@@ -123,5 +129,8 @@ export function jobDataToRow(
     delay_until: dateToTs(job.delayUntil),
     lock_until: dateToTs(job.lockUntil),
     locked_by: job.lockedBy,
+    parent_id: job.parentId ?? null,
+    parent_queue_name: job.parentQueueName ?? null,
+    pending_children_count: job.pendingChildrenCount ?? 0,
   };
 }

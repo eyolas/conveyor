@@ -33,6 +33,12 @@ export class Job<T = unknown> {
   /** When this job was created. */
   readonly createdAt: Date;
 
+  /** ID of parent job (`null` if standalone). */
+  readonly parentId: string | null;
+
+  /** Queue name of parent job (for cross-queue flows). */
+  readonly parentQueueName: string | null;
+
   private _state: JobData['state'];
   private _progress: number;
   private _returnvalue: unknown;
@@ -60,6 +66,8 @@ export class Job<T = unknown> {
     this.data = jobData.data;
     this.opts = jobData.opts;
     this.createdAt = jobData.createdAt;
+    this.parentId = jobData.parentId;
+    this.parentQueueName = jobData.parentQueueName;
 
     this._state = jobData.state;
     this._progress = jobData.progress;
@@ -215,6 +223,44 @@ export class Job<T = unknown> {
   }
 
   /**
+   * Get the parent job, if this job is a child in a flow.
+   *
+   * @returns The parent Job, or `null` if standalone.
+   */
+  async getParent(): Promise<Job | null> {
+    if (!this.parentId || !this.parentQueueName) return null;
+    const data = await this.store.getJob(this.parentQueueName, this.parentId);
+    if (!data) return null;
+    return new Job(data, this.store);
+  }
+
+  /**
+   * Get the child jobs of this parent job.
+   *
+   * @returns Array of child Jobs.
+   */
+  async getDependencies(): Promise<Job[]> {
+    const children = await this.store.getChildrenJobs(this.queueName, this.id);
+    return children.map((c) => new Job(c, this.store));
+  }
+
+  /**
+   * Get the return values of all completed children.
+   *
+   * @returns A record mapping child job ID to its return value.
+   */
+  async getChildrenValues(): Promise<Record<string, unknown>> {
+    const children = await this.store.getChildrenJobs(this.queueName, this.id);
+    const result: Record<string, unknown> = {};
+    for (const child of children) {
+      if (child.state === 'completed') {
+        result[child.id] = child.returnvalue;
+      }
+    }
+    return result;
+  }
+
+  /**
    * Convert back to raw {@linkcode JobData}.
    *
    * @returns A plain JobData object.
@@ -240,6 +286,9 @@ export class Job<T = unknown> {
       delayUntil: this._delayUntil,
       lockUntil: this._lockUntil,
       lockedBy: this._lockedBy,
+      parentId: this.parentId,
+      parentQueueName: this.parentQueueName,
+      pendingChildrenCount: 0,
     };
   }
 }

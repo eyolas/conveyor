@@ -27,6 +27,8 @@ export type {
   DeduplicationOptions,
   Delay,
   FetchOptions,
+  FlowJob,
+  FlowResult,
   HumanDuration,
   JobData,
   JobOptions,
@@ -55,6 +57,8 @@ export {
 
 // Core classes
 export { EventBus } from './events.ts';
+export { FlowProducer } from './flow-producer.ts';
+export type { FlowProducerOptions } from './flow-producer.ts';
 export { Job } from './job.ts';
 export { Queue } from './queue.ts';
 export { Worker } from './worker.ts';

@@ -206,6 +206,9 @@ export class PgStore implements StoreInterface {
       lockUntil: 'lock_until',
       lockedBy: 'locked_by',
       data: 'data',
+      parentId: 'parent_id',
+      parentQueueName: 'parent_queue_name',
+      pendingChildrenCount: 'pending_children_count',
     };
 
     const row: Record<string, unknown> = {};
@@ -481,8 +484,68 @@ export class PgStore implements StoreInterface {
   async drain(queueName: string): Promise<void> {
     await this.sql`
       DELETE FROM conveyor_jobs
-      WHERE queue_name = ${queueName} AND state IN ('waiting', 'delayed')
+      WHERE queue_name = ${queueName} AND state IN ('waiting', 'delayed', 'waiting-children')
     `;
+  }
+
+  // ─── Flow (Parent-Child) ─────────────────────────────────────────
+
+  async saveFlow(jobs: Array<{ queueName: string; job: Omit<JobData, 'id'> }>): Promise<string[]> {
+    return await this.sql.begin(async (tx) => {
+      const ids: string[] = [];
+      for (const entry of jobs) {
+        const id = ((entry.job as Partial<Pick<JobData, 'id'>>).id) ?? generateId();
+        await this.insertRow(tx, { ...entry.job, id });
+        ids.push(id);
+      }
+      return ids;
+    });
+  }
+
+  async notifyChildCompleted(parentQueueName: string, parentId: string): Promise<JobState> {
+    const rows = await this.sql.unsafe(
+      `UPDATE conveyor_jobs
+       SET pending_children_count = GREATEST(pending_children_count - 1, 0),
+           state = CASE
+             WHEN pending_children_count - 1 <= 0 THEN 'waiting'
+             ELSE state
+           END
+       WHERE queue_name = $1 AND id = $2 AND state = 'waiting-children'
+       RETURNING state`,
+      [parentQueueName, parentId],
+    ) as { state: string }[];
+
+    if (rows.length === 0) return 'completed' as JobState;
+    return rows[0]!.state as JobState;
+  }
+
+  async failParentOnChildFailure(
+    parentQueueName: string,
+    parentId: string,
+    reason: string,
+  ): Promise<boolean> {
+    const rows = await this.sql.unsafe(
+      `UPDATE conveyor_jobs
+       SET state = 'failed',
+           failed_reason = $3,
+           failed_at = NOW(),
+           lock_until = NULL,
+           locked_by = NULL
+       WHERE queue_name = $1 AND id = $2
+         AND state IN ('waiting-children', 'waiting')
+       RETURNING id`,
+      [parentQueueName, parentId, `Child failed: ${reason}`],
+    );
+    return rows.length > 0;
+  }
+
+  async getChildrenJobs(parentQueueName: string, parentId: string): Promise<JobData[]> {
+    const rows = await this.sql<JobRow[]>`
+      SELECT * FROM conveyor_jobs
+      WHERE parent_queue_name = ${parentQueueName} AND parent_id = ${parentId}
+      ORDER BY created_at ASC
+    `;
+    return rows.map(rowToJobData);
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────
