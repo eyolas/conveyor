@@ -9,7 +9,9 @@
 export type {
   BackoffOptions,
   DeduplicationOptions,
+  Delay,
   FetchOptions,
+  HumanDuration,
   JobData,
   JobOptions,
   JobState,
@@ -18,10 +20,12 @@ export type {
   QueueEventType,
   QueueOptions,
   RepeatOptions,
+  ScheduleDelay,
   StoreEvent,
   StoreEventType,
   StoreInterface,
   StoreOptions,
+  TimeUnit,
   WorkerOptions,
 } from './types.ts';
 

@@ -6,11 +6,13 @@
  */
 
 import type {
+  Delay,
   JobData,
   JobOptions,
   JobState,
   PauseOptions,
   QueueOptions,
+  ScheduleDelay,
   StoreInterface,
 } from '@conveyor/shared';
 import { createJobData, hashPayload, parseDelay } from '@conveyor/shared';
@@ -116,12 +118,14 @@ export class Queue<T = unknown> {
    * ```
    */
   schedule(
-    delay: string | number,
+    delay: ScheduleDelay | number,
     name: string,
     data: T,
     opts?: JobOptions,
   ): Promise<Job<T>> {
-    const parsedDelay = typeof delay === 'string' ? parseDelay(delay.replace(/^in\s+/, '')) : delay;
+    const parsedDelay = typeof delay === 'string'
+      ? parseDelay(delay.replace(/^in\s+/, '') as Delay)
+      : delay;
 
     return this.add(name, data, { ...opts, delay: parsedDelay });
   }
@@ -153,7 +157,7 @@ export class Queue<T = unknown> {
    * ```
    */
   every(
-    interval: string | number,
+    interval: Delay,
     name: string,
     data: T,
     opts?: JobOptions,

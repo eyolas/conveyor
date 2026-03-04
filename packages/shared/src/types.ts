@@ -5,6 +5,44 @@
  * All packages depend on these types — they are the contract.
  */
 
+/** Supported time unit suffixes for human-readable durations. */
+export type TimeUnit =
+  | 'ms'
+  | 'millisecond'
+  | 'milliseconds'
+  | 's'
+  | 'second'
+  | 'seconds'
+  | 'm'
+  | 'minute'
+  | 'minutes'
+  | 'h'
+  | 'hour'
+  | 'hours'
+  | 'd'
+  | 'day'
+  | 'days'
+  | 'w'
+  | 'week'
+  | 'weeks';
+
+/**
+ * A human-readable duration string (e.g. `"5s"`, `"10 minutes"`, `"2h"`).
+ *
+ * Accepted formats: `"<number><unit>"` or `"<number> <unit>"`.
+ */
+export type HumanDuration = `${number}${TimeUnit}` | `${number} ${TimeUnit}`;
+
+/**
+ * A schedule expression — human duration with optional `"in"` prefix.
+ *
+ * Accepted formats: `"5s"`, `"10 minutes"`, `"in 10 minutes"`.
+ */
+export type ScheduleDelay = HumanDuration | `in ${HumanDuration}`;
+
+/** A delay value — either milliseconds (number) or a human-readable string. */
+export type Delay = number | HumanDuration;
+
 /** Possible states of a job in its lifecycle. */
 export type JobState = 'waiting' | 'delayed' | 'active' | 'completed' | 'failed';
 
@@ -91,7 +129,7 @@ export interface RepeatOptions {
   cron?: string;
 
   /** Interval in ms or human-readable (`"5 minutes"`, `"2 hours"`). */
-  every?: number | string;
+  every?: Delay;
 
   /** Max number of repetitions. */
   limit?: number;
@@ -127,7 +165,7 @@ export interface JobOptions {
   backoff?: BackoffOptions;
 
   /** Delay before execution in ms or human-readable (`"5 minutes"`). */
-  delay?: number | string;
+  delay?: Delay;
 
   /** Repeat scheduling configuration. */
   repeat?: RepeatOptions;

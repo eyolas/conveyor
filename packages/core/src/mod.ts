@@ -25,7 +25,9 @@
 export type {
   BackoffOptions,
   DeduplicationOptions,
+  Delay,
   FetchOptions,
+  HumanDuration,
   JobData,
   JobOptions,
   JobState,
@@ -34,9 +36,11 @@ export type {
   QueueEventType,
   QueueOptions,
   RepeatOptions,
+  ScheduleDelay,
   StoreEvent,
   StoreEventType,
   StoreInterface,
+  TimeUnit,
   WorkerOptions,
 } from '@conveyor/shared';
 

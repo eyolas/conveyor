@@ -35,7 +35,7 @@ export function generateWorkerId(): string {
  * @returns The delay in milliseconds.
  * @throws {Error} If the string format is invalid.
  */
-export function parseDelay(value: number | string): number {
+export function parseDelay(value: import('./types.ts').Delay): number {
   if (typeof value === 'number') return value;
 
   const str = value.trim().toLowerCase();
