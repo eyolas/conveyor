@@ -86,7 +86,7 @@ export const migrations: Migration[] = [
  * @param sql - An active `postgres` connection instance.
  */
 export async function runMigrations(sql: postgres.Sql): Promise<void> {
-  // Ensure migration table exists
+  // Ensure migration table exists (idempotent, outside lock)
   await sql`
     CREATE TABLE IF NOT EXISTS conveyor_migrations (
       version    INTEGER PRIMARY KEY,
@@ -95,22 +95,23 @@ export async function runMigrations(sql: postgres.Sql): Promise<void> {
     )
   `;
 
-  // Get current version
-  const rows = await sql`
-    SELECT COALESCE(MAX(version), 0) AS current_version FROM conveyor_migrations
-  `;
-  const currentVersion = Number(rows[0]?.current_version ?? 0);
+  // Single transaction with advisory lock to prevent concurrent migration races
+  await sql.begin(async (tx) => {
+    // Advisory lock scoped to transaction — released on COMMIT
+    await tx.unsafe('SELECT pg_advisory_xact_lock(2147483647)');
 
-  // Apply pending migrations
-  for (const migration of migrations) {
-    if (migration.version <= currentVersion) continue;
+    const rows = await tx.unsafe(
+      'SELECT COALESCE(MAX(version), 0) AS current_version FROM conveyor_migrations',
+    );
+    const currentVersion = Number(rows[0]?.current_version ?? 0);
 
-    await sql.begin(async (tx) => {
+    for (const migration of migrations) {
+      if (migration.version <= currentVersion) continue;
       await tx.unsafe(migration.up);
       await tx.unsafe(
         'INSERT INTO conveyor_migrations (version, name) VALUES ($1, $2)',
         [migration.version, migration.name],
       );
-    });
-  }
+    }
+  });
 }

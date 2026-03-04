@@ -44,6 +44,7 @@ export class PgStore implements StoreInterface {
   private listenPromises = new Map<string, Promise<{ unlisten: () => Promise<void> }>>();
   private readonly onEventHandlerError: (error: unknown) => void;
   private readonly instanceId = crypto.randomUUID();
+  private disconnected = false;
 
   /** @param options - PostgreSQL connection and store options. */
   constructor(options: PgStoreOptions) {
@@ -66,6 +67,9 @@ export class PgStore implements StoreInterface {
 
   /** Unlisten all channels, clear subscribers, and close the connection pool. */
   async disconnect(): Promise<void> {
+    if (this.disconnected) return;
+    this.disconnected = true;
+
     // Unlisten all channels before closing
     const unlistenResults = Array.from(this.listenPromises.values()).map(
       (p) => p.then((sub) => sub.unlisten()).catch(() => {}),
@@ -543,6 +547,7 @@ export class PgStore implements StoreInterface {
   // ─── Events ────────────────────────────────────────────────────────
 
   subscribe(queueName: string, callback: EventCallback): void {
+    if (this.disconnected) return;
     if (!this.subscribers.has(queueName)) {
       this.subscribers.set(queueName, new Set());
     }

@@ -36,13 +36,14 @@ export interface JobRow {
 }
 
 /** Parse a value that may already be a JS object (driver auto-parsed) or a JSON string. */
-function ensureParsed<T>(val: unknown, fallback?: T): T {
+function ensureParsed<T>(val: unknown): T {
   if (typeof val !== 'string') return val as T;
   try {
     return JSON.parse(val) as T;
   } catch {
-    console.warn('[Conveyor] Failed to parse JSON value:', val);
-    return (fallback ?? val) as T;
+    throw new Error(
+      `[Conveyor] Failed to parse JSON value from database: ${String(val).slice(0, 100)}`,
+    );
   }
 }
 

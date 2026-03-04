@@ -72,6 +72,20 @@ test('Queue.add with delay creates delayed job', async () => {
   await store.disconnect();
 });
 
+test('Queue.add rejects invalid queue name with control characters', async () => {
+  const store = new MemoryStore();
+  const queue = new Queue('valid-queue', { store });
+  await store.connect();
+
+  // Create a second queue with an invalid name
+  const badQueue = new Queue('bad\x00queue', { store });
+  await expect(badQueue.add('job', {})).rejects.toThrow('Invalid queue name');
+
+  await queue.close();
+  await badQueue.close();
+  await store.disconnect();
+});
+
 // ─── addBulk ─────────────────────────────────────────────────────────
 
 test('Queue.addBulk adds multiple jobs', async () => {

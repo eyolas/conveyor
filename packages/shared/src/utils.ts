@@ -111,6 +111,24 @@ function sortDeep(value: unknown): unknown {
   return sorted;
 }
 
+/** Pattern for valid queue names: 1-255 chars, no control characters. */
+// deno-lint-ignore no-control-regex
+const QUEUE_NAME_RE = /^[^\x00-\x1f]{1,255}$/;
+
+/**
+ * Validate that a queue name is well-formed.
+ *
+ * @param name - The queue name to validate.
+ * @throws {Error} If the name is empty, too long, or contains control characters.
+ */
+export function validateQueueName(name: string): void {
+  if (!QUEUE_NAME_RE.test(name)) {
+    throw new Error(
+      `Invalid queue name: "${name}". Must be 1-255 characters with no control characters.`,
+    );
+  }
+}
+
 /** Valid job state values. */
 const VALID_JOB_STATES = new Set(['waiting', 'delayed', 'active', 'completed', 'failed']);
 
@@ -177,6 +195,7 @@ export function createJobData<T>(
   data: T,
   opts: JobOptions = {},
 ): Omit<JobData<T>, 'id'> & { id?: string } {
+  validateQueueName(queueName);
   const delay = opts.delay ? parseDelay(opts.delay) : 0;
   const now = new Date();
 

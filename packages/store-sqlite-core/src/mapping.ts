@@ -37,14 +37,15 @@ export interface JobRow {
   locked_by: string | null;
 }
 
-/** @internal Parse a JSON string, returning the fallback on failure. */
-function parseJson(value: string | null, fallback: unknown = null): unknown {
-  if (value === null || value === undefined) return fallback;
+/** @internal Parse a JSON string, throwing on parse failure. */
+function parseJson(value: string | null): unknown {
+  if (value === null || value === undefined) return null;
   try {
     return JSON.parse(value);
-  } catch (err) {
-    console.warn('[Conveyor] Failed to parse JSON from DB:', err);
-    return fallback;
+  } catch {
+    throw new Error(
+      `[Conveyor] Failed to parse JSON value from database: ${String(value).slice(0, 100)}`,
+    );
   }
 }
 
@@ -70,15 +71,15 @@ export function rowToJobData(row: JobRow): JobData {
     id: row.id,
     queueName: row.queue_name,
     name: row.name,
-    data: parseJson(row.data, {}),
+    data: parseJson(row.data) ?? {},
     state: assertJobState(row.state),
     attemptsMade: row.attempts_made,
     progress: row.progress,
     returnvalue: parseJson(row.returnvalue),
     failedReason: row.failed_reason,
-    opts: parseJson(row.opts, {}) as JobOptions,
+    opts: (parseJson(row.opts) ?? {}) as JobOptions,
     deduplicationKey: row.deduplication_key,
-    logs: parseJson(row.logs, []) as string[],
+    logs: (parseJson(row.logs) ?? []) as string[],
     createdAt: new Date(row.created_at),
     processedAt: tsToDate(row.processed_at),
     completedAt: tsToDate(row.completed_at),

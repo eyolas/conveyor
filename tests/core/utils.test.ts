@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { calculateBackoff, hashPayload, parseDelay } from '@conveyor/shared';
+import { calculateBackoff, hashPayload, parseDelay, validateQueueName } from '@conveyor/shared';
 
 test('parseDelay: number passthrough', () => {
   expect(parseDelay(5000)).toEqual(5000);
@@ -59,6 +59,35 @@ test('calculateBackoff: custom strategy', () => {
   });
   expect(result).toEqual(1500);
 });
+
+// ─── validateQueueName ─────────────────────────────────────────────
+
+test('validateQueueName: accepts valid names', () => {
+  expect(() => validateQueueName('my-queue')).not.toThrow();
+  expect(() => validateQueueName('queue_123')).not.toThrow();
+  expect(() => validateQueueName('a')).not.toThrow();
+  expect(() => validateQueueName('queue with spaces')).not.toThrow();
+  expect(() => validateQueueName('émojis-ok-🚀')).not.toThrow();
+});
+
+test('validateQueueName: rejects empty string', () => {
+  expect(() => validateQueueName('')).toThrow('Invalid queue name');
+});
+
+test('validateQueueName: rejects control characters', () => {
+  expect(() => validateQueueName('queue\x00name')).toThrow('Invalid queue name');
+  expect(() => validateQueueName('queue\nname')).toThrow('Invalid queue name');
+  expect(() => validateQueueName('\tqueue')).toThrow('Invalid queue name');
+});
+
+test('validateQueueName: rejects names longer than 255 chars', () => {
+  const longName = 'a'.repeat(256);
+  expect(() => validateQueueName(longName)).toThrow('Invalid queue name');
+  // 255 should be fine
+  expect(() => validateQueueName('a'.repeat(255))).not.toThrow();
+});
+
+// ─── hashPayload ──────────────────────────────────────────────────
 
 test('hashPayload: deterministic', async () => {
   const hash1 = await hashPayload({ a: 1, b: 2 });
