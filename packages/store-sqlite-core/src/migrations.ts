@@ -83,7 +83,7 @@ export const migrations: Migration[] = [
  * @param db - An open {@linkcode SqliteDatabase} instance.
  */
 export function runMigrations(db: SqliteDatabase): void {
-  // Ensure migration table exists
+  // Ensure migration table exists (idempotent, outside transaction)
   db.exec(`
     CREATE TABLE IF NOT EXISTS conveyor_migrations (
       version    INTEGER PRIMARY KEY,
@@ -92,26 +92,29 @@ export function runMigrations(db: SqliteDatabase): void {
     )
   `);
 
-  // Get current version
-  const row = db.prepare(
-    'SELECT COALESCE(MAX(version), 0) AS current_version FROM conveyor_migrations',
-  ).get() as { current_version: number } | undefined;
-  const currentVersion = row?.current_version ?? 0;
+  // Single transaction: version check + all migrations (prevents race conditions)
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const row = db.prepare(
+      'SELECT COALESCE(MAX(version), 0) AS current_version FROM conveyor_migrations',
+    ).get() as { current_version: number } | undefined;
+    const currentVersion = row?.current_version ?? 0;
 
-  // Apply pending migrations in a transaction
-  for (const migration of migrations) {
-    if (migration.version <= currentVersion) continue;
-
-    db.exec('BEGIN IMMEDIATE');
-    try {
+    for (const migration of migrations) {
+      if (migration.version <= currentVersion) continue;
       db.exec(migration.up);
       db.prepare(
         'INSERT INTO conveyor_migrations (version, name, applied_at) VALUES (?, ?, ?)',
       ).run(migration.version, migration.name, Date.now());
-      db.exec('COMMIT');
-    } catch (err) {
-      db.exec('ROLLBACK');
-      throw err;
     }
+    db.exec('COMMIT');
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // ROLLBACK failed — DB may already be rolled back (e.g. I/O error).
+      // Original error is more useful, so we swallow the rollback failure.
+    }
+    throw err;
   }
 }

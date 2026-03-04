@@ -76,7 +76,12 @@ export class BaseSqliteStore implements StoreInterface {
       this.db.exec('COMMIT');
       return result;
     } catch (err) {
-      this.db.exec('ROLLBACK');
+      try {
+        this.db.exec('ROLLBACK');
+      } catch {
+        // ROLLBACK failed — DB may already be rolled back (e.g. I/O error).
+        // Original error is more useful, so we swallow the rollback failure.
+      }
       throw err;
     }
   }

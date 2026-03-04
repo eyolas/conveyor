@@ -37,4 +37,5 @@ export {
   generateWorkerId,
   hashPayload,
   parseDelay,
+  validateQueueName,
 } from './utils.ts';
