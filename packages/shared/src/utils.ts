@@ -5,6 +5,8 @@
  * Only Web Standard APIs — no runtime-specific code.
  */
 
+import type { Delay, JobData, JobOptions, JobState } from './types.ts';
+
 /**
  * Generate a unique job ID using `crypto.randomUUID` (Web Standard).
  *
@@ -35,7 +37,7 @@ export function generateWorkerId(): string {
  * @returns The delay in milliseconds.
  * @throws {Error} If the string format is invalid.
  */
-export function parseDelay(value: import('./types.ts').Delay): number {
+export function parseDelay(value: Delay): number {
   if (typeof value === 'number') return value;
 
   const str = value.trim().toLowerCase();
@@ -119,11 +121,11 @@ const VALID_JOB_STATES = new Set(['waiting', 'delayed', 'active', 'completed', '
  * @returns The validated JobState.
  * @throws {Error} If the value is not a valid job state.
  */
-export function assertJobState(value: string): import('./types.ts').JobState {
+export function assertJobState(value: string): JobState {
   if (!VALID_JOB_STATES.has(value)) {
     throw new Error(`Invalid job state: "${value}"`);
   }
-  return value as import('./types.ts').JobState;
+  return value as JobState;
 }
 
 /**
@@ -173,12 +175,12 @@ export function createJobData<T>(
   queueName: string,
   name: string,
   data: T,
-  opts: import('./types.ts').JobOptions = {},
-): Omit<import('./types.ts').JobData<T>, 'id'> & { id?: string } {
+  opts: JobOptions = {},
+): Omit<JobData<T>, 'id'> & { id?: string } {
   const delay = opts.delay ? parseDelay(opts.delay) : 0;
   const now = new Date();
 
-  const result: Omit<import('./types.ts').JobData<T>, 'id'> & { id?: string } = {
+  const result: Omit<JobData<T>, 'id'> & { id?: string } = {
     name,
     queueName,
     data,
