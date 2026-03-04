@@ -58,6 +58,9 @@ jobs:
           OUTPUT: CHANGES.md
           GITHUB_REPO: ${{ github.repository }}
 
+      - name: Format release notes
+        run: deno fmt CHANGES.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -72,6 +75,9 @@ jobs:
         env:
           OUTPUT: CHANGELOG.md
           GITHUB_REPO: ${{ github.repository }}
+
+      - name: Format CHANGELOG.md
+        run: deno fmt CHANGELOG.md
 
       - name: Commit CHANGELOG.md
         run: |
