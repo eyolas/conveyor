@@ -11,6 +11,7 @@ import postgres from 'postgres';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
 import { runMigrations } from './migrations.ts';
+import { sql } from './utils.ts';
 
 /** @internal */
 type EventCallback = (event: StoreEvent) => void;
@@ -93,17 +94,17 @@ export class PgStore implements StoreInterface {
 
     // Atomic dedup check inside a transaction
     if (dedupKey) {
-      const result = await this.sql.begin(async (tx) => {
-        const existing = await tx.unsafe(
-          `SELECT * FROM conveyor_jobs
-          WHERE queue_name = $1
-            AND deduplication_key = $2
+      const result = await this.sql.begin(async (_tx) => {
+        const tx = sql(_tx);
+        const existing = await tx<JobRow[]>`
+          SELECT * FROM conveyor_jobs
+          WHERE queue_name = ${job.queueName}
+            AND deduplication_key = ${dedupKey}
             AND state NOT IN ('completed', 'failed')
           ORDER BY created_at DESC
           LIMIT 1
-          FOR UPDATE`,
-          [job.queueName, dedupKey],
-        ) as JobRow[];
+          FOR UPDATE
+        `;
 
         if (existing.length > 0) {
           const matched = rowToJobData(existing[0]!);
@@ -134,22 +135,22 @@ export class PgStore implements StoreInterface {
   }
 
   async saveBulk(_queueName: string, jobs: Omit<JobData, 'id'>[]): Promise<string[]> {
-    return await this.sql.begin(async (tx) => {
+    return await this.sql.begin(async (_tx) => {
+      const tx = sql(_tx);
       const ids: string[] = [];
       for (const job of jobs) {
         const dedupKey = (job as JobData).deduplicationKey;
 
         if (dedupKey) {
-          const existing = await tx.unsafe(
-            `SELECT * FROM conveyor_jobs
-            WHERE queue_name = $1
-              AND deduplication_key = $2
+          const existing = await tx<JobRow[]>`
+            SELECT * FROM conveyor_jobs
+            WHERE queue_name = ${job.queueName}
+              AND deduplication_key = ${dedupKey}
               AND state NOT IN ('completed', 'failed')
             ORDER BY created_at DESC
             LIMIT 1
-            FOR UPDATE`,
-            [job.queueName, dedupKey],
-          ) as JobRow[];
+            FOR UPDATE
+          `;
 
           if (existing.length > 0) {
             const matched = rowToJobData(existing[0]!);
@@ -189,10 +190,6 @@ export class PgStore implements StoreInterface {
     jobId: string,
     updates: Partial<JobData>,
   ): Promise<void> {
-    const sets: string[] = [];
-    const values: unknown[] = [];
-    let idx = 1;
-
     const columnMap: Record<string, string> = {
       state: 'state',
       attemptsMade: 'attempts_made',
@@ -211,32 +208,25 @@ export class PgStore implements StoreInterface {
       data: 'data',
     };
 
+    const row: Record<string, unknown> = {};
     for (const [key, col] of Object.entries(columnMap)) {
       if (key in updates) {
-        const val = (updates as Record<string, unknown>)[key];
-        if (['returnvalue', 'opts', 'logs', 'data'].includes(key)) {
-          sets.push(`${col} = $${idx++}`);
-          values.push(val !== null && val !== undefined ? JSON.stringify(val) : null);
-        } else {
-          sets.push(`${col} = $${idx++}`);
-          values.push(val ?? null);
-        }
+        row[col] = (updates as Record<string, unknown>)[key] ?? null;
       }
     }
 
     // Sync priority column when opts are updated
     if ('opts' in updates && updates.opts) {
-      sets.push(`priority = $${idx++}`);
-      values.push(updates.opts.priority ?? 0);
+      row.priority = updates.opts.priority ?? 0;
     }
 
-    if (sets.length === 0) return;
+    const keys = Object.keys(row);
+    if (keys.length === 0) return;
 
-    values.push(queueName, jobId);
-    const query = `UPDATE conveyor_jobs SET ${
-      sets.join(', ')
-    } WHERE queue_name = $${idx++} AND id = $${idx}`;
-    await this.sql.unsafe(query, values as (string | number | null)[]);
+    await this.sql`
+      UPDATE conveyor_jobs SET ${this.sql(row, ...keys)}
+      WHERE queue_name = ${queueName} AND id = ${jobId}
+    `;
   }
 
   async removeJob(queueName: string, jobId: string): Promise<void> {
@@ -285,54 +275,49 @@ export class PgStore implements StoreInterface {
   ): Promise<JobData | null> {
     const now = new Date();
     const lockUntil = new Date(now.getTime() + lockDuration);
-    const order = opts?.lifo ? 'DESC' : 'ASC';
+    const orderFrag = opts?.lifo
+      ? this.sql`priority ASC, seq DESC`
+      : this.sql`priority ASC, seq ASC`;
 
-    let query: string;
-    let params: unknown[];
+    let rows: JobRow[];
 
     if (opts?.jobName) {
-      query = `
+      rows = await this.sql<JobRow[]>`
         WITH next_job AS (
           SELECT id FROM conveyor_jobs
-          WHERE queue_name = $1 AND state = 'waiting'
-            AND name = $2
-            AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = $1)
-            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = $1 AND job_name = '__all__')
-          ORDER BY priority ASC, seq ${order}
+          WHERE queue_name = ${queueName} AND state = 'waiting'
+            AND name = ${opts.jobName}
+            AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ${queueName})
+            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ${queueName} AND job_name = '__all__')
+          ORDER BY ${orderFrag}
           LIMIT 1
           FOR UPDATE SKIP LOCKED
         )
         UPDATE conveyor_jobs
-        SET state = 'active', processed_at = $3, lock_until = $4, locked_by = $5
+        SET state = 'active', processed_at = ${now}, lock_until = ${lockUntil}, locked_by = ${workerId}
         FROM next_job
-        WHERE conveyor_jobs.queue_name = $1 AND conveyor_jobs.id = next_job.id
+        WHERE conveyor_jobs.queue_name = ${queueName} AND conveyor_jobs.id = next_job.id
         RETURNING conveyor_jobs.*
       `;
-      params = [queueName, opts.jobName, now, lockUntil, workerId];
     } else {
-      query = `
+      rows = await this.sql<JobRow[]>`
         WITH next_job AS (
           SELECT id FROM conveyor_jobs
-          WHERE queue_name = $1 AND state = 'waiting'
-            AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = $1)
-            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = $1 AND job_name = '__all__')
-          ORDER BY priority ASC, seq ${order}
+          WHERE queue_name = ${queueName} AND state = 'waiting'
+            AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ${queueName})
+            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ${queueName} AND job_name = '__all__')
+          ORDER BY ${orderFrag}
           LIMIT 1
           FOR UPDATE SKIP LOCKED
         )
         UPDATE conveyor_jobs
-        SET state = 'active', processed_at = $2, lock_until = $3, locked_by = $4
+        SET state = 'active', processed_at = ${now}, lock_until = ${lockUntil}, locked_by = ${workerId}
         FROM next_job
-        WHERE conveyor_jobs.queue_name = $1 AND conveyor_jobs.id = next_job.id
+        WHERE conveyor_jobs.queue_name = ${queueName} AND conveyor_jobs.id = next_job.id
         RETURNING conveyor_jobs.*
       `;
-      params = [queueName, now, lockUntil, workerId];
     }
 
-    const rows = await this.sql.unsafe(
-      query,
-      params as (string | Date | null)[],
-    ) as JobRow[];
     if (rows.length === 0) return null;
     return rowToJobData(rows[0]!);
   }
@@ -503,45 +488,12 @@ export class PgStore implements StoreInterface {
   // ─── Helpers ────────────────────────────────────────────────────────
 
   private async insertRow(
-    sql: postgres.Sql | postgres.TransactionSql,
+    conn: postgres.Sql | postgres.TransactionSql,
     job: Omit<JobData, 'id'> & { id: string },
   ): Promise<void> {
     const row = jobDataToRow(job);
-    const params = [
-      row.id,
-      row.queue_name,
-      row.name,
-      row.data,
-      row.state,
-      row.attempts_made,
-      row.progress,
-      row.returnvalue,
-      row.failed_reason,
-      row.opts,
-      row.deduplication_key,
-      row.logs,
-      row.priority,
-      row.created_at,
-      row.processed_at,
-      row.completed_at,
-      row.failed_at,
-      row.delay_until,
-      row.lock_until,
-      row.locked_by,
-    ] as (string | number | Date | null)[];
-
-    await sql.unsafe(
-      `INSERT INTO conveyor_jobs (
-        id, queue_name, name, data, state, attempts_made, progress,
-        returnvalue, failed_reason, opts, deduplication_key, logs,
-        priority, created_at, processed_at, completed_at, failed_at,
-        delay_until, lock_until, locked_by
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
-      )`,
-      params,
-    );
+    const q = sql(conn);
+    await q`INSERT INTO conveyor_jobs ${q(row)}`;
   }
 
   // ─── Events ────────────────────────────────────────────────────────

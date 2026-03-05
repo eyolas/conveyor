@@ -11,6 +11,7 @@
     "jsr:@std/path@1.0": "1.0.9",
     "jsr:@std/path@^1.1.4": "1.1.4",
     "npm:croner@10": "10.0.1",
+    "npm:postgres@*": "3.4.8",
     "npm:postgres@^3.4.0": "3.4.8",
     "npm:vitest@*": "3.2.4_vite@7.3.1__picomatch@4.0.3",
     "npm:vitest@3": "3.2.4_vite@7.3.1__picomatch@4.0.3"
