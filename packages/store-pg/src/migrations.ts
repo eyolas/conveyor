@@ -6,6 +6,7 @@
  */
 
 import type postgres from 'postgres';
+import { sql } from './utils.ts';
 
 /**
  * A single database migration.
@@ -83,11 +84,11 @@ export const migrations: Migration[] = [
  * Apply all pending migrations to the database.
  * Each migration is wrapped in a transaction for atomicity.
  *
- * @param sql - An active `postgres` connection instance.
+ * @param conn - An active `postgres` connection instance.
  */
-export async function runMigrations(sql: postgres.Sql): Promise<void> {
+export async function runMigrations(conn: postgres.Sql): Promise<void> {
   // Ensure migration table exists (idempotent, outside lock)
-  await sql`
+  await conn`
     CREATE TABLE IF NOT EXISTS conveyor_migrations (
       version    INTEGER PRIMARY KEY,
       name       TEXT NOT NULL,
@@ -96,9 +97,8 @@ export async function runMigrations(sql: postgres.Sql): Promise<void> {
   `;
 
   // Single transaction with advisory lock to prevent concurrent migration races
-  await sql.begin(async (_tx) => {
-    // Cast: TransactionSql loses call signatures through TS Omit
-    const tx = _tx as unknown as postgres.Sql;
+  await conn.begin(async (_tx) => {
+    const tx = sql(_tx);
 
     // Advisory lock scoped to transaction — released on COMMIT
     await tx`SELECT pg_advisory_xact_lock(2147483647)`;
