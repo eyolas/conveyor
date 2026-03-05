@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2] - 2026-03-05
+
+### Bug Fixes
+
+- Address 7 audit findings across core, shared, and store packages
+  (#14)([b7627b9](https://github.com/eyolas/conveyor/commit/b7627b9c08b87c229a0a6fb4feba328ad4ff7beb))
+- Preserve manual v0.1.0 changelog entry in git-cliff
+  config([3bd6909](https://github.com/eyolas/conveyor/commit/3bd69090bfecb75d2d6ed537efb5fda75d05a2bb))
+
+### Refactoring
+
+- **store-pg**: Replace all unsafe() with tagged templates
+  (#13)([74125fb](https://github.com/eyolas/conveyor/commit/74125fb4e8ea08c5e68ad0b3e5a3c3f04221861d))
+
+### Documentation
+
+- Update CHANGELOG.md for
+  v0.1.1([82810fd](https://github.com/eyolas/conveyor/commit/82810fda22e257975315bc258432a63636ed7b3f))
+
 ## [0.1.1] - 2026-03-04
 
 ### Features
