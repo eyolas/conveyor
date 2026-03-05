@@ -98,20 +98,20 @@ export async function runMigrations(sql: postgres.Sql): Promise<void> {
   // Single transaction with advisory lock to prevent concurrent migration races
   await sql.begin(async (tx) => {
     // Advisory lock scoped to transaction — released on COMMIT
-    await tx.unsafe('SELECT pg_advisory_xact_lock(2147483647)');
+    await tx`SELECT pg_advisory_xact_lock(2147483647)`;
 
-    const rows = await tx.unsafe(
-      'SELECT COALESCE(MAX(version), 0) AS current_version FROM conveyor_migrations',
-    );
+    const rows = await tx`
+      SELECT COALESCE(MAX(version), 0) AS current_version FROM conveyor_migrations
+    `;
     const currentVersion = Number(rows[0]?.current_version ?? 0);
 
     for (const migration of migrations) {
       if (migration.version <= currentVersion) continue;
+      // DDL multi-statement — must use unsafe()
       await tx.unsafe(migration.up);
-      await tx.unsafe(
-        'INSERT INTO conveyor_migrations (version, name) VALUES ($1, $2)',
-        [migration.version, migration.name],
-      );
+      await tx`
+        INSERT INTO conveyor_migrations (version, name) VALUES (${migration.version}, ${migration.name})
+      `;
     }
   });
 }

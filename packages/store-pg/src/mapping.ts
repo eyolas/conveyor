@@ -50,8 +50,8 @@ function ensureParsed<T>(val: unknown): T {
 /**
  * Convert a PostgreSQL row into a {@linkcode JobData} object.
  *
- * JSONB columns may come pre-parsed (tagged template queries) or as raw
- * strings (`sql.unsafe()`). {@linkcode ensureParsed} handles both cases.
+ * JSONB columns are auto-parsed by the `postgres` driver.
+ * {@linkcode ensureParsed} is kept as a safety net for edge cases.
  *
  * @param row - The raw row from the database.
  * @returns A fully typed JobData object.
@@ -82,7 +82,7 @@ export function rowToJobData(row: JobRow): JobData {
 
 /**
  * Convert a {@linkcode JobData} object into a PostgreSQL row for insertion.
- * JSONB fields are serialized to JSON strings.
+ * JSONB fields are passed as native JS objects (the `postgres` driver auto-serializes them).
  *
  * @param job - The job data (with optional `id`).
  * @returns A flat record suitable for parameterized INSERT.
@@ -94,17 +94,15 @@ export function jobDataToRow(
     id: job.id ?? undefined,
     queue_name: job.queueName,
     name: job.name,
-    data: JSON.stringify(job.data),
+    data: job.data,
     state: job.state,
     attempts_made: job.attemptsMade,
     progress: job.progress,
-    returnvalue: job.returnvalue !== null && job.returnvalue !== undefined
-      ? JSON.stringify(job.returnvalue)
-      : null,
+    returnvalue: job.returnvalue ?? null,
     failed_reason: job.failedReason,
-    opts: JSON.stringify(job.opts),
+    opts: job.opts,
     deduplication_key: job.deduplicationKey,
-    logs: JSON.stringify(job.logs),
+    logs: job.logs,
     priority: job.opts.priority ?? 0,
     created_at: job.createdAt,
     processed_at: job.processedAt,
