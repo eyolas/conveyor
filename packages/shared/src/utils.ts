@@ -166,9 +166,11 @@ export function calculateBackoff(
       return backoff.delay;
     case 'exponential': {
       const base = backoff.delay * Math.pow(2, attemptsMade - 1);
+      // Cap at 24 hours to prevent overflow
+      const capped = Math.min(base, 86_400_000);
       // Add jitter: ±25%
-      const jitter = base * 0.25 * (Math.random() * 2 - 1);
-      return Math.max(0, Math.floor(base + jitter));
+      const jitter = capped * 0.25 * (Math.random() * 2 - 1);
+      return Math.max(0, Math.floor(capped + jitter));
     }
     case 'custom':
       if (!backoff.customStrategy) {
@@ -196,6 +198,17 @@ export function createJobData<T>(
   opts: JobOptions = {},
 ): Omit<JobData<T>, 'id'> & { id?: string } {
   validateQueueName(queueName);
+
+  if (opts.attempts !== undefined && opts.attempts < 1) {
+    throw new Error(`Invalid attempts: ${opts.attempts}. Must be >= 1.`);
+  }
+  if (opts.backoff?.delay !== undefined && opts.backoff.delay < 0) {
+    throw new Error(`Invalid backoff delay: ${opts.backoff.delay}. Must be >= 0.`);
+  }
+  if (opts.priority !== undefined && !Number.isFinite(opts.priority)) {
+    throw new Error(`Invalid priority: ${opts.priority}. Must be a finite number.`);
+  }
+
   const delay = opts.delay ? parseDelay(opts.delay) : 0;
   const now = new Date();
 

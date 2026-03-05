@@ -356,38 +356,57 @@ export class BaseSqliteStore implements StoreInterface {
   ): Promise<JobData | null> {
     const now = Date.now();
     const lockUntil = now + lockDuration;
-    const order = opts?.lifo ? 'DESC' : 'ASC';
+    const lifo = opts?.lifo ?? false;
 
     const result = this.runTransaction(() => {
-      let query: string;
-      const params: unknown[] = [queueName];
+      let candidate: { id: string } | undefined;
 
       if (opts?.jobName) {
-        query = `
-          SELECT id FROM conveyor_jobs
-          WHERE queue_name = ? AND state = 'waiting'
-            AND name = ?
-            AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
-            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
-          ORDER BY priority ASC, seq ${order}
-          LIMIT 1
-        `;
-        params.push(opts.jobName, queueName, queueName);
+        const stmt = lifo
+          ? this.db.prepare(`
+              SELECT id FROM conveyor_jobs
+              WHERE queue_name = ? AND state = 'waiting'
+                AND name = ?
+                AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+                AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
+              ORDER BY priority ASC, seq DESC
+              LIMIT 1
+            `)
+          : this.db.prepare(`
+              SELECT id FROM conveyor_jobs
+              WHERE queue_name = ? AND state = 'waiting'
+                AND name = ?
+                AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+                AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
+              ORDER BY priority ASC, seq ASC
+              LIMIT 1
+            `);
+        candidate = stmt.get(queueName, opts.jobName, queueName, queueName) as
+          | { id: string }
+          | undefined;
       } else {
-        query = `
-          SELECT id FROM conveyor_jobs
-          WHERE queue_name = ? AND state = 'waiting'
-            AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
-            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
-          ORDER BY priority ASC, seq ${order}
-          LIMIT 1
-        `;
-        params.push(queueName, queueName);
+        const stmt = lifo
+          ? this.db.prepare(`
+              SELECT id FROM conveyor_jobs
+              WHERE queue_name = ? AND state = 'waiting'
+                AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+                AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
+              ORDER BY priority ASC, seq DESC
+              LIMIT 1
+            `)
+          : this.db.prepare(`
+              SELECT id FROM conveyor_jobs
+              WHERE queue_name = ? AND state = 'waiting'
+                AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+                AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
+              ORDER BY priority ASC, seq ASC
+              LIMIT 1
+            `);
+        candidate = stmt.get(queueName, queueName, queueName) as
+          | { id: string }
+          | undefined;
       }
 
-      const candidate = this.db.prepare(query).get(...params as unknown[]) as
-        | { id: string }
-        | undefined;
       if (!candidate) return null;
 
       this.db.prepare(`
@@ -441,7 +460,7 @@ export class BaseSqliteStore implements StoreInterface {
     start = 0,
     end = 100,
   ): Promise<JobData[]> {
-    const limit = end - start;
+    const limit = Math.max(0, end - start);
     const rows = this.db.prepare(`
       SELECT * FROM conveyor_jobs
       WHERE queue_name = ? AND state = ?

@@ -363,7 +363,7 @@ export class PgStore implements StoreInterface {
     start = 0,
     end = 100,
   ): Promise<JobData[]> {
-    const limit = end - start;
+    const limit = Math.max(0, end - start);
     const rows = await this.sql<JobRow[]>`
       SELECT * FROM conveyor_jobs
       WHERE queue_name = ${queueName} AND state = ${state}
@@ -509,6 +509,11 @@ export class PgStore implements StoreInterface {
     const channel = `conveyor:${queueName}`;
     if (!this.listeningChannels.has(channel)) {
       this.listeningChannels.add(channel);
+      // Re-check after marking the channel to avoid race with disconnect()
+      if (this.disconnected) {
+        this.listeningChannels.delete(channel);
+        return;
+      }
       const listenPromise = this.sql.listen(channel, (payload) => {
         try {
           const parsed = JSON.parse(payload) as StoreEvent & { _src?: string };
