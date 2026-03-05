@@ -96,7 +96,10 @@ export async function runMigrations(sql: postgres.Sql): Promise<void> {
   `;
 
   // Single transaction with advisory lock to prevent concurrent migration races
-  await sql.begin(async (tx) => {
+  await sql.begin(async (_tx) => {
+    // Cast: TransactionSql loses call signatures through TS Omit
+    const tx = _tx as unknown as postgres.Sql;
+
     // Advisory lock scoped to transaction — released on COMMIT
     await tx`SELECT pg_advisory_xact_lock(2147483647)`;
 
@@ -108,7 +111,7 @@ export async function runMigrations(sql: postgres.Sql): Promise<void> {
     for (const migration of migrations) {
       if (migration.version <= currentVersion) continue;
       // DDL multi-statement — must use unsafe()
-      await tx.unsafe(migration.up);
+      await _tx.unsafe(migration.up);
       await tx`
         INSERT INTO conveyor_migrations (version, name) VALUES (${migration.version}, ${migration.name})
       `;

@@ -93,7 +93,9 @@ export class PgStore implements StoreInterface {
 
     // Atomic dedup check inside a transaction
     if (dedupKey) {
-      const result = await this.sql.begin(async (tx) => {
+      const result = await this.sql.begin(async (_tx) => {
+        // Cast: TransactionSql loses call signatures through TS Omit
+        const tx = _tx as unknown as postgres.Sql;
         const existing = await tx<JobRow[]>`
           SELECT * FROM conveyor_jobs
           WHERE queue_name = ${job.queueName}
@@ -133,7 +135,9 @@ export class PgStore implements StoreInterface {
   }
 
   async saveBulk(_queueName: string, jobs: Omit<JobData, 'id'>[]): Promise<string[]> {
-    return await this.sql.begin(async (tx) => {
+    return await this.sql.begin(async (_tx) => {
+      // Cast: TransactionSql loses call signatures through TS Omit
+      const tx = _tx as unknown as postgres.Sql;
       const ids: string[] = [];
       for (const job of jobs) {
         const dedupKey = (job as JobData).deduplicationKey;
@@ -489,7 +493,9 @@ export class PgStore implements StoreInterface {
     job: Omit<JobData, 'id'> & { id: string },
   ): Promise<void> {
     const row = jobDataToRow(job);
-    await conn`INSERT INTO conveyor_jobs ${conn(row)}`;
+    // Cast: TransactionSql loses call signatures through TS Omit
+    const q = conn as unknown as postgres.Sql;
+    await q`INSERT INTO conveyor_jobs ${q(row)}`;
   }
 
   // ─── Events ────────────────────────────────────────────────────────
