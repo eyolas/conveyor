@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { FlowProducer, Queue, Worker } from '@conveyor/core';
+import { FlowProducer, Worker } from '@conveyor/core';
 import type { Job } from '@conveyor/core';
 import { MemoryStore } from '@conveyor/store-memory';
 
@@ -136,7 +136,7 @@ test('Parent transitions to waiting when all children complete', async () => {
   await store.connect();
 
   const flow = new FlowProducer({ store });
-  const result = await flow.add({
+  await flow.add({
     name: 'parent',
     queueName: 'q',
     data: {},
@@ -148,9 +148,9 @@ test('Parent transitions to waiting when all children complete', async () => {
 
   const processed: string[] = [];
 
-  const worker = createWorker('q', store, async (job) => {
+  const worker = createWorker('q', store, (job) => {
     processed.push(job.name);
-    return `done-${job.name}`;
+    return Promise.resolve(`done-${job.name}`);
   });
 
   // Wait for processing
@@ -179,7 +179,7 @@ test('Job.getParent returns parent job', async () => {
   await store.connect();
 
   const flow = new FlowProducer({ store });
-  const result = await flow.add({
+  await flow.add({
     name: 'parent',
     queueName: 'q',
     data: {},
@@ -213,7 +213,7 @@ test('Job.getDependencies returns children', async () => {
   await store.connect();
 
   const flow = new FlowProducer({ store });
-  const result = await flow.add({
+  await flow.add({
     name: 'parent',
     queueName: 'q',
     data: {},
@@ -295,11 +295,11 @@ test('failParentOnChildFailure=fail (default) fails the parent', async () => {
     ],
   });
 
-  const worker = createWorker('q', store, async (job) => {
+  const worker = createWorker('q', store, (job) => {
     if (job.name === 'child-fail') {
-      throw new Error('child error');
+      return Promise.reject(new Error('child error'));
     }
-    return 'ok';
+    return Promise.resolve('ok');
   });
 
   await waitFor(4000);
@@ -331,12 +331,12 @@ test('failParentOnChildFailure=ignore allows parent to proceed', async () => {
 
   const processed: string[] = [];
 
-  const worker = createWorker('q', store, async (job) => {
+  const worker = createWorker('q', store, (job) => {
     processed.push(job.name);
     if (job.name === 'child-fail') {
-      throw new Error('child error');
+      return Promise.reject(new Error('child error'));
     }
-    return 'ok';
+    return Promise.resolve('ok');
   });
 
   await waitFor(5000);
@@ -366,11 +366,11 @@ test('failParentOnChildFailure=remove removes the parent', async () => {
     ],
   });
 
-  const worker = createWorker('q', store, async (job) => {
+  const worker = createWorker('q', store, (job) => {
     if (job.name === 'child-fail') {
-      throw new Error('child error');
+      return Promise.reject(new Error('child error'));
     }
-    return 'ok';
+    return Promise.resolve('ok');
   });
 
   await waitFor(4000);
