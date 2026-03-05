@@ -29,15 +29,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 1
 
-      - uses: denoland/setup-deno@v2
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # v2
         with:
           deno-version: '2.x'
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cache/deno
@@ -77,15 +77,15 @@ jobs:
       PG_URL: postgres://conveyor:conveyor@localhost:5432/conveyor_test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 1
 
-      - uses: denoland/setup-deno@v2
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # v2
         with:
           deno-version: '2.x'
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cache/deno
@@ -126,18 +126,18 @@ jobs:
       PG_URL: postgres://conveyor:conveyor@localhost:5432/conveyor_test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node-version }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: node_modules
-          key: npm-${{ runner.os }}-node${{ matrix.node-version }}-${{ hashFiles('package.json') }}
+          key: npm-${{ runner.os }}-node${{ matrix.node-version }}-${{ hashFiles('deno.lock') }}
           restore-keys: npm-${{ runner.os }}-node${{ matrix.node-version }}-
 
       - name: Install dependencies
@@ -172,16 +172,16 @@ jobs:
       PG_URL: postgres://conveyor:conveyor@localhost:5432/conveyor_test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 1
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461 # v2
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: node_modules
-          key: bun-${{ runner.os }}-${{ hashFiles('package.json') }}
+          key: bun-${{ runner.os }}-${{ hashFiles('deno.lock') }}
           restore-keys: bun-${{ runner.os }}-
 
       - name: Install dependencies

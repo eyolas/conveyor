@@ -2,7 +2,7 @@
 
 # Pre-commit hook: auto-format staged files with deno fmt
 
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=d | grep -E '\.(ts|json|md)$')
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=d | grep -E '\.(ts|json|md|yml|yaml)$')
 
 if [ -z "$STAGED_FILES" ]; then
   exit 0
