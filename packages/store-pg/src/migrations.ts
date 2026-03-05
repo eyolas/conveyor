@@ -89,12 +89,12 @@ export const migrations: Migration[] = [
   {
     version: 2,
     name: 'add_parent_child_fields',
-    up: `
-      ALTER TABLE conveyor_jobs ADD COLUMN parent_id TEXT;
-      ALTER TABLE conveyor_jobs ADD COLUMN parent_queue_name TEXT;
-      ALTER TABLE conveyor_jobs ADD COLUMN pending_children_count INTEGER NOT NULL DEFAULT 0;
-      CREATE INDEX idx_parent ON conveyor_jobs (parent_queue_name, parent_id) WHERE parent_id IS NOT NULL;
-    `,
+    up: async (tx: postgres.Sql) => {
+      await tx`ALTER TABLE conveyor_jobs ADD COLUMN IF NOT EXISTS parent_id TEXT`;
+      await tx`ALTER TABLE conveyor_jobs ADD COLUMN IF NOT EXISTS parent_queue_name TEXT`;
+      await tx`ALTER TABLE conveyor_jobs ADD COLUMN IF NOT EXISTS pending_children_count INTEGER NOT NULL DEFAULT 0`;
+      await tx`CREATE INDEX IF NOT EXISTS idx_parent ON conveyor_jobs (parent_queue_name, parent_id) WHERE parent_id IS NOT NULL`;
+    },
   },
 ];
 
