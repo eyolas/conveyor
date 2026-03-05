@@ -1,5 +1,5 @@
 import process from 'node:process';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import postgres from 'postgres';
 import { runMigrations } from '../../packages/store-pg/src/migrations.ts';
 
@@ -9,8 +9,11 @@ const PG_URL = process.env.PG_URL ??
 describe('[PgStore] migrations', () => {
   let sql: ReturnType<typeof postgres>;
 
-  beforeEach(async () => {
+  beforeAll(() => {
     sql = postgres(PG_URL);
+  });
+
+  beforeEach(async () => {
     // Drop all conveyor tables to start fresh
     await sql`DROP TABLE IF EXISTS conveyor_jobs CASCADE`;
     await sql`DROP TABLE IF EXISTS conveyor_paused_names CASCADE`;
