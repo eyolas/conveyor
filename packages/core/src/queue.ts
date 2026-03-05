@@ -247,6 +247,10 @@ export class Queue<T = unknown> {
             jobId: id,
             timestamp: new Date(),
           });
+        } else {
+          console.warn(
+            `[Conveyor] Job ${id} not found after saveBulk — possible store inconsistency`,
+          );
         }
       }
     }

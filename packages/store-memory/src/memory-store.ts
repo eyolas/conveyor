@@ -151,7 +151,7 @@ export class MemoryStore implements StoreInterface {
         }
         // Check if still active (not completed/failed)
         if (job.state !== 'completed' && job.state !== 'failed') {
-          return Promise.resolve(job);
+          return Promise.resolve(structuredClone(job));
         }
       }
     }
