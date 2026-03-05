@@ -113,12 +113,14 @@ export class BaseSqliteStore implements StoreInterface {
           id, queue_name, name, data, state, attempts_made, progress,
           returnvalue, failed_reason, opts, deduplication_key, logs,
           priority, seq, created_at, processed_at, completed_at, failed_at,
-          delay_until, lock_until, locked_by
+          delay_until, lock_until, locked_by,
+          parent_id, parent_queue_name, pending_children_count
         ) VALUES (
           :id, :queue_name, :name, :data, :state, :attempts_made, :progress,
           :returnvalue, :failed_reason, :opts, :deduplication_key, :logs,
           :priority, :seq, :created_at, :processed_at, :completed_at, :failed_at,
-          :delay_until, :lock_until, :locked_by
+          :delay_until, :lock_until, :locked_by,
+          :parent_id, :parent_queue_name, :pending_children_count
         )
       `),
       getJob: this.db.prepare(
@@ -279,6 +281,9 @@ export class BaseSqliteStore implements StoreInterface {
       lockUntil: 'lock_until',
       lockedBy: 'locked_by',
       data: 'data',
+      parentId: 'parent_id',
+      parentQueueName: 'parent_queue_name',
+      pendingChildrenCount: 'pending_children_count',
     };
 
     for (const [key, col] of Object.entries(columnMap)) {
@@ -561,9 +566,77 @@ export class BaseSqliteStore implements StoreInterface {
   drain(queueName: string): Promise<void> {
     this.db.prepare(`
       DELETE FROM conveyor_jobs
-      WHERE queue_name = ? AND state IN ('waiting', 'delayed')
+      WHERE queue_name = ? AND state IN ('waiting', 'delayed', 'waiting-children')
     `).run(queueName);
     return Promise.resolve();
+  }
+
+  // ─── Flow (Parent-Child) ─────────────────────────────────────────
+
+  saveFlow(jobs: Array<{ queueName: string; job: Omit<JobData, 'id'> }>): Promise<string[]> {
+    const ids: string[] = [];
+    this.runTransaction(() => {
+      for (const entry of jobs) {
+        const id = ((entry.job as Partial<Pick<JobData, 'id'>>).id) ?? generateId();
+        const row = jobDataToRow({ ...entry.job, id });
+        row.seq = this.seqCounter++;
+        this.stmts.insertJob.run(row as Record<string, unknown>);
+        ids.push(id);
+      }
+    });
+    return Promise.resolve(ids);
+  }
+
+  notifyChildCompleted(parentQueueName: string, parentId: string): Promise<JobState> {
+    const result = this.runTransaction(() => {
+      const parent = this.stmts.getJob.get(parentQueueName, parentId) as JobRow | undefined;
+      if (!parent || parent.state !== 'waiting-children') return 'completed' as JobState;
+
+      const newCount = parent.pending_children_count - 1;
+      if (newCount <= 0) {
+        this.db.prepare(`
+          UPDATE conveyor_jobs
+          SET pending_children_count = 0, state = 'waiting'
+          WHERE queue_name = ? AND id = ?
+        `).run(parentQueueName, parentId);
+        return 'waiting' as JobState;
+      }
+
+      this.db.prepare(`
+        UPDATE conveyor_jobs
+        SET pending_children_count = ?
+        WHERE queue_name = ? AND id = ?
+      `).run(newCount, parentQueueName, parentId);
+      return parent.state as JobState;
+    });
+    return Promise.resolve(result);
+  }
+
+  failParentOnChildFailure(
+    parentQueueName: string,
+    parentId: string,
+    reason: string,
+  ): Promise<boolean> {
+    const result = this.db.prepare(`
+      UPDATE conveyor_jobs
+      SET state = 'failed',
+          failed_reason = ?,
+          failed_at = ?,
+          lock_until = NULL,
+          locked_by = NULL
+      WHERE queue_name = ? AND id = ?
+        AND state IN ('waiting-children', 'waiting')
+    `).run(`Child failed: ${reason}`, Date.now(), parentQueueName, parentId);
+    return Promise.resolve(Number(result.changes) > 0);
+  }
+
+  getChildrenJobs(parentQueueName: string, parentId: string): Promise<JobData[]> {
+    const rows = this.db.prepare(`
+      SELECT * FROM conveyor_jobs
+      WHERE parent_queue_name = ? AND parent_id = ?
+      ORDER BY created_at ASC
+    `).all(parentQueueName, parentId) as unknown as JobRow[];
+    return Promise.resolve(rows.map(rowToJobData));
   }
 
   // ─── Events ────────────────────────────────────────────────────────

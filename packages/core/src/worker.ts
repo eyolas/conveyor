@@ -267,6 +267,22 @@ export class Worker<T = unknown> {
         timestamp: new Date(),
       });
 
+      // Notify parent if this is a child job
+      if (jobData.parentId && jobData.parentQueueName) {
+        const parentState = await this.store.notifyChildCompleted(
+          jobData.parentQueueName,
+          jobData.parentId,
+        );
+        if (parentState === 'waiting') {
+          await this.store.publish({
+            type: 'job:waiting',
+            queueName: jobData.parentQueueName,
+            jobId: jobData.parentId,
+            timestamp: new Date(),
+          });
+        }
+      }
+
       // Handle repeat jobs
       try {
         await this.scheduleRepeat(job);
@@ -339,9 +355,65 @@ export class Worker<T = unknown> {
         timestamp: new Date(),
       });
 
+      // Notify parent of child failure
+      const freshForParent = await this.store.getJob(this.queueName, job.id);
+      if (freshForParent?.parentId && freshForParent.parentQueueName) {
+        await this.handleChildFailurePolicy(freshForParent);
+      }
+
       // Handle removeOnFail
       if (this.shouldRemove(job.opts.removeOnFail)) {
         await this.store.removeJob(this.queueName, job.id);
+      }
+    }
+  }
+
+  private async handleChildFailurePolicy(childJob: JobData): Promise<void> {
+    const parentQueueName = childJob.parentQueueName!;
+    const parentId = childJob.parentId!;
+    const parentData = await this.store.getJob(parentQueueName, parentId);
+    if (!parentData) return;
+
+    const policy = parentData.opts.failParentOnChildFailure ?? 'fail';
+
+    switch (policy) {
+      case 'fail': {
+        const failed = await this.store.failParentOnChildFailure(
+          parentQueueName,
+          parentId,
+          childJob.failedReason ?? 'Unknown child failure',
+        );
+        if (failed) {
+          await this.store.publish({
+            type: 'job:failed',
+            queueName: parentQueueName,
+            jobId: parentId,
+            timestamp: new Date(),
+          });
+        }
+        break;
+      }
+      case 'ignore': {
+        const parentState = await this.store.notifyChildCompleted(parentQueueName, parentId);
+        if (parentState === 'waiting') {
+          await this.store.publish({
+            type: 'job:waiting',
+            queueName: parentQueueName,
+            jobId: parentId,
+            timestamp: new Date(),
+          });
+        }
+        break;
+      }
+      case 'remove': {
+        await this.store.removeJob(parentQueueName, parentId);
+        await this.store.publish({
+          type: 'job:removed',
+          queueName: parentQueueName,
+          jobId: parentId,
+          timestamp: new Date(),
+        });
+        break;
       }
     }
   }
@@ -413,6 +485,14 @@ export class Worker<T = unknown> {
               jobId: job.id,
               timestamp: new Date(),
             });
+
+            // Notify parent of stalled child failure
+            if (job.parentId && job.parentQueueName) {
+              const freshChild = await this.store.getJob(this.queueName, job.id);
+              if (freshChild) {
+                await this.handleChildFailurePolicy(freshChild);
+              }
+            }
           } else {
             // Re-enqueue stalled job
             await this.store.updateJob(this.queueName, job.id, {

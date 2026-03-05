@@ -130,7 +130,14 @@ export function validateQueueName(name: string): void {
 }
 
 /** Valid job state values. */
-const VALID_JOB_STATES = new Set(['waiting', 'delayed', 'active', 'completed', 'failed']);
+const VALID_JOB_STATES = new Set([
+  'waiting',
+  'waiting-children',
+  'delayed',
+  'active',
+  'completed',
+  'failed',
+]);
 
 /**
  * Assert that a string is a valid {@linkcode JobState}, throwing if not.
@@ -231,6 +238,9 @@ export function createJobData<T>(
     delayUntil: delay > 0 ? new Date(now.getTime() + delay) : null,
     lockUntil: null,
     lockedBy: null,
+    parentId: null,
+    parentQueueName: null,
+    pendingChildrenCount: 0,
   };
 
   // If a custom jobId is provided, include it so the store can use it

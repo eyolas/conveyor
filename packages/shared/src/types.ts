@@ -44,7 +44,13 @@ export type ScheduleDelay = HumanDuration | `in ${HumanDuration}`;
 export type Delay = number | HumanDuration;
 
 /** Possible states of a job in its lifecycle. */
-export type JobState = 'waiting' | 'delayed' | 'active' | 'completed' | 'failed';
+export type JobState =
+  | 'waiting'
+  | 'waiting-children'
+  | 'delayed'
+  | 'active'
+  | 'completed'
+  | 'failed';
 
 /**
  * The raw data structure stored for each job.
@@ -109,6 +115,15 @@ export interface JobData<T = unknown> {
 
   /** Worker ID holding the lock. */
   lockedBy: string | null;
+
+  /** ID of parent job (`null` if standalone). */
+  parentId: string | null;
+
+  /** Queue name of parent job (for cross-queue flows). */
+  parentQueueName: string | null;
+
+  /** Number of children not yet completed (`0` for leaf/standalone jobs). */
+  pendingChildrenCount: number;
 }
 
 /** Configuration for retry backoff strategies. */
@@ -190,6 +205,14 @@ export interface JobOptions {
 
   /** Custom job ID (manual dedup). */
   jobId?: string;
+
+  /**
+   * Policy when a child job fails.
+   * - `'fail'` (default): parent fails immediately when any child fails
+   * - `'ignore'`: parent proceeds when remaining children finish (failed ones skipped)
+   * - `'remove'`: parent is removed if any child fails
+   */
+  failParentOnChildFailure?: 'fail' | 'ignore' | 'remove';
 }
 
 /** Options for creating a {@linkcode Queue}. */
@@ -240,6 +263,7 @@ export interface WorkerOptions {
 /** Event types emitted by the store (used for cross-process pub/sub). */
 export type StoreEventType =
   | 'job:waiting'
+  | 'job:waiting-children'
   | 'job:active'
   | 'job:completed'
   | 'job:failed'
@@ -273,6 +297,7 @@ export interface StoreEvent {
 /** Event types emitted locally by Queue and Worker via {@linkcode EventBus}. */
 export type QueueEventType =
   | 'waiting'
+  | 'waiting-children'
   | 'active'
   | 'completed'
   | 'failed'
@@ -531,4 +556,76 @@ export interface StoreInterface {
    * @param event - The event to publish.
    */
   publish(event: StoreEvent): Promise<void>;
+
+  /**
+   * Save an entire flow tree atomically (children + parent in one transaction).
+   * Jobs are inserted in the order provided (children first, then parent).
+   *
+   * @param jobs - Array of `{ queueName, job }` entries to insert.
+   * @returns Array of job IDs in the same order.
+   */
+  saveFlow(jobs: Array<{ queueName: string; job: Omit<JobData, 'id'> }>): Promise<string[]>;
+
+  /**
+   * Called when a child completes; decrements parent's pending counter.
+   * If counter reaches 0, transitions parent to `'waiting'`.
+   *
+   * @param parentQueueName - The queue the parent belongs to.
+   * @param parentId - The parent job's ID.
+   * @returns The parent's new state after decrement (or `'completed'` if parent was already removed).
+   */
+  notifyChildCompleted(parentQueueName: string, parentId: string): Promise<JobState>;
+
+  /**
+   * Called when a child fails with `'fail'` policy; marks parent as failed.
+   *
+   * @param parentQueueName - The queue the parent belongs to.
+   * @param parentId - The parent job's ID.
+   * @param reason - The failure reason string.
+   * @returns `true` if the parent was found and updated.
+   */
+  failParentOnChildFailure(
+    parentQueueName: string,
+    parentId: string,
+    reason: string,
+  ): Promise<boolean>;
+
+  /**
+   * Get all children of a parent job.
+   *
+   * @param parentQueueName - The queue the parent belongs to.
+   * @param parentId - The parent job's ID.
+   * @returns Array of child job data.
+   */
+  getChildrenJobs(parentQueueName: string, parentId: string): Promise<JobData[]>;
+}
+
+/**
+ * A node in a flow tree, describing a job and its children.
+ *
+ * @typeParam T - The type of the job payload.
+ */
+export interface FlowJob<T = unknown> {
+  /** Job name. */
+  name: string;
+  /** Queue to add the job to. */
+  queueName: string;
+  /** Job payload. */
+  data: T;
+  /** Optional job options. */
+  opts?: JobOptions;
+  /** Child jobs that must complete before this job is processed. */
+  children?: FlowJob[];
+}
+
+/**
+ * Result of adding a flow tree, containing the created Job and its children results.
+ *
+ * @typeParam T - The type of the job payload.
+ */
+export interface FlowResult<T = unknown> {
+  /** The created job. */
+  job: { id: string; name: string; queueName: string; data: T; state: JobState };
+  /** Results for child jobs. */
+  children?: FlowResult[];
 }

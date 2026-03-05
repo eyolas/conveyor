@@ -815,6 +815,169 @@ export function runConformanceTests(
     await store.disconnect();
   });
 
+  // ─── Flow (Parent-Child) ─────────────────────────────────────────
+
+  test(`[${storeName}] saveFlow inserts children and parent atomically`, async () => {
+    store = factory();
+    await store.connect();
+
+    const child1 = createJobData('q1', 'child-1', { c: 1 });
+    child1.parentId = 'parent-id-placeholder';
+    child1.parentQueueName = queueName;
+
+    const child2 = createJobData('q1', 'child-2', { c: 2 });
+    child2.parentId = 'parent-id-placeholder';
+    child2.parentQueueName = queueName;
+
+    const parent = createJobData(queueName, 'parent-job', { p: 1 });
+    parent.state = 'waiting-children';
+    parent.pendingChildrenCount = 2;
+
+    const ids = await store.saveFlow([
+      { queueName: 'q1', job: child1 },
+      { queueName: 'q1', job: child2 },
+      { queueName, job: parent },
+    ]);
+
+    expect(ids.length).toEqual(3);
+
+    const parentJob = await store.getJob(queueName, ids[2]!);
+    expect(parentJob).toBeDefined();
+    expect(parentJob!.state).toEqual('waiting-children');
+    expect(parentJob!.pendingChildrenCount).toEqual(2);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] notifyChildCompleted decrements and transitions parent`, async () => {
+    store = factory();
+    await store.connect();
+
+    const parent = createJobData(queueName, 'parent', {});
+    parent.state = 'waiting-children';
+    parent.pendingChildrenCount = 2;
+    const parentId = await store.saveJob(queueName, parent);
+
+    // First child completes
+    let state = await store.notifyChildCompleted(queueName, parentId);
+    expect(state).toEqual('waiting-children');
+
+    // Second child completes — parent should transition to 'waiting'
+    state = await store.notifyChildCompleted(queueName, parentId);
+    expect(state).toEqual('waiting');
+
+    const parentJob = await store.getJob(queueName, parentId);
+    expect(parentJob!.state).toEqual('waiting');
+    expect(parentJob!.pendingChildrenCount).toEqual(0);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] notifyChildCompleted handles missing parent gracefully`, async () => {
+    store = factory();
+    await store.connect();
+
+    const state = await store.notifyChildCompleted(queueName, 'non-existent-id');
+    expect(state).toEqual('completed');
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] failParentOnChildFailure marks parent as failed`, async () => {
+    store = factory();
+    await store.connect();
+
+    const parent = createJobData(queueName, 'parent', {});
+    parent.state = 'waiting-children';
+    parent.pendingChildrenCount = 2;
+    const parentId = await store.saveJob(queueName, parent);
+
+    const result = await store.failParentOnChildFailure(queueName, parentId, 'child error');
+    expect(result).toEqual(true);
+
+    const parentJob = await store.getJob(queueName, parentId);
+    expect(parentJob!.state).toEqual('failed');
+    expect(parentJob!.failedReason).toEqual('Child failed: child error');
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] failParentOnChildFailure returns false for missing parent`, async () => {
+    store = factory();
+    await store.connect();
+
+    const result = await store.failParentOnChildFailure(queueName, 'missing', 'err');
+    expect(result).toEqual(false);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] getChildrenJobs returns children`, async () => {
+    store = factory();
+    await store.connect();
+
+    const parentId = await store.saveJob(queueName, createJobData(queueName, 'parent', {}));
+
+    const child1 = createJobData(queueName, 'child-1', { i: 1 });
+    child1.parentId = parentId;
+    child1.parentQueueName = queueName;
+    await store.saveJob(queueName, child1);
+
+    const child2 = createJobData(queueName, 'child-2', { i: 2 });
+    child2.parentId = parentId;
+    child2.parentQueueName = queueName;
+    await store.saveJob(queueName, child2);
+
+    const children = await store.getChildrenJobs(queueName, parentId);
+    expect(children.length).toEqual(2);
+    const names = children.map((c) => c.name).sort();
+    expect(names).toEqual(['child-1', 'child-2']);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] drain also removes waiting-children jobs`, async () => {
+    store = factory();
+    await store.connect();
+
+    const parent = createJobData(queueName, 'parent', {});
+    parent.state = 'waiting-children';
+    parent.pendingChildrenCount = 1;
+    await store.saveJob(queueName, parent);
+
+    await store.saveJob(queueName, createJobData(queueName, 'waiting-1', {}));
+
+    await store.drain(queueName);
+
+    expect(await store.countJobs(queueName, 'waiting')).toEqual(0);
+    expect(await store.countJobs(queueName, 'waiting-children')).toEqual(0);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] fetchNextJob skips waiting-children jobs`, async () => {
+    store = factory();
+    await store.connect();
+
+    const parent = createJobData(queueName, 'parent', {});
+    parent.state = 'waiting-children';
+    parent.pendingChildrenCount = 1;
+    await store.saveJob(queueName, parent);
+
+    const child = createJobData(queueName, 'child', {});
+    await store.saveJob(queueName, child);
+
+    const fetched = await store.fetchNextJob(queueName, 'worker-1', 30_000);
+    expect(fetched).toBeDefined();
+    expect(fetched!.name).toEqual('child');
+
+    // No more waiting jobs
+    const second = await store.fetchNextJob(queueName, 'worker-2', 30_000);
+    expect(second).toEqual(null);
+
+    await store.disconnect();
+  });
+
   // ─── updateJob syncs priority ─────────────────────────────────────
 
   test(`[${storeName}] updateJob opts syncs priority`, async () => {
