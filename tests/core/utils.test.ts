@@ -168,9 +168,7 @@ test('calculateBackoff: exponential caps at 24 hours', () => {
 });
 
 test('calculateBackoff: custom without strategy throws', () => {
-  expect(() =>
-    calculateBackoff(1, { type: 'custom', delay: 1000 })
-  ).toThrow('customStrategy');
+  expect(() => calculateBackoff(1, { type: 'custom', delay: 1000 })).toThrow('customStrategy');
 });
 
 // ─── createJobData (additional) ──────────────────────────────────────
@@ -180,9 +178,9 @@ test('createJobData: rejects attempts < 1', () => {
 });
 
 test('createJobData: rejects negative backoff delay', () => {
-  expect(() =>
-    createJobData('q', 'j', {}, { backoff: { type: 'fixed', delay: -1 } })
-  ).toThrow('backoff delay');
+  expect(() => createJobData('q', 'j', {}, { backoff: { type: 'fixed', delay: -1 } })).toThrow(
+    'backoff delay',
+  );
 });
 
 test('createJobData: rejects non-finite priority', () => {

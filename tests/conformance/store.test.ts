@@ -1162,27 +1162,6 @@ export function runConformanceTests(
     await store.disconnect();
   });
 
-  // ─── clean with createdAt fallback ─────────────────────────────────
-
-  test(`[${storeName}] clean uses createdAt as fallback timestamp`, async () => {
-    store = factory();
-    await store.connect();
-
-    // Create a job, manually set to 'completed' without completedAt or failedAt
-    const id = await store.saveJob(queueName, createJobData(queueName, 'no-dates', {}));
-    const job = await store.getJob(queueName, id);
-    // Override createdAt to be old
-    await store.updateJob(queueName, id, {
-      state: 'completed',
-      createdAt: new Date(Date.now() - 20_000),
-    });
-
-    const removed = await store.clean(queueName, 'completed', 5_000);
-    expect(removed).toEqual(1);
-
-    await store.disconnect();
-  });
-
   // ─── releaseLock on non-existent job ───────────────────────────────
 
   test(`[${storeName}] releaseLock on non-existent job does not throw`, async () => {

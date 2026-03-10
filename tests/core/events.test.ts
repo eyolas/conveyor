@@ -166,7 +166,9 @@ test('EventBus error in non-error handler without error listener logs to console
 test('EventBus duplicate handler registration', () => {
   const bus = new EventBus();
   let count = 0;
-  const handler = () => { count++; };
+  const handler = () => {
+    count++;
+  };
 
   bus.on('waiting', handler);
   bus.on('waiting', handler); // Set-based, should deduplicate
