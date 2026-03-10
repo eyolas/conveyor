@@ -44,6 +44,7 @@ conveyor/
 │   │       ├── queue.ts       # Queue class
 │   │       ├── worker.ts      # Worker class
 │   │       ├── job.ts         # Job class
+│   │       ├── flow-producer.ts # FlowProducer (job flows/dependencies)
 │   │       ├── scheduler.ts   # Delayed/repeated job scheduler
 │   │       ├── events.ts      # Event emitter
 │   │       └── types.ts       # Interfaces & types
@@ -211,7 +212,7 @@ interface Job<T = unknown> {
   opts: JobOptions;
 
   // Lifecycle
-  state: 'waiting' | 'delayed' | 'active' | 'completed' | 'failed';
+  state: 'waiting' | 'waiting-children' | 'delayed' | 'active' | 'completed' | 'failed';
   progress: number;
   returnvalue: unknown;
   failedReason: string | null;
@@ -223,6 +224,10 @@ interface Job<T = unknown> {
   completedAt: Date | null;
   failedAt: Date | null;
 
+  // Parent-child (flows)
+  parentId: string | null;
+  parentQueueName: string | null;
+
   // Methods
   updateProgress(progress: number): Promise<void>;
   log(message: string): Promise<void>;
@@ -232,6 +237,11 @@ interface Job<T = unknown> {
   isCompleted(): Promise<boolean>;
   isFailed(): Promise<boolean>;
   isActive(): Promise<boolean>;
+
+  // Flow methods
+  getParent(): Promise<Job | null>;
+  getDependencies(): Promise<Job[]>;
+  getChildrenValues(): Promise<Record<string, unknown>>;
 }
 ```
 
@@ -278,6 +288,9 @@ interface JobOptions {
 
   // Identifier
   jobId?: string; // custom job ID (manual dedup)
+
+  // Flow failure policy
+  failParentOnChildFailure?: 'fail' | 'ignore' | 'remove'; // default: 'fail'
 }
 ```
 
@@ -332,7 +345,85 @@ interface StoreInterface {
   // Each store uses its native mechanism:
   // PG = LISTEN/NOTIFY, Memory = EventEmitter, SQLite = polling
   onEvent?(queueName: string, callback: (event: StoreEvent) => void): void;
+
+  // Flows (parent-child dependencies)
+  saveFlow(jobs: Array<{ queueName: string; job: Omit<JobData, 'id'> }>): Promise<string[]>;
+  notifyChildCompleted(parentQueueName: string, parentId: string): Promise<JobState>;
+  failParentOnChildFailure(
+    parentQueueName: string,
+    parentId: string,
+    reason: string,
+  ): Promise<boolean>;
+  getChildrenJobs(parentQueueName: string, parentId: string): Promise<JobData[]>;
 }
+```
+
+### 3.6 FlowProducer
+
+```typescript
+import { FlowProducer } from '@conveyor/core';
+
+const flow = new FlowProducer({ store });
+
+// Create a parent job that waits for its children to complete
+const result = await flow.add({
+  name: 'assemble-report',
+  queueName: 'reports',
+  data: { reportId: 42 },
+  children: [
+    { name: 'fetch-sales', queueName: 'reports', data: { source: 'sales' } },
+    { name: 'fetch-inventory', queueName: 'data', data: { source: 'inv' } },
+  ],
+});
+
+// result.job.state === 'waiting-children'
+// result.children[0].job.state === 'waiting'
+
+// Nested trees (3+ levels) are supported
+await flow.add({
+  name: 'root',
+  queueName: 'q',
+  data: {},
+  children: [
+    {
+      name: 'mid',
+      queueName: 'q',
+      data: {},
+      children: [
+        { name: 'leaf', queueName: 'q', data: {} },
+      ],
+    },
+  ],
+});
+
+// Cross-queue children: children can be in different queues (same store)
+await flow.add({
+  name: 'parent',
+  queueName: 'queue-a',
+  data: {},
+  children: [
+    { name: 'child', queueName: 'queue-b', data: {} },
+  ],
+});
+
+// Inside a worker, access parent/children:
+const worker = new Worker('reports', async (job) => {
+  const parent = await job.getParent(); // parent Job or null
+  const deps = await job.getDependencies(); // child Job[]
+  const values = await job.getChildrenValues(); // { childId: returnvalue }
+  return { assembled: true };
+}, { store });
+
+// Failure policies (per-job option):
+await flow.add({
+  name: 'parent',
+  queueName: 'q',
+  data: {},
+  opts: { failParentOnChildFailure: 'ignore' }, // 'fail' (default) | 'ignore' | 'remove'
+  children: [
+    { name: 'child', queueName: 'q', data: {} },
+  ],
+});
 ```
 
 ---
@@ -361,6 +452,18 @@ add() → [waiting] ──fetch──→ [active] ──success──→ [comple
              │
              ▼
         [delayed] ──timer──→ [waiting]
+
+── Flow (parent-child) lifecycle ──
+
+FlowProducer.add() → parent: [waiting-children]
+                      children: [waiting]
+
+children complete → parent pendingChildrenCount--
+                     when 0 → parent: [waiting] → [active] → ...
+
+child fails (policy='fail')   → parent: [failed]
+child fails (policy='ignore') → parent proceeds when remaining children finish
+child fails (policy='remove') → parent removed from store
 ```
 
 ### 4.2 Concurrency & Locking
@@ -563,7 +666,7 @@ await queue.close();
 
 The following features are intentionally **excluded** from V1 to keep the scope manageable:
 
-- **Flows/dependencies** (job A depends on job B) — V2
+- ~~**Flows/dependencies** (job A depends on job B)~~ — ✅ Implemented (FlowProducer)
 - **Dashboard/Web UI** — V2
 - **Redis Store** (ironic) — V2 if requested by the community
 - **Cloudflare D1 store** (requires a Worker pull/edge mode) — V2
@@ -631,6 +734,7 @@ A **single test suite** that runs against **each store** to guarantee identical 
 - Stalled jobs detection
 - Clean and drain
 - Events emitted correctly
+- Job flows (parent-child trees, cross-queue, failure policies)
 
 ---
 
@@ -669,7 +773,7 @@ A **single test suite** that runs against **each store** to guarantee identical 
 
 ### Phase 4 — Ecosystem (V2)
 
-- [ ] Job flows / dependencies
+- [x] Job flows / dependencies (FlowProducer, parent-child trees, cross-queue, failure policies)
 - [ ] Web dashboard UI
 - [ ] OpenTelemetry integration
 - [ ] Redis store (if requested)
