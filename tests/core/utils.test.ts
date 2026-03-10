@@ -35,8 +35,8 @@ test('parseDelay: days', () => {
 });
 
 test('parseDelay: invalid format throws', () => {
-  expect(() => parseDelay('foo')).toThrow();
-  expect(() => parseDelay('in 5 minutes')).toThrow();
+  expect(() => parseDelay('foo' as unknown as number)).toThrow();
+  expect(() => parseDelay('in 5 minutes' as unknown as number)).toThrow();
 });
 
 test('calculateBackoff: fixed', () => {
