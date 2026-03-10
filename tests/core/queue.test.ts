@@ -105,6 +105,129 @@ test('Queue.addBulk adds multiple jobs', async () => {
   await store.disconnect();
 });
 
+test('Queue.addBulk with empty array returns empty', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  const jobs = await queue.addBulk([]);
+
+  expect(jobs.length).toEqual(0);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue.addBulk with deduplication skips duplicates', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  // Pre-add a job with a dedup key
+  const existing = await queue.add('dup-job', { i: 0 }, {
+    deduplication: { key: 'same-key' },
+  });
+
+  const jobs = await queue.addBulk([
+    { name: 'dup-job', data: { i: 1 }, opts: { deduplication: { key: 'same-key' } } },
+    { name: 'new-job', data: { i: 2 } },
+  ]);
+
+  expect(jobs.length).toEqual(2);
+  // First job should be the existing one (dedup hit)
+  expect(jobs[0]!.id).toEqual(existing.id);
+  // Second job should be new
+  expect(jobs[1]!.id).not.toEqual(existing.id);
+  expect(jobs[1]!.name).toEqual('new-job');
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue.addBulk with delay creates delayed jobs', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  const jobs = await queue.addBulk([
+    { name: 'immediate', data: { i: 1 } },
+    { name: 'delayed', data: { i: 2 }, opts: { delay: 5000 } },
+  ]);
+
+  expect(jobs.length).toEqual(2);
+  expect(jobs[0]!.state).toEqual('waiting');
+  expect(jobs[1]!.state).toEqual('delayed');
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue.addBulk with priority', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  const jobs = await queue.addBulk([
+    { name: 'low', data: { i: 1 }, opts: { priority: 10 } },
+    { name: 'high', data: { i: 2 }, opts: { priority: 1 } },
+  ]);
+
+  expect(jobs.length).toEqual(2);
+  expect(jobs[0]!.opts.priority).toEqual(10);
+  expect(jobs[1]!.opts.priority).toEqual(1);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue.addBulk applies defaultJobOptions', async () => {
+  const { queue, store } = createQueue({ defaultJobOptions: { attempts: 5 } });
+  await store.connect();
+
+  const jobs = await queue.addBulk([
+    { name: 'job-1', data: { i: 1 } },
+    { name: 'job-2', data: { i: 2 }, opts: { attempts: 2 } },
+  ]);
+
+  expect(jobs.length).toEqual(2);
+  // First job should inherit defaultJobOptions
+  expect(jobs[0]!.opts.attempts).toEqual(5);
+  // Second job should override with its own opts
+  expect(jobs[1]!.opts.attempts).toEqual(2);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue.addBulk emits events for each job', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  const events: string[] = [];
+  queue.events.on('waiting', () => events.push('waiting'));
+  queue.events.on('delayed', () => events.push('delayed'));
+
+  await queue.addBulk([
+    { name: 'job-1', data: { i: 1 } },
+    { name: 'job-2', data: { i: 2 }, opts: { delay: 5000 } },
+    { name: 'job-3', data: { i: 3 } },
+  ]);
+
+  expect(events).toEqual(['waiting', 'delayed', 'waiting']);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue.addBulk rejects on closed queue', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  await queue.close();
+
+  await expect(
+    queue.addBulk([{ name: 'job', data: {} }]),
+  ).rejects.toThrow('closed');
+
+  await store.disconnect();
+});
+
 // ─── Deduplication ───────────────────────────────────────────────────
 
 test('Queue.add deduplication by key', async () => {
