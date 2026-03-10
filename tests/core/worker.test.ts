@@ -432,6 +432,116 @@ test('Worker respects maxGlobalConcurrency', async () => {
 
 // ─── removeOnComplete ────────────────────────────────────────────────
 
+// ─── autoStart / start / resume ──────────────────────────────────────
+
+test('Worker with autoStart=false does not process until started', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  const processed: string[] = [];
+  const worker = createWorker(store, (job) => {
+    processed.push(job.name);
+    return Promise.resolve('done');
+  }, { autoStart: false });
+
+  await queue.add('manual-start-job', {});
+  await waitFor(2500);
+
+  // Should not have processed
+  expect(processed.length).toEqual(0);
+
+  worker.start();
+  await waitFor(2500);
+
+  expect(processed).toEqual(['manual-start-job']);
+
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Worker.start is no-op when already running', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  const processed: string[] = [];
+  const worker = createWorker(store, (job) => {
+    processed.push(job.name);
+    return Promise.resolve('done');
+  });
+
+  // Double start should not cause issues
+  worker.start();
+  worker.start();
+
+  await queue.add('double-start-job', {});
+  await waitFor(2500);
+
+  // Job should be processed exactly once
+  expect(processed).toEqual(['double-start-job']);
+
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Worker.resume when not paused is no-op', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  const processed: string[] = [];
+  const worker = createWorker(store, (job) => {
+    processed.push(job.name);
+    return Promise.resolve('done');
+  });
+
+  // Resume without prior pause should not break anything
+  worker.resume();
+
+  await queue.add('resume-noop-job', {});
+  await waitFor(2500);
+
+  expect(processed).toEqual(['resume-noop-job']);
+
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
+
+// ─── LIFO ────────────────────────────────────────────────────────────
+
+test('Worker processes jobs in LIFO order', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  // Add jobs first, then start worker
+  await queue.add('first', {});
+  await queue.add('second', {});
+  await queue.add('third', {});
+
+  const processed: string[] = [];
+  const worker = createWorker(store, (job) => {
+    processed.push(job.name);
+    return Promise.resolve('done');
+  }, { lifo: true, autoStart: false });
+
+  worker.start();
+  await waitFor(5000);
+
+  // LIFO: third should be processed first
+  expect(processed[0]).toEqual('third');
+
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
+
+// ─── removeOnComplete ────────────────────────────────────────────────
+
 test('Worker removes job on complete when configured', async () => {
   const store = new MemoryStore();
   await store.connect();

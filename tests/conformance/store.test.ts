@@ -980,6 +980,257 @@ export function runConformanceTests(
 
   // ─── updateJob syncs priority ─────────────────────────────────────
 
+  // ─── listJobs pagination ──────────────────────────────────────────
+
+  test(`[${storeName}] listJobs returns paginated results`, async () => {
+    store = factory();
+    await store.connect();
+
+    for (let i = 0; i < 5; i++) {
+      await store.saveJob(queueName, createJobData(queueName, `job-${i}`, { i }));
+    }
+
+    const page1 = await store.listJobs(queueName, 'waiting', 0, 3);
+    expect(page1.length).toEqual(3);
+
+    const page2 = await store.listJobs(queueName, 'waiting', 3, 5);
+    expect(page2.length).toEqual(2);
+
+    // Empty page
+    const page3 = await store.listJobs(queueName, 'waiting', 10, 20);
+    expect(page3.length).toEqual(0);
+
+    await store.disconnect();
+  });
+
+  // ─── getJob non-existent ───────────────────────────────────────────
+
+  test(`[${storeName}] getJob returns null for non-existent job`, async () => {
+    store = factory();
+    await store.connect();
+
+    const job = await store.getJob(queueName, 'does-not-exist');
+    expect(job).toEqual(null);
+
+    await store.disconnect();
+  });
+
+  // ─── removeJob non-existent ────────────────────────────────────────
+
+  test(`[${storeName}] removeJob on non-existent job does not throw`, async () => {
+    store = factory();
+    await store.connect();
+
+    await expect(store.removeJob(queueName, 'does-not-exist')).resolves.not.toThrow();
+
+    await store.disconnect();
+  });
+
+  // ─── updateJob non-existent ────────────────────────────────────────
+
+  test(`[${storeName}] updateJob on non-existent job does not throw`, async () => {
+    store = factory();
+    await store.connect();
+
+    await expect(
+      store.updateJob(queueName, 'does-not-exist', { progress: 50 }),
+    ).resolves.not.toThrow();
+
+    await store.disconnect();
+  });
+
+  // ─── saveBulk empty ────────────────────────────────────────────────
+
+  test(`[${storeName}] saveBulk with empty array`, async () => {
+    store = factory();
+    await store.connect();
+
+    const ids = await store.saveBulk(queueName, []);
+    expect(ids).toEqual([]);
+
+    await store.disconnect();
+  });
+
+  // ─── dedup ignores completed/failed ────────────────────────────────
+
+  test(`[${storeName}] findByDeduplicationKey ignores completed jobs`, async () => {
+    store = factory();
+    await store.connect();
+
+    const jobData = createJobData(queueName, 'dedup-complete', {}, {
+      deduplication: { key: 'done-key' },
+    });
+    jobData.deduplicationKey = 'done-key';
+    const id = await store.saveJob(queueName, jobData);
+
+    // Mark as completed
+    await store.updateJob(queueName, id, { state: 'completed', completedAt: new Date() });
+
+    // Should not find the completed job
+    const found = await store.findByDeduplicationKey(queueName, 'done-key');
+    expect(found).toEqual(null);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] findByDeduplicationKey ignores failed jobs`, async () => {
+    store = factory();
+    await store.connect();
+
+    const jobData = createJobData(queueName, 'dedup-failed', {}, {
+      deduplication: { key: 'fail-key' },
+    });
+    jobData.deduplicationKey = 'fail-key';
+    const id = await store.saveJob(queueName, jobData);
+
+    // Mark as failed
+    await store.updateJob(queueName, id, { state: 'failed', failedAt: new Date() });
+
+    const found = await store.findByDeduplicationKey(queueName, 'fail-key');
+    expect(found).toEqual(null);
+
+    await store.disconnect();
+  });
+
+  // ─── promoteDelayedJobs does not promote future jobs ───────────────
+
+  test(`[${storeName}] promoteDelayedJobs does not promote future jobs`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'future', {}, { delay: 60_000 }));
+
+    const promoted = await store.promoteDelayedJobs(queueName, Date.now());
+    expect(promoted).toEqual(0);
+
+    expect(await store.countJobs(queueName, 'delayed')).toEqual(1);
+
+    await store.disconnect();
+  });
+
+  // ─── multiple subscribers ──────────────────────────────────────────
+
+  test(`[${storeName}] multiple subscribers receive events`, async () => {
+    store = factory();
+    await store.connect();
+
+    const received1: StoreEvent[] = [];
+    const received2: StoreEvent[] = [];
+
+    store.subscribe(queueName, (event) => received1.push(event));
+    store.subscribe(queueName, (event) => received2.push(event));
+
+    await store.publish({
+      type: 'job:waiting',
+      queueName,
+      jobId: 'test-id',
+      timestamp: new Date(),
+    });
+
+    expect(received1.length).toEqual(1);
+    expect(received2.length).toEqual(1);
+
+    await store.disconnect();
+  });
+
+  // ─── unsubscribe specific callback ─────────────────────────────────
+
+  test(`[${storeName}] unsubscribe specific callback`, async () => {
+    store = factory();
+    await store.connect();
+
+    const received1: StoreEvent[] = [];
+    const received2: StoreEvent[] = [];
+
+    const cb1 = (event: StoreEvent) => received1.push(event);
+    const cb2 = (event: StoreEvent) => received2.push(event);
+
+    store.subscribe(queueName, cb1);
+    store.subscribe(queueName, cb2);
+    store.unsubscribe(queueName, cb1);
+
+    await store.publish({
+      type: 'job:waiting',
+      queueName,
+      jobId: 'test-id',
+      timestamp: new Date(),
+    });
+
+    expect(received1.length).toEqual(0);
+    expect(received2.length).toEqual(1);
+
+    await store.disconnect();
+  });
+
+  // ─── clean with createdAt fallback ─────────────────────────────────
+
+  test(`[${storeName}] clean uses createdAt as fallback timestamp`, async () => {
+    store = factory();
+    await store.connect();
+
+    // Create a job, manually set to 'completed' without completedAt or failedAt
+    const id = await store.saveJob(queueName, createJobData(queueName, 'no-dates', {}));
+    const job = await store.getJob(queueName, id);
+    // Override createdAt to be old
+    await store.updateJob(queueName, id, {
+      state: 'completed',
+      createdAt: new Date(Date.now() - 20_000),
+    });
+
+    const removed = await store.clean(queueName, 'completed', 5_000);
+    expect(removed).toEqual(1);
+
+    await store.disconnect();
+  });
+
+  // ─── releaseLock on non-existent job ───────────────────────────────
+
+  test(`[${storeName}] releaseLock on non-existent job does not throw`, async () => {
+    store = factory();
+    await store.connect();
+
+    await expect(store.releaseLock(queueName, 'no-such-job')).resolves.not.toThrow();
+
+    await store.disconnect();
+  });
+
+  // ─── getChildrenJobs empty ─────────────────────────────────────────
+
+  test(`[${storeName}] getChildrenJobs returns empty for job with no children`, async () => {
+    store = factory();
+    await store.connect();
+
+    const id = await store.saveJob(queueName, createJobData(queueName, 'solo', {}));
+    const children = await store.getChildrenJobs(queueName, id);
+    expect(children).toEqual([]);
+
+    await store.disconnect();
+  });
+
+  // ─── global pause blocks all fetches ───────────────────────────────
+
+  test(`[${storeName}] global pause blocks all fetches`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'job-1', {}));
+    await store.saveJob(queueName, createJobData(queueName, 'job-2', {}));
+
+    await store.pauseJobName(queueName, '__all__');
+
+    const fetched = await store.fetchNextJob(queueName, 'w1', 30_000);
+    expect(fetched).toEqual(null);
+
+    await store.resumeJobName(queueName, '__all__');
+
+    const fetched2 = await store.fetchNextJob(queueName, 'w1', 30_000);
+    expect(fetched2).toBeDefined();
+
+    await store.disconnect();
+  });
+
+  // ─── updateJob opts syncs priority ─────────────────────────────────
+
   test(`[${storeName}] updateJob opts syncs priority`, async () => {
     store = factory();
     await store.connect();
