@@ -451,6 +451,44 @@ test('Queue.close prevents further operations', async () => {
   await store.disconnect();
 });
 
+test('Queue.close prevents pause, resume, drain, clean', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  await queue.close();
+
+  await expect(queue.pause()).rejects.toThrow('closed');
+  await expect(queue.resume()).rejects.toThrow('closed');
+  await expect(queue.drain()).rejects.toThrow('closed');
+  expect(() => queue.clean('completed', 1000)).toThrow('closed');
+
+  await store.disconnect();
+});
+
+test('Queue.add deduplication without key or hash throws', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  await expect(
+    queue.add('job', {}, { deduplication: {} as { key?: string; hash?: boolean } }),
+  ).rejects.toThrow('Deduplication requires');
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue.schedule with numeric delay', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  const job = await queue.schedule(3000, 'job', {});
+
+  expect(job.state).toEqual('delayed');
+
+  await queue.close();
+  await store.disconnect();
+});
+
 // ─── getJob / getJobs ───────────────────────────────────────────────
 
 test('Queue.getJob returns null for non-existent job', async () => {

@@ -1,5 +1,14 @@
 import { expect, test } from 'vitest';
-import { calculateBackoff, hashPayload, parseDelay, validateQueueName } from '@conveyor/shared';
+import {
+  assertJobState,
+  calculateBackoff,
+  createJobData,
+  generateId,
+  generateWorkerId,
+  hashPayload,
+  parseDelay,
+  validateQueueName,
+} from '@conveyor/shared';
 
 test('parseDelay: number passthrough', () => {
   expect(parseDelay(5000)).toEqual(5000);
@@ -99,4 +108,123 @@ test('hashPayload: different data = different hash', async () => {
   const hash1 = await hashPayload({ a: 1 });
   const hash2 = await hashPayload({ a: 2 });
   expect(hash1 !== hash2).toEqual(true);
+});
+
+test('hashPayload: nested objects with different key order', async () => {
+  const hash1 = await hashPayload({ a: { c: 3, b: 2 } });
+  const hash2 = await hashPayload({ a: { b: 2, c: 3 } });
+  expect(hash1).toEqual(hash2);
+});
+
+test('hashPayload: arrays preserve order', async () => {
+  const hash1 = await hashPayload([1, 2, 3]);
+  const hash2 = await hashPayload([3, 2, 1]);
+  expect(hash1 !== hash2).toEqual(true);
+});
+
+test('hashPayload: handles null and primitives', async () => {
+  const hashNull = await hashPayload(null);
+  const hashStr = await hashPayload('hello');
+  const hashNum = await hashPayload(42);
+  expect(hashNull).toBeDefined();
+  expect(hashStr).toBeDefined();
+  expect(hashNum).toBeDefined();
+  expect(hashNull !== hashStr).toEqual(true);
+});
+
+// ─── parseDelay (additional) ────────────────────────────────────────
+
+test('parseDelay: milliseconds', () => {
+  expect(parseDelay('500ms')).toEqual(500);
+  expect(parseDelay('1 millisecond')).toEqual(1);
+});
+
+test('parseDelay: weeks', () => {
+  expect(parseDelay('1w')).toEqual(604_800_000);
+  expect(parseDelay('2 weeks')).toEqual(1_209_600_000);
+});
+
+test('parseDelay: decimal values', () => {
+  expect(parseDelay('1.5s')).toEqual(1500);
+  expect(parseDelay('0.5h')).toEqual(1_800_000);
+});
+
+test('parseDelay: zero', () => {
+  expect(parseDelay(0)).toEqual(0);
+  expect(parseDelay('0s')).toEqual(0);
+});
+
+// ─── calculateBackoff (additional) ──────────────────────────────────
+
+test('calculateBackoff: exponential caps at 24 hours', () => {
+  // attempt 30 with delay 1000 => 1000 * 2^29 >> 24h
+  // Run multiple times since jitter is random
+  for (let i = 0; i < 20; i++) {
+    const delay = calculateBackoff(30, { type: 'exponential', delay: 1000 });
+    // 24h + 25% jitter max = 108_000_000
+    expect(delay <= 108_000_000).toEqual(true);
+    expect(delay >= 0).toEqual(true);
+  }
+});
+
+test('calculateBackoff: custom without strategy throws', () => {
+  expect(() =>
+    calculateBackoff(1, { type: 'custom', delay: 1000 })
+  ).toThrow('customStrategy');
+});
+
+// ─── createJobData (additional) ──────────────────────────────────────
+
+test('createJobData: rejects attempts < 1', () => {
+  expect(() => createJobData('q', 'j', {}, { attempts: 0 })).toThrow('attempts');
+});
+
+test('createJobData: rejects negative backoff delay', () => {
+  expect(() =>
+    createJobData('q', 'j', {}, { backoff: { type: 'fixed', delay: -1 } })
+  ).toThrow('backoff delay');
+});
+
+test('createJobData: rejects non-finite priority', () => {
+  expect(() => createJobData('q', 'j', {}, { priority: Infinity })).toThrow('priority');
+  expect(() => createJobData('q', 'j', {}, { priority: NaN })).toThrow('priority');
+});
+
+test('createJobData: sets delayed state when delay > 0', () => {
+  const job = createJobData('q', 'j', {}, { delay: 5000 });
+  expect(job.state).toEqual('delayed');
+  expect(job.delayUntil).toBeDefined();
+});
+
+test('createJobData: uses custom jobId', () => {
+  const job = createJobData('q', 'j', {}, { jobId: 'custom-123' });
+  expect(job.id).toEqual('custom-123');
+});
+
+// ─── assertJobState (additional) ────────────────────────────────────
+
+test('assertJobState: accepts all valid states', () => {
+  const validStates = ['waiting', 'waiting-children', 'delayed', 'active', 'completed', 'failed'];
+  for (const state of validStates) {
+    expect(assertJobState(state)).toEqual(state);
+  }
+});
+
+test('assertJobState: rejects invalid states', () => {
+  expect(() => assertJobState('pending')).toThrow('Invalid job state');
+  expect(() => assertJobState('')).toThrow('Invalid job state');
+  expect(() => assertJobState('WAITING')).toThrow('Invalid job state');
+});
+
+// ─── generateId / generateWorkerId ──────────────────────────────────
+
+test('generateId: returns unique UUIDs', () => {
+  const ids = new Set(Array.from({ length: 100 }, () => generateId()));
+  expect(ids.size).toEqual(100);
+});
+
+test('generateWorkerId: has worker- prefix', () => {
+  const id = generateWorkerId();
+  expect(id.startsWith('worker-')).toEqual(true);
+  expect(id.length).toEqual(15); // "worker-" (7) + 8 chars
 });
