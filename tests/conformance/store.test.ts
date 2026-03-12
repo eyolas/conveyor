@@ -1021,7 +1021,7 @@ export function runConformanceTests(
     store = factory();
     await store.connect();
 
-    await expect(store.removeJob(queueName, 'does-not-exist')).resolves.not.toThrow();
+    await store.removeJob(queueName, 'does-not-exist');
 
     await store.disconnect();
   });
@@ -1032,9 +1032,7 @@ export function runConformanceTests(
     store = factory();
     await store.connect();
 
-    await expect(
-      store.updateJob(queueName, 'does-not-exist', { progress: 50 }),
-    ).resolves.not.toThrow();
+    await store.updateJob(queueName, 'does-not-exist', { progress: 50 });
 
     await store.disconnect();
   });
@@ -1168,7 +1166,7 @@ export function runConformanceTests(
     store = factory();
     await store.connect();
 
-    await expect(store.releaseLock(queueName, 'no-such-job')).resolves.not.toThrow();
+    await store.releaseLock(queueName, 'no-such-job');
 
     await store.disconnect();
   });
