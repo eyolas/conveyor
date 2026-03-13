@@ -202,6 +202,41 @@ worker.on('error', (error) => {/* ... */});
 await worker.close();
 ```
 
+#### Batch Processing
+
+```typescript
+import { Worker } from '@conveyor/core';
+import type { BatchProcessorFn } from '@conveyor/core';
+
+const batchWorker = new Worker<MyPayload>(
+  'bulk-notifications',
+  async (jobs) => {
+    // Process all jobs as a single unit (e.g. bulk API call)
+    const results = await sendBulkNotifications(jobs.map((j) => j.data));
+
+    // Return per-job results (matched by index)
+    return jobs.map((_, i) =>
+      results[i].ok
+        ? { status: 'completed', value: results[i].response }
+        : { status: 'failed', error: new Error(results[i].error) }
+    );
+  },
+  {
+    store,
+    concurrency: 3, // up to 3 batches in-flight
+    batch: { size: 10 }, // up to 10 jobs per batch
+    limiter: { max: 100, duration: 60_000 }, // each job counts as 1 token
+  },
+);
+```
+
+- Each batch counts as **1 concurrency unit** (with `concurrency: 3, batch.size: 10`, up to 30 jobs
+  in-flight)
+- Rate limiter counts **each job** individually
+- Events (`active`, `completed`, `failed`) emitted **per job**
+- If processor throws, **all jobs** in the batch fail
+- Partial batches dispatched immediately (no buffering/timeout)
+
 ### 3.3 Job
 
 ```typescript
@@ -672,7 +707,8 @@ The following features are intentionally **excluded** from V1 to keep the scope 
 - **Cloudflare D1 store** (requires a Worker pull/edge mode) — V2
 - **Sandboxed workers** (separate processes) — V2
 - **Built-in metrics/observability** (OpenTelemetry) — V2
-- **Job batching** (group N jobs into a single processing unit) — V2
+- ~~**Job batching** (group N jobs into a single processing unit)~~ — ✅ Implemented
+  (BatchProcessorFn)
 - **Groups** (grouped jobs with per-group rate limit/concurrency) — V2
 - **Observables** (jobs as observables, streamed cancellation) — V2
 - **Decoupled notification channels** (separate notifications from store, Option B) — V2
@@ -774,7 +810,7 @@ A **single test suite** that runs against **each store** to guarantee identical 
 ### Phase 4 — Advanced Features (V2)
 
 - [x] Job flows / dependencies (FlowProducer, parent-child trees, cross-queue, failure policies)
-- [ ] Job batching
+- [x] Job batching (BatchProcessorFn, per-job results, batch lock renewal)
 - [ ] Observables
 - [ ] Groups (per-group rate limit / concurrency)
 - [ ] OpenTelemetry integration
