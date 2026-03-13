@@ -14,7 +14,13 @@ import type {
   StoreInterface,
   WorkerOptions,
 } from '@conveyor/shared';
-import { calculateBackoff, createJobData, generateWorkerId, parseDelay } from '@conveyor/shared';
+import {
+  calculateBackoff,
+  createJobData,
+  generateId,
+  generateWorkerId,
+  parseDelay,
+} from '@conveyor/shared';
 import { Cron } from 'croner';
 import { EventBus } from './events.ts';
 import { Job } from './job.ts';
@@ -91,6 +97,9 @@ export class Worker<T = unknown> {
   ) {
     this.queueName = queueName;
     this.batchOptions = options.batch ?? null;
+    if (this.batchOptions && this.batchOptions.size < 1) {
+      throw new Error('batch.size must be >= 1');
+    }
     if (this.batchOptions) {
       this.processor = null;
       this.batchProcessor = processor as BatchProcessorFn<T>;
@@ -372,7 +381,7 @@ export class Worker<T = unknown> {
     const jobIds = jobs.map((j) => j.id);
 
     // Start a single lock renewal for all jobs in the batch
-    const batchKey = jobIds[0]!;
+    const batchKey = `batch-${generateId()}`;
     this.startBatchLockRenewal(batchKey, jobIds);
 
     // Emit active event per job
@@ -397,6 +406,12 @@ export class Worker<T = unknown> {
       const results: BatchResult[] = batchTimeout
         ? await this.withTimeout(processorPromise, batchTimeout)
         : await processorPromise;
+
+      if (results.length !== jobs.length) {
+        throw new Error(
+          `BatchProcessor returned ${results.length} results for ${jobs.length} jobs`,
+        );
+      }
 
       // Process individual results
       for (let i = 0; i < jobs.length; i++) {
