@@ -224,6 +224,17 @@ export interface QueueOptions {
   defaultJobOptions?: Partial<JobOptions>;
 }
 
+/** Configuration for batch processing. */
+export interface BatchOptions {
+  /** Number of jobs to collect per batch. */
+  size: number;
+}
+
+/** Result for a single job within a batch. */
+export type BatchResult =
+  | { status: 'completed'; value?: unknown }
+  | { status: 'failed'; error: Error };
+
 /** Rate limiter configuration for workers. */
 export interface LimiterOptions {
   /** Max jobs in the duration window. */
@@ -258,6 +269,9 @@ export interface WorkerOptions {
 
   /** LIFO mode: fetch most recently added job first (default: false). */
   lifo?: boolean;
+
+  /** Batch processing configuration. When set, the worker fetches multiple jobs per cycle. */
+  batch?: BatchOptions;
 }
 
 /** Event types emitted by the store (used for cross-process pub/sub). */
