@@ -771,18 +771,21 @@ A **single test suite** that runs against **each store** to guarantee identical 
 - [x] Native Node.js and Bun CI (tests run natively without Deno)
 - [x] Publish to JSR
 
-### Phase 4 — Ecosystem (V2)
+### Phase 4 — Advanced Features (V2)
 
 - [x] Job flows / dependencies (FlowProducer, parent-child trees, cross-queue, failure policies)
-- [ ] Web dashboard UI
+- [ ] Job batching
+- [ ] Observables
+- [ ] Groups (per-group rate limit / concurrency)
 - [ ] OpenTelemetry integration
+
+### Phase 5 — Tooling & Ecosystem
+
+- [ ] Web dashboard UI
+- [ ] Decoupled notification channels (Option B)
 - [ ] Redis store (if requested)
 - [ ] Cloudflare D1 store + Worker edge/pull mode
 - [ ] Sandboxed workers
-- [ ] Groups (per-group rate limit / concurrency)
-- [ ] Job batching
-- [ ] Observables
-- [ ] Decoupled notification channels (Option B)
 
 ---
 
