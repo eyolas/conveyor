@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { Queue, Worker } from '@conveyor/core';
-import type { BatchProcessorFn, BatchResult, Job } from '@conveyor/core';
+import type { BatchProcessorFn, Job } from '@conveyor/core';
 import { MemoryStore } from '@conveyor/store-memory';
 
 const queueName = 'batch-test-queue';
@@ -17,11 +17,11 @@ test('Worker processes a batch of jobs (all completed)', async () => {
   const queue = new Queue(queueName, { store });
 
   const processedNames: string[] = [];
-  const processor: BatchProcessorFn = async (jobs) => {
+  const processor: BatchProcessorFn = (jobs) => {
     for (const job of jobs) {
       processedNames.push(job.name);
     }
-    return jobs.map(() => ({ status: 'completed' as const, value: 'ok' }));
+    return Promise.resolve(jobs.map(() => ({ status: 'completed' as const, value: 'ok' })));
   };
 
   const worker = new Worker(queueName, processor, {
@@ -55,13 +55,13 @@ test('Per-job failure via BatchResult (some succeed, some fail)', async () => {
   const completedJobs: string[] = [];
   const failedJobs: string[] = [];
 
-  const processor: BatchProcessorFn = async (jobs) => {
-    return jobs.map((job) => {
+  const processor: BatchProcessorFn = (jobs) => {
+    return Promise.resolve(jobs.map((job) => {
       if (job.name === 'fail-me') {
         return { status: 'failed' as const, error: new Error('intentional') };
       }
       return { status: 'completed' as const, value: 'done' };
-    });
+    }));
   };
 
   const worker = new Worker(queueName, processor, {
@@ -104,8 +104,8 @@ test('Entire batch fails when processor throws', async () => {
 
   const failedJobs: string[] = [];
 
-  const processor: BatchProcessorFn = async () => {
-    throw new Error('batch explosion');
+  const processor: BatchProcessorFn = () => {
+    return Promise.reject(new Error('batch explosion'));
   };
 
   const worker = new Worker(queueName, processor, {
@@ -182,9 +182,9 @@ test('Rate limiter counts each job in batch', async () => {
 
   const batchSizes: number[] = [];
 
-  const processor: BatchProcessorFn = async (jobs) => {
+  const processor: BatchProcessorFn = (jobs) => {
     batchSizes.push(jobs.length);
-    return jobs.map(() => ({ status: 'completed' as const }));
+    return Promise.resolve(jobs.map(() => ({ status: 'completed' as const })));
   };
 
   const worker = new Worker(queueName, processor, {
@@ -221,8 +221,8 @@ test('Events emitted per-job (active, completed, failed)', async () => {
   const activeIds: string[] = [];
   const completedIds: string[] = [];
 
-  const processor: BatchProcessorFn = async (jobs) => {
-    return jobs.map(() => ({ status: 'completed' as const, value: 'y' }));
+  const processor: BatchProcessorFn = (jobs) => {
+    return Promise.resolve(jobs.map(() => ({ status: 'completed' as const, value: 'y' })));
   };
 
   const worker = new Worker(queueName, processor, {
@@ -264,9 +264,9 @@ test('Partial batch dispatched immediately (fewer jobs than batchSize)', async (
 
   const batchSizes: number[] = [];
 
-  const processor: BatchProcessorFn = async (jobs) => {
+  const processor: BatchProcessorFn = (jobs) => {
     batchSizes.push(jobs.length);
-    return jobs.map(() => ({ status: 'completed' as const }));
+    return Promise.resolve(jobs.map(() => ({ status: 'completed' as const })));
   };
 
   const worker = new Worker(queueName, processor, {
@@ -344,11 +344,11 @@ test('Batch respects job priorities', async () => {
 
   const processedNames: string[] = [];
 
-  const processor: BatchProcessorFn = async (jobs) => {
+  const processor: BatchProcessorFn = (jobs) => {
     for (const job of jobs) {
       processedNames.push(job.name);
     }
-    return jobs.map(() => ({ status: 'completed' as const }));
+    return Promise.resolve(jobs.map(() => ({ status: 'completed' as const })));
   };
 
   const worker = new Worker(queueName, processor, {
