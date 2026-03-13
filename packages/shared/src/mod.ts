@@ -8,6 +8,8 @@
 
 export type {
   BackoffOptions,
+  BatchOptions,
+  BatchResult,
   DeduplicationOptions,
   Delay,
   FetchOptions,

@@ -24,6 +24,8 @@
 // Re-export shared types
 export type {
   BackoffOptions,
+  BatchOptions,
+  BatchResult,
   DeduplicationOptions,
   Delay,
   FetchOptions,
@@ -62,4 +64,4 @@ export type { FlowProducerOptions } from './flow-producer.ts';
 export { Job } from './job.ts';
 export { Queue } from './queue.ts';
 export { Worker } from './worker.ts';
-export type { ProcessorFn } from './worker.ts';
+export type { BatchProcessorFn, ProcessorFn } from './worker.ts';

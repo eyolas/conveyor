@@ -6,13 +6,21 @@
  */
 
 import type {
+  BatchOptions,
+  BatchResult,
   JobData,
   LimiterOptions,
   QueueEventType,
   StoreInterface,
   WorkerOptions,
 } from '@conveyor/shared';
-import { calculateBackoff, createJobData, generateWorkerId, parseDelay } from '@conveyor/shared';
+import {
+  calculateBackoff,
+  createJobData,
+  generateId,
+  generateWorkerId,
+  parseDelay,
+} from '@conveyor/shared';
 import { Cron } from 'croner';
 import { EventBus } from './events.ts';
 import { Job } from './job.ts';
@@ -23,6 +31,13 @@ import { Job } from './job.ts';
  * @typeParam T - The type of the job payload.
  */
 export type ProcessorFn<T = unknown> = (job: Job<T>) => Promise<unknown>;
+
+/**
+ * A function that processes a batch of jobs and returns per-job results.
+ *
+ * @typeParam T - The type of the job payload.
+ */
+export type BatchProcessorFn<T = unknown> = (jobs: Job<T>[]) => Promise<BatchResult[]>;
 
 /**
  * A worker polls for jobs from a queue, locks them, and executes the
@@ -49,7 +64,9 @@ export class Worker<T = unknown> {
   readonly events: EventBus;
 
   private readonly store: StoreInterface;
-  private readonly processor: ProcessorFn<T>;
+  private readonly processor: ProcessorFn<T> | null;
+  private readonly batchProcessor: BatchProcessorFn<T> | null;
+  private readonly batchOptions: BatchOptions | null;
   private readonly concurrency: number;
   private readonly maxGlobalConcurrency: number | null;
   private readonly lockDuration: number;
@@ -75,11 +92,21 @@ export class Worker<T = unknown> {
    */
   constructor(
     queueName: string,
-    processor: ProcessorFn<T>,
+    processor: ProcessorFn<T> | BatchProcessorFn<T>,
     options: WorkerOptions,
   ) {
     this.queueName = queueName;
-    this.processor = processor;
+    this.batchOptions = options.batch ?? null;
+    if (this.batchOptions && this.batchOptions.size < 1) {
+      throw new Error('batch.size must be >= 1');
+    }
+    if (this.batchOptions) {
+      this.processor = null;
+      this.batchProcessor = processor as BatchProcessorFn<T>;
+    } else {
+      this.processor = processor as ProcessorFn<T>;
+      this.batchProcessor = null;
+    }
     this.store = options.store;
     this.id = generateWorkerId();
     this.events = new EventBus();
@@ -197,6 +224,11 @@ export class Worker<T = unknown> {
     // Promote delayed jobs once per poll cycle
     await this.store.promoteDelayedJobs(this.queueName, Date.now());
 
+    if (this.batchOptions) {
+      await this.fetchAndProcessBatch();
+      return;
+    }
+
     // Fetch up to available concurrency slots
     while (this.activeCount < this.concurrency && !this.closed && !this.paused) {
       // Check rate limiter
@@ -247,8 +279,8 @@ export class Worker<T = unknown> {
     try {
       // Set up timeout if configured
       const result = job.opts.timeout
-        ? await this.withTimeout(this.processor(job), job.opts.timeout)
-        : await this.processor(job);
+        ? await this.withTimeout(this.processor!(job), job.opts.timeout)
+        : await this.processor!(job);
 
       // Success
       await this.store.updateJob(this.queueName, job.id, {
@@ -302,6 +334,154 @@ export class Worker<T = unknown> {
       }
     } finally {
       this.stopLockRenewal(job.id);
+      this.activeCount--;
+    }
+  }
+
+  private async fetchAndProcessBatch(): Promise<void> {
+    const batchSize = this.batchOptions!.size;
+
+    while (this.activeCount < this.concurrency && !this.closed && !this.paused) {
+      const collected: JobData<T>[] = [];
+
+      for (let i = 0; i < batchSize; i++) {
+        if (this.closed || this.paused) break;
+        if (this.isRateLimited()) break;
+
+        if (this.maxGlobalConcurrency !== null) {
+          const globalActive = await this.store.getActiveCount(this.queueName);
+          if (globalActive >= this.maxGlobalConcurrency) break;
+        }
+
+        const jobData = await this.store.fetchNextJob(
+          this.queueName,
+          this.id,
+          this.lockDuration,
+          { lifo: this.lifo },
+        );
+
+        if (!jobData) break;
+
+        this.recordRateLimitTimestamp();
+        collected.push(jobData as JobData<T>);
+      }
+
+      if (collected.length === 0) break;
+
+      // Fire-and-forget — each batch counts as 1 concurrency unit
+      this.processBatch(collected).catch((err) => {
+        this.events.emit('error', err);
+      });
+    }
+  }
+
+  private async processBatch(jobDatas: JobData<T>[]): Promise<void> {
+    this.activeCount++;
+    const jobs = jobDatas.map((jd) => new Job<T>(jd, this.store));
+    const jobIds = jobs.map((j) => j.id);
+
+    // Start a single lock renewal for all jobs in the batch
+    const batchKey = `batch-${generateId()}`;
+    this.startBatchLockRenewal(batchKey, jobIds);
+
+    // Emit active event per job
+    for (const job of jobs) {
+      this.events.emit('active', job);
+      await this.store.publish({
+        type: 'job:active',
+        queueName: this.queueName,
+        jobId: job.id,
+        timestamp: new Date(),
+      });
+    }
+
+    try {
+      // Determine timeout (use minimum timeout across all jobs)
+      const timeouts = jobs
+        .map((j) => j.opts.timeout)
+        .filter((t): t is number => t !== undefined && t > 0);
+      const batchTimeout = timeouts.length > 0 ? Math.min(...timeouts) : undefined;
+
+      const processorPromise = this.batchProcessor!(jobs);
+      const results: BatchResult[] = batchTimeout
+        ? await this.withTimeout(processorPromise, batchTimeout)
+        : await processorPromise;
+
+      if (results.length !== jobs.length) {
+        throw new Error(
+          `BatchProcessor returned ${results.length} results for ${jobs.length} jobs`,
+        );
+      }
+
+      // Process individual results
+      for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i]!;
+        const jobData = jobDatas[i]!;
+        const result = results[i];
+
+        if (result?.status === 'completed') {
+          await this.store.updateJob(this.queueName, job.id, {
+            state: 'completed',
+            returnvalue: result.value,
+            completedAt: new Date(),
+            lockUntil: null,
+            lockedBy: null,
+          });
+
+          this.events.emit('completed', { job, result: result.value });
+          await this.store.publish({
+            type: 'job:completed',
+            queueName: this.queueName,
+            jobId: job.id,
+            timestamp: new Date(),
+          });
+
+          // Notify parent if child
+          if (jobData.parentId && jobData.parentQueueName) {
+            const parentState = await this.store.notifyChildCompleted(
+              jobData.parentQueueName,
+              jobData.parentId,
+            );
+            if (parentState === 'waiting') {
+              await this.store.publish({
+                type: 'job:waiting',
+                queueName: jobData.parentQueueName,
+                jobId: jobData.parentId,
+                timestamp: new Date(),
+              });
+            }
+          }
+
+          // Handle repeat
+          try {
+            await this.scheduleRepeat(job);
+          } catch (repeatErr) {
+            this.events.emit('error', repeatErr);
+          }
+
+          // Handle removeOnComplete
+          if (this.shouldRemove(job.opts.removeOnComplete)) {
+            await this.store.removeJob(this.queueName, job.id);
+          }
+        } else if (result?.status === 'failed') {
+          try {
+            await this.handleFailure(job, result.error);
+          } catch (failureErr) {
+            this.events.emit('error', failureErr);
+          }
+        }
+      }
+    } catch (err) {
+      // Processor threw — fail ALL jobs
+      for (const job of jobs) {
+        try {
+          await this.handleFailure(job, err as Error);
+        } catch (failureErr) {
+          this.events.emit('error', failureErr);
+        }
+      }
+    } finally {
+      this.stopBatchLockRenewal(batchKey, jobIds);
       this.activeCount--;
     }
   }
@@ -444,6 +624,32 @@ export class Worker<T = unknown> {
     const timer = this.lockRenewTimers.get(jobId);
     if (timer) {
       clearInterval(timer);
+      this.lockRenewTimers.delete(jobId);
+    }
+  }
+
+  private startBatchLockRenewal(batchKey: string, jobIds: string[]): void {
+    const interval = Math.floor(this.lockDuration / 2);
+    const timer = setInterval(async () => {
+      for (const jobId of jobIds) {
+        try {
+          await this.store.extendLock(this.queueName, jobId, this.lockDuration);
+        } catch {
+          // Individual lock extend failure is non-fatal for batch
+        }
+      }
+    }, interval);
+    this.lockRenewTimers.set(batchKey, timer);
+  }
+
+  private stopBatchLockRenewal(batchKey: string, jobIds: string[]): void {
+    const timer = this.lockRenewTimers.get(batchKey);
+    if (timer) {
+      clearInterval(timer);
+      this.lockRenewTimers.delete(batchKey);
+    }
+    // Also clean up any individual entries (defensive)
+    for (const jobId of jobIds) {
       this.lockRenewTimers.delete(jobId);
     }
   }
