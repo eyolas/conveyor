@@ -11,6 +11,7 @@ import type {
   JobData,
   LimiterOptions,
   QueueEventType,
+  StoreEventType,
   StoreInterface,
   WorkerOptions,
 } from '@conveyor/shared';
@@ -735,7 +736,7 @@ export class Worker<T = unknown> {
   // ─── Publish Helper ──────────────────────────────────────────────────
 
   private publishEvent(
-    type: QueueEventType,
+    type: StoreEventType,
     queueName: string,
     jobId: string,
   ): Promise<void> {
