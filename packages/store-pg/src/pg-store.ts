@@ -6,7 +6,7 @@ import type {
   StoreInterface,
   StoreOptions,
 } from '@conveyor/shared';
-import { generateId } from '@conveyor/shared';
+import { assertJobState, generateId } from '@conveyor/shared';
 import postgres from 'postgres';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
@@ -464,7 +464,7 @@ export class PgStore implements StoreInterface {
     `;
 
     if (rows.length === 0) return 'completed' as JobState;
-    return rows[0]!.state as JobState;
+    return assertJobState(rows[0]!.state as string);
   }
 
   async failParentOnChildFailure(

@@ -55,6 +55,8 @@ export class Job<T = unknown> {
 
   private readonly store: StoreInterface;
 
+  // ─── Constructor ──────────────────────────────────────────────────
+
   /**
    * @param jobData - The raw job data from the store.
    * @param store - The store instance for persistence operations.
@@ -85,6 +87,8 @@ export class Job<T = unknown> {
 
     this.store = store;
   }
+
+  // ─── Accessors ────────────────────────────────────────────────────
 
   /** Current state of the job. */
   get state(): JobState {
@@ -130,6 +134,8 @@ export class Job<T = unknown> {
   get logs(): string[] {
     return [...this._logs];
   }
+
+  // ─── Mutations ────────────────────────────────────────────────────
 
   /**
    * Update the job's progress and persist it to the store.
@@ -191,6 +197,8 @@ export class Job<T = unknown> {
   async remove(): Promise<void> {
     await this.store.removeJob(this.queueName, this.id);
   }
+
+  // ─── Queries ──────────────────────────────────────────────────────
 
   /**
    * Check if the job is completed (reads fresh state from the store).
@@ -259,6 +267,8 @@ export class Job<T = unknown> {
     }
     return result;
   }
+
+  // ─── Serialization ────────────────────────────────────────────────
 
   /**
    * Convert back to raw {@linkcode JobData}.

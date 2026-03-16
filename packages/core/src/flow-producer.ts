@@ -35,10 +35,14 @@ export interface FlowProducerOptions {
 export class FlowProducer {
   private readonly store: StoreInterface;
 
+  // ─── Constructor ──────────────────────────────────────────────────
+
   /** @param options - FlowProducer configuration (store). */
   constructor(options: FlowProducerOptions) {
     this.store = options.store;
   }
+
+  // ─── Public API ──────────────────────────────────────────────────
 
   /**
    * Add a flow tree to the store atomically.
@@ -78,6 +82,8 @@ export class FlowProducer {
 
     return this.buildResult(flowJob, idMap) as FlowResult<T>;
   }
+
+  // ─── Private Helpers ─────────────────────────────────────────────
 
   /**
    * Flatten the flow tree using DFS, children first.

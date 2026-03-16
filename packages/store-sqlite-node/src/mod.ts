@@ -4,9 +4,9 @@
  * SQLite store for Node.js, using `node:sqlite` (DatabaseSync, built-in 22.13+).
  */
 
-import { BaseSqliteStore } from '@conveyor/store-sqlite-core';
 import type { SqliteDatabase } from '@conveyor/store-sqlite-core';
 import type { StoreOptions } from '@conveyor/shared';
+import { BaseSqliteStore } from '@conveyor/store-sqlite-core';
 
 /**
  * Configuration options for {@linkcode SqliteStore}.

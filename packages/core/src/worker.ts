@@ -87,7 +87,7 @@ export class Worker<T = unknown> {
   private static readonly UNLOCK = { lockUntil: null, lockedBy: null } as const;
 
   /** Polling interval in ms. */
-  private readonly pollInterval = 1000;
+  private static readonly POLL_INTERVAL = 1_000;
 
   /**
    * @param queueName - The name of the queue to process.
@@ -221,7 +221,7 @@ export class Worker<T = unknown> {
         this.events.emit('error', err);
       }
       if (!this.closed) this.poll();
-    }, this.pollInterval);
+    }, Worker.POLL_INTERVAL);
   }
 
   private async fetchAndProcess(): Promise<void> {

@@ -4,9 +4,9 @@
  * SQLite store for Bun, using `bun:sqlite` (native, strict mode).
  */
 
-import { BaseSqliteStore } from '@conveyor/store-sqlite-core';
 import type { SqliteDatabase } from '@conveyor/store-sqlite-core';
 import type { StoreOptions } from '@conveyor/shared';
+import { BaseSqliteStore } from '@conveyor/store-sqlite-core';
 
 /**
  * Configuration options for {@linkcode SqliteStore}.
