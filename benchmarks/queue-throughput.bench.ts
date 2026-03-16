@@ -1,64 +1,103 @@
+/**
+ * @module Queue throughput benchmarks
+ *
+ * Measures add/addBulk throughput at various batch sizes for MemoryStore.
+ */
+
 import { Queue } from '@conveyor/core';
 import { MemoryStore } from '@conveyor/store-memory';
-import { createJobData } from '@conveyor/shared';
 
-const BATCH_SIZE = 1000;
+// ─── Single Add ─────────────────────────────────────────────────────────────
 
-Deno.bench(`add ${BATCH_SIZE} jobs (MemoryStore)`, async (b) => {
-  const store = new MemoryStore();
-  await store.connect();
-  const queue = new Queue('bench-add', { store });
+for (const count of [100, 500, 1_000]) {
+  Deno.bench({
+    name: `Queue.add × ${count}`,
+    group: 'queue-add',
+    async fn(b) {
+      const store = new MemoryStore();
+      await store.connect();
+      const queue = new Queue('bench-add', { store });
 
-  b.start();
-  for (let i = 0; i < BATCH_SIZE; i++) {
-    await queue.add('job', { i });
-  }
-  b.end();
+      b.start();
+      for (let i = 0; i < count; i++) {
+        await queue.add('job', { i });
+      }
+      b.end();
 
-  await queue.close();
-  await store.disconnect();
-});
+      await queue.close();
+      await store.disconnect();
+    },
+  });
+}
 
-Deno.bench(`addBulk ${BATCH_SIZE} jobs (MemoryStore)`, async (b) => {
-  const store = new MemoryStore();
-  await store.connect();
-  const queue = new Queue('bench-bulk', { store });
+// ─── Bulk Add ───────────────────────────────────────────────────────────────
 
-  const jobs = Array.from({ length: BATCH_SIZE }, (_, i) => ({
-    name: 'job',
-    data: { i },
-  }));
+for (const count of [100, 500, 1_000, 5_000]) {
+  Deno.bench({
+    name: `Queue.addBulk × ${count}`,
+    group: 'queue-addBulk',
+    async fn(b) {
+      const store = new MemoryStore();
+      await store.connect();
+      const queue = new Queue('bench-bulk', { store });
 
-  b.start();
-  await queue.addBulk(jobs);
-  b.end();
+      const jobs = Array.from({ length: count }, (_, i) => ({
+        name: 'job',
+        data: { i },
+      }));
 
-  await queue.close();
-  await store.disconnect();
-});
+      b.start();
+      await queue.addBulk(jobs);
+      b.end();
 
-Deno.bench(`process ${BATCH_SIZE} jobs via store (MemoryStore)`, async (b) => {
-  const store = new MemoryStore();
-  await store.connect();
-  const queueName = 'bench-process';
+      await queue.close();
+      await store.disconnect();
+    },
+  });
+}
 
-  // Pre-fill jobs
-  const jobs = Array.from({ length: BATCH_SIZE }, (_, i) => createJobData(queueName, 'job', { i }));
-  await store.saveBulk(queueName, jobs);
+// ─── Add vs AddBulk Comparison ──────────────────────────────────────────────
 
-  b.start();
-  for (let i = 0; i < BATCH_SIZE; i++) {
-    const job = await store.fetchNextJob(queueName, 'worker-bench', 30_000);
-    if (job) {
-      await store.updateJob(queueName, job.id, {
-        state: 'completed',
-        completedAt: new Date(),
-        lockUntil: null,
-        lockedBy: null,
-      });
+const COMPARE_SIZE = 500;
+
+Deno.bench({
+  name: `add × ${COMPARE_SIZE} (sequential)`,
+  group: 'add-vs-addBulk',
+  async fn(b) {
+    const store = new MemoryStore();
+    await store.connect();
+    const queue = new Queue('bench-cmp-add', { store });
+
+    b.start();
+    for (let i = 0; i < COMPARE_SIZE; i++) {
+      await queue.add('job', { i });
     }
-  }
-  b.end();
+    b.end();
 
-  await store.disconnect();
+    await queue.close();
+    await store.disconnect();
+  },
+});
+
+Deno.bench({
+  name: `addBulk × ${COMPARE_SIZE} (batch)`,
+  group: 'add-vs-addBulk',
+  baseline: true,
+  async fn(b) {
+    const store = new MemoryStore();
+    await store.connect();
+    const queue = new Queue('bench-cmp-bulk', { store });
+
+    const jobs = Array.from({ length: COMPARE_SIZE }, (_, i) => ({
+      name: 'job',
+      data: { i },
+    }));
+
+    b.start();
+    await queue.addBulk(jobs);
+    b.end();
+
+    await queue.close();
+    await store.disconnect();
+  },
 });
