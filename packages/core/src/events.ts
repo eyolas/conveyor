@@ -18,6 +18,8 @@ export class EventBus {
   private handlers = new Map<string, Set<EventHandler>>();
   private emittingError = false;
 
+  // ─── Subscribe / Unsubscribe ─────────────────────────────────────
+
   /**
    * Register an event handler.
    *
@@ -40,6 +42,8 @@ export class EventBus {
   off<T = unknown>(event: QueueEventType, handler: EventHandler<T>): void {
     this.handlers.get(event)?.delete(handler as EventHandler);
   }
+
+  // ─── Emit ────────────────────────────────────────────────────────
 
   /**
    * Emit an event to all registered handlers.
@@ -71,6 +75,8 @@ export class EventBus {
       }
     }
   }
+
+  // ─── Cleanup ─────────────────────────────────────────────────────
 
   /**
    * Remove all listeners for a specific event, or all events if none specified.

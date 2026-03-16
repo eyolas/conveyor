@@ -29,12 +29,18 @@
 
 ## Phase 3: Polish (low priority)
 
-- [ ] **10. Add section separators** in job.ts, flow-producer.ts, events.ts
-- [ ] **11. Fix import ordering** — `import type` before runtime imports in sqlite-node/bun/deno
+- [x] **10. Add section separators** in job.ts, flow-producer.ts, events.ts
+- [x] **11. Fix import ordering** — `import type` before runtime imports in sqlite-node/bun/deno
       mod.ts
-- [ ] **12. Rename `pollInterval` → `POLL_INTERVAL`** in worker.ts:86
-- [ ] **13. Validate state with `assertJobState()`** in pg-store:518-519
+- [x] **12. Rename `pollInterval` → `POLL_INTERVAL`** in worker.ts (static readonly)
+- [x] **13. Validate state with `assertJobState()`** in pg-store `notifyChildCompleted`
 
 ## Review
 
-<!-- To fill after implementation -->
+All 3 phases complete. 13 refactoring items delivered across core, shared, and store packages.
+
+- Phase 1 (critical): dedup helpers, unified fetchNextJob, structuredClone fixes
+- Phase 2 (medium): publishEvent helper, UNLOCK constant, unsafe SQL removal, clean() consolidation,
+  extractJobId, destructuring
+- Phase 3 (polish): section separators, import ordering, POLL_INTERVAL constant, assertJobState
+  validation

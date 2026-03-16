@@ -5,9 +5,9 @@
  * to `node:sqlite` (built-in on Deno 2.2+).
  */
 
-import { BaseSqliteStore } from '@conveyor/store-sqlite-core';
 import type { RunResult, SqliteDatabase, SqliteStatement } from '@conveyor/store-sqlite-core';
 import type { StoreOptions } from '@conveyor/shared';
+import { BaseSqliteStore } from '@conveyor/store-sqlite-core';
 
 /**
  * Configuration options for {@linkcode SqliteStore}.
