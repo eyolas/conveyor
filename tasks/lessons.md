@@ -29,3 +29,17 @@ definition of the helper method that was just added.
 **Rule:** After using `replace_all`, immediately verify the helper/target definition wasn't also
 replaced. When adding a new method and using `replace_all` to update call sites, add the method
 _after_ doing the replacement, or verify the method body is correct.
+
+## [2026-03-16] Keep `deno.json` and `package.json` deps in sync
+
+**What happened:** Upgraded vitest `^3` → `^4` in `deno.json` but forgot `package.json`. CI Node and
+Bun jobs kept running vitest 3 while Deno used v4.
+
+**Root cause:** This monorepo has two dependency manifests: `deno.json` (for Deno) and
+`package.json` (for Node/Bun via `npm install`/`bun install`). Updating one doesn't update the
+other.
+
+**Rule:** When upgrading a shared dev dependency, always update **both** `deno.json` and
+`package.json`, then regenerate all three lockfiles (`deno.lock`, `package-lock.json`, `bun.lockb`)
+and verify they resolve the same version. Use clean temp directories to generate npm/bun lockfiles
+since Deno's `node_modules/.deno` structure conflicts with `npm install`.

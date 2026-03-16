@@ -20,7 +20,7 @@
     "@conveyor/store-sqlite-bun": "./packages/store-sqlite-bun/src/mod.ts",
     "@conveyor/store-sqlite-deno": "./packages/store-sqlite-deno/src/mod.ts",
     "@db/sqlite": "jsr:@db/sqlite@^0.13",
-    "vitest": "npm:vitest@^3"
+    "vitest": "npm:vitest@^4"
   },
   "tasks": {
     "test": "deno -A npm:vitest run",
