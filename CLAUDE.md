@@ -1,7 +1,7 @@
 # Conveyor
 
 Multi-backend TypeScript job queue supporting PostgreSQL, SQLite, and in-memory stores. Deno 2
-monorepo with 8 workspace packages, published on JSR (v0.1.2).
+monorepo with 8 workspace packages, published on JSR (v0.2.0).
 
 BullMQ-like API without requiring Redis. See `prd.md` for full specs.
 

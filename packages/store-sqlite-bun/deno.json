@@ -1,10 +1,10 @@
 {
   "name": "@conveyor/store-sqlite-bun",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "exports": "./src/mod.ts",
   "imports": {
-    "@conveyor/shared": "jsr:@conveyor/shared@^0.1.0",
-    "@conveyor/store-sqlite-core": "jsr:@conveyor/store-sqlite-core@^0.1.0"
+    "@conveyor/shared": "jsr:@conveyor/shared@^0.2.0",
+    "@conveyor/store-sqlite-core": "jsr:@conveyor/store-sqlite-core@^0.2.0"
   },
   "publish": {
     "include": ["src/**/*.ts", "deno.json", "README.md", "LICENSE"]
