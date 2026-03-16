@@ -178,15 +178,7 @@ export class BaseSqliteStore implements StoreInterface {
 
         if (existing) {
           const matched = rowToJobData(existing);
-          const ttl = matched.opts.deduplication?.ttl;
-          if (ttl !== undefined && matched.createdAt) {
-            const expiresAt = matched.createdAt.getTime() + ttl;
-            if (expiresAt >= Date.now()) {
-              return matched.id;
-            }
-          } else {
-            return matched.id;
-          }
+          if (this.isDeduplicationValid(matched)) return matched.id;
         }
 
         // No valid dedup match — insert
@@ -227,14 +219,7 @@ export class BaseSqliteStore implements StoreInterface {
 
           if (existing) {
             const matched = rowToJobData(existing);
-            const ttl = matched.opts.deduplication?.ttl;
-            if (ttl !== undefined && matched.createdAt) {
-              const expiresAt = matched.createdAt.getTime() + ttl;
-              if (expiresAt >= Date.now()) {
-                ids.push(matched.id);
-                continue;
-              }
-            } else {
+            if (this.isDeduplicationValid(matched)) {
               ids.push(matched.id);
               continue;
             }
@@ -340,15 +325,7 @@ export class BaseSqliteStore implements StoreInterface {
     if (!row) return Promise.resolve(null);
 
     const job = rowToJobData(row);
-
-    // Check TTL
-    const ttl = job.opts.deduplication?.ttl;
-    if (ttl !== undefined && job.createdAt) {
-      const expiresAt = job.createdAt.getTime() + ttl;
-      if (expiresAt < Date.now()) return Promise.resolve(null);
-    }
-
-    return Promise.resolve(job);
+    return Promise.resolve(this.isDeduplicationValid(job) ? job : null);
   }
 
   // ─── Locking / Fetching ────────────────────────────────────────────
@@ -364,53 +341,23 @@ export class BaseSqliteStore implements StoreInterface {
     const lifo = opts?.lifo ?? false;
 
     const result = this.runTransaction(() => {
-      let candidate: { id: string } | undefined;
-
-      if (opts?.jobName) {
-        const stmt = lifo
-          ? this.db.prepare(`
-              SELECT id FROM conveyor_jobs
-              WHERE queue_name = ? AND state = 'waiting'
-                AND name = ?
-                AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
-                AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
-              ORDER BY priority ASC, seq DESC
-              LIMIT 1
-            `)
-          : this.db.prepare(`
-              SELECT id FROM conveyor_jobs
-              WHERE queue_name = ? AND state = 'waiting'
-                AND name = ?
-                AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
-                AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
-              ORDER BY priority ASC, seq ASC
-              LIMIT 1
-            `);
-        candidate = stmt.get(queueName, opts.jobName, queueName, queueName) as
-          | { id: string }
-          | undefined;
-      } else {
-        const stmt = lifo
-          ? this.db.prepare(`
-              SELECT id FROM conveyor_jobs
-              WHERE queue_name = ? AND state = 'waiting'
-                AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
-                AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
-              ORDER BY priority ASC, seq DESC
-              LIMIT 1
-            `)
-          : this.db.prepare(`
-              SELECT id FROM conveyor_jobs
-              WHERE queue_name = ? AND state = 'waiting'
-                AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
-                AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
-              ORDER BY priority ASC, seq ASC
-              LIMIT 1
-            `);
-        candidate = stmt.get(queueName, queueName, queueName) as
-          | { id: string }
-          | undefined;
-      }
+      const nameFilter = opts?.jobName ? 'AND name = ?' : '';
+      const order = lifo ? 'seq DESC' : 'seq ASC';
+      const query = `
+        SELECT id FROM conveyor_jobs
+        WHERE queue_name = ? AND state = 'waiting'
+          ${nameFilter}
+          AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+          AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
+        ORDER BY priority ASC, ${order}
+        LIMIT 1
+      `;
+      const params = opts?.jobName
+        ? [queueName, opts.jobName, queueName, queueName]
+        : [queueName, queueName, queueName];
+      const candidate = this.db.prepare(query).get(...params) as
+        | { id: string }
+        | undefined;
 
       if (!candidate) return null;
 
@@ -637,6 +584,20 @@ export class BaseSqliteStore implements StoreInterface {
       ORDER BY created_at ASC
     `).all(parentQueueName, parentId) as unknown as JobRow[];
     return Promise.resolve(rows.map(rowToJobData));
+  }
+
+  // ─── Helpers ────────────────────────────────────────────────────────
+
+  /**
+   * Check whether a deduplication match is still valid (TTL not expired).
+   * Assumes the job is already filtered to non-completed/non-failed states.
+   */
+  private isDeduplicationValid(job: JobData): boolean {
+    const ttl = job.opts.deduplication?.ttl;
+    if (ttl !== undefined && job.createdAt) {
+      return job.createdAt.getTime() + ttl >= Date.now();
+    }
+    return true;
   }
 
   // ─── Events ────────────────────────────────────────────────────────

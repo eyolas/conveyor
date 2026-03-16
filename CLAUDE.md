@@ -1,7 +1,7 @@
 # Conveyor
 
-Multi-backend TypeScript job queue supporting PostgreSQL, SQLite, and in-memory stores.
-Deno 2 monorepo with 8 workspace packages, published on JSR (v0.1.2).
+Multi-backend TypeScript job queue supporting PostgreSQL, SQLite, and in-memory stores. Deno 2
+monorepo with 8 workspace packages, published on JSR (v0.1.2).
 
 BullMQ-like API without requiring Redis. See `prd.md` for full specs.
 
@@ -12,20 +12,21 @@ BullMQ-like API without requiring Redis. See `prd.md` for full specs.
 - **Runtime agnostic**: Deno 2, Node.js 18+, and Bun first-class
 - **Type-safe**: strict TypeScript, generics on payloads
 - **Testable**: in-memory store makes tests fast and deterministic
-- **No runtime-specific APIs in core**: only Web Standards APIs (`setTimeout`, `EventTarget`, `crypto.randomUUID`)
+- **No runtime-specific APIs in core**: only Web Standards APIs (`setTimeout`, `EventTarget`,
+  `crypto.randomUUID`)
 
 ## Packages
 
-| Package | Path | Description |
-|---------|------|-------------|
-| `@conveyor/core` | `packages/core` | Queue, Worker, FlowProducer, events |
-| `@conveyor/shared` | `packages/shared` | Shared types, utils, StoreInterface |
-| `@conveyor/store-memory` | `packages/store-memory` | In-memory store |
-| `@conveyor/store-pg` | `packages/store-pg` | PostgreSQL store |
-| `@conveyor/store-sqlite-core` | `packages/store-sqlite-core` | SQLite base (shared logic) |
-| `@conveyor/store-sqlite-node` | `packages/store-sqlite-node` | SQLite for Node |
-| `@conveyor/store-sqlite-bun` | `packages/store-sqlite-bun` | SQLite for Bun |
-| `@conveyor/store-sqlite-deno` | `packages/store-sqlite-deno` | SQLite for Deno |
+| Package                       | Path                         | Description                         |
+| ----------------------------- | ---------------------------- | ----------------------------------- |
+| `@conveyor/core`              | `packages/core`              | Queue, Worker, FlowProducer, events |
+| `@conveyor/shared`            | `packages/shared`            | Shared types, utils, StoreInterface |
+| `@conveyor/store-memory`      | `packages/store-memory`      | In-memory store                     |
+| `@conveyor/store-pg`          | `packages/store-pg`          | PostgreSQL store                    |
+| `@conveyor/store-sqlite-core` | `packages/store-sqlite-core` | SQLite base (shared logic)          |
+| `@conveyor/store-sqlite-node` | `packages/store-sqlite-node` | SQLite for Node                     |
+| `@conveyor/store-sqlite-bun`  | `packages/store-sqlite-bun`  | SQLite for Bun                      |
+| `@conveyor/store-sqlite-deno` | `packages/store-sqlite-deno` | SQLite for Deno                     |
 
 ## Commands
 
@@ -45,6 +46,7 @@ deno task setup             # Set up git hooks
 ```
 
 PostgreSQL tests require a running database:
+
 ```bash
 docker-compose up -d  # Start PG container
 ```
@@ -59,14 +61,14 @@ docker-compose up -d  # Start PG container
 
 ### Naming
 
-| Element | Convention | Example |
-|---------|-----------|---------|
-| Classes | PascalCase | `Queue`, `Worker`, `MemoryStore` |
-| Functions/variables | camelCase | `parseDelay`, `createJobData` |
-| Constants | UPPER_SNAKE_CASE | `QUEUE_NAME_RE` |
-| Types/Interfaces | PascalCase, no `I` prefix | `JobData`, `StoreInterface` |
-| DB columns | snake_case | `queue_name`, `created_at` |
-| Files | kebab-case | `memory-store.ts` |
+| Element             | Convention                | Example                          |
+| ------------------- | ------------------------- | -------------------------------- |
+| Classes             | PascalCase                | `Queue`, `Worker`, `MemoryStore` |
+| Functions/variables | camelCase                 | `parseDelay`, `createJobData`    |
+| Constants           | UPPER_SNAKE_CASE          | `QUEUE_NAME_RE`                  |
+| Types/Interfaces    | PascalCase, no `I` prefix | `JobData`, `StoreInterface`      |
+| DB columns          | snake_case                | `queue_name`, `created_at`       |
+| Files               | kebab-case                | `memory-store.ts`                |
 
 ### Imports & Exports
 
@@ -115,10 +117,16 @@ docker-compose up -d  # Start PG container
 
 - `implements StoreInterface` (no abstract class except SQLite base)
 - Options extend `StoreOptions`
-- PG: tagged template literals, `SELECT ... FOR UPDATE SKIP LOCKED` for locking, `LISTEN/NOTIFY` for events
-- SQLite: prepared statements with named parameters, WAL mode + `BEGIN IMMEDIATE`, polling for events
+- PG: tagged template literals, `SELECT ... FOR UPDATE SKIP LOCKED` for locking, `LISTEN/NOTIFY` for
+  events
+- SQLite: prepared statements with named parameters, WAL mode + `BEGIN IMMEDIATE`, polling for
+  events
 - Memory: `Map` + mutex for locking, `EventEmitter` for events
 - Core never depends on a concrete driver — each store encapsulates its runtime-specific driver
+
+### Language
+
+- All code, comments, commit messages, documentation, and task files must be in **English**
 
 ### Commits
 
@@ -150,17 +158,20 @@ add() → [waiting] ──fetch──→ [active] ──success──→ [comple
 - **Deduplication**: payload hash or custom key with optional TTL
 - **Pause/Resume**: global or per job name
 - **Rate limiting**: sliding window (`max` jobs per `duration`)
-- **Events**: waiting, active, completed, failed, progress, stalled, delayed, removed, drained, paused, resumed, error
+- **Events**: waiting, active, completed, failed, progress, stalled, delayed, removed, drained,
+  paused, resumed, error
 
 ### Testing Strategy
 
-- **Conformance tests** (`tests/conformance/`): single suite that runs against every store to guarantee identical behavior
+- **Conformance tests** (`tests/conformance/`): single suite that runs against every store to
+  guarantee identical behavior
 - **Per-store tests**: store-specific integration tests
 - **Core tests** (`tests/core/`): unit tests with mock store
 
 ### Out of Scope (V1) — Planned for V2
 
-Flows/dependencies, web dashboard, Redis store, Cloudflare D1, sandboxed workers, OpenTelemetry, job batching, groups, observables, dead letter queue.
+Flows/dependencies, web dashboard, Redis store, Cloudflare D1, sandboxed workers, OpenTelemetry, job
+batching, groups, observables, dead letter queue.
 
 ## Workflow
 
