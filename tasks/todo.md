@@ -20,13 +20,12 @@
 
 ## Phase 2: Medium priority refactors
 
-- [ ] **4. Extract `publishEvent()` in worker.ts** — 17+ duplicated publish calls
-- [ ] **5. Extract unlock helper** `{ lockUntil: null, lockedBy: null }` — 7 occurrences in
-      worker.ts
-- [ ] **6. Replace `unsafe()` with tagged templates** in pg-store flow methods (lines 506-538)
-- [ ] **7. Refactor `clean()` in pg-store** — 3 near-identical DELETE statements (lines 458-478)
-- [ ] **8. Extract `extractJobId()` in pg-store** — verbose cast × 4
-- [ ] **9. Replace `delete nextOpts.jobId`** with destructuring in worker.ts:765
+- [x] **4. Extract `publishEvent()` in worker.ts** — 17+ duplicated publish calls
+- [x] **5. Extract unlock helper** `Worker.UNLOCK` — 7 occurrences in worker.ts
+- [x] **6. Replace `unsafe()` with tagged templates** in pg-store flow methods
+- [x] **7. Refactor `clean()` in pg-store** — 3 DELETE → 1 with dynamic column fragment
+- [x] **8. Extract `extractJobId()` in pg-store** — verbose cast × 4
+- [x] **9. Replace `delete nextOpts.jobId`** with destructuring in worker.ts
 
 ## Phase 3: Polish (low priority)
 
