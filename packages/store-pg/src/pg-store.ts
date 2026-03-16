@@ -112,7 +112,7 @@ export class PgStore implements StoreInterface {
         }
 
         // No valid dedup match — insert
-        const id = this.extractJobId(job);
+        const id = this.resolveJobId(job);
         await this.insertRow(tx, { ...job, id });
         return id;
       });
@@ -121,7 +121,7 @@ export class PgStore implements StoreInterface {
     }
 
     // No dedup key — simple insert
-    const id = this.extractJobId(job);
+    const id = this.resolveJobId(job);
     await this.insertRow(this.sql, { ...job, id });
     return id;
   }
@@ -153,7 +153,7 @@ export class PgStore implements StoreInterface {
           }
         }
 
-        const id = this.extractJobId(job);
+        const id = this.resolveJobId(job);
         await this.insertRow(tx, { ...job, id });
         ids.push(id);
       }
@@ -442,7 +442,7 @@ export class PgStore implements StoreInterface {
     return await this.sql.begin(async (tx) => {
       const ids: string[] = [];
       for (const entry of jobs) {
-        const id = this.extractJobId(entry.job);
+        const id = this.resolveJobId(entry.job);
         await this.insertRow(tx, { ...entry.job, id });
         ids.push(id);
       }
@@ -510,8 +510,8 @@ export class PgStore implements StoreInterface {
     return true;
   }
 
-  /** Extract an optional `id` from a job or generate a new one. */
-  private extractJobId(job: Omit<JobData, 'id'>): string {
+  /** Resolve the job ID: use the existing one if provided, otherwise generate a new one. */
+  private resolveJobId(job: Omit<JobData, 'id'>): string {
     return (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
   }
 
