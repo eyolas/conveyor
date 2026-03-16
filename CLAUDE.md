@@ -183,17 +183,19 @@ batching, groups, observables, dead letter queue.
 
 ### Task Management
 
-- Write plan to `tasks/todo.md` with checkable items (`- [ ]` / `- [x]`)
-- Check in before starting implementation
-- Mark items complete as you go
-- High-level summary at each step
-- Add review section to `tasks/todo.md` when done
+- Each initiative gets its own file in `tasks/` named after the feature (kebab-case)
+- Format: `tasks/<feature-name>.md` with checkable items (`- [ ]` / `- [x]`)
+- Add a `## Status` header at the top: `NOT STARTED`, `IN PROGRESS`, `DONE`
+- Add a `## Review` section when done (what worked, what didn't)
+- When starting work, check for an existing task file first
+- One active task file per agent/user to avoid conflicts
 
-### Self-Improvement Loop
+### Lessons Learned (shared)
 
-- After ANY correction from the user → update `tasks/lessons.md` with the pattern
-- Write rules to prevent the same mistake
-- Review `tasks/lessons.md` at session start
+- `tasks/lessons.md` tracks project-specific pitfalls shared across all users/agents
+- Review it at session start
+- After any correction → add the pattern to `tasks/lessons.md`
+- When a lesson becomes an established rule → promote it to `CLAUDE.md` and remove from lessons
 
 ### Verification Before Done
 
