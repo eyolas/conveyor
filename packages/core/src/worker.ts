@@ -82,6 +82,9 @@ export class Worker<T = unknown> {
   private stalledTimer: ReturnType<typeof setTimeout> | null = null;
   private lockRenewTimers = new Map<string, ReturnType<typeof setInterval>>();
 
+  /** Fields to clear when unlocking a job. */
+  private static readonly UNLOCK = { lockUntil: null, lockedBy: null } as const;
+
   /** Polling interval in ms. */
   private readonly pollInterval = 1000;
 
@@ -269,12 +272,7 @@ export class Worker<T = unknown> {
 
     // Emit active event
     this.events.emit('active', job);
-    await this.store.publish({
-      type: 'job:active',
-      queueName: this.queueName,
-      jobId: job.id,
-      timestamp: new Date(),
-    });
+    await this.publishEvent('job:active', this.queueName, job.id);
 
     try {
       // Set up timeout if configured
@@ -287,17 +285,11 @@ export class Worker<T = unknown> {
         state: 'completed',
         returnvalue: result,
         completedAt: new Date(),
-        lockUntil: null,
-        lockedBy: null,
+        ...Worker.UNLOCK,
       });
 
       this.events.emit('completed', { job, result });
-      await this.store.publish({
-        type: 'job:completed',
-        queueName: this.queueName,
-        jobId: job.id,
-        timestamp: new Date(),
-      });
+      await this.publishEvent('job:completed', this.queueName, job.id);
 
       // Notify parent if this is a child job
       if (jobData.parentId && jobData.parentQueueName) {
@@ -306,12 +298,7 @@ export class Worker<T = unknown> {
           jobData.parentId,
         );
         if (parentState === 'waiting') {
-          await this.store.publish({
-            type: 'job:waiting',
-            queueName: jobData.parentQueueName,
-            jobId: jobData.parentId,
-            timestamp: new Date(),
-          });
+          await this.publishEvent('job:waiting', jobData.parentQueueName, jobData.parentId);
         }
       }
 
@@ -387,12 +374,7 @@ export class Worker<T = unknown> {
     // Emit active event per job
     for (const job of jobs) {
       this.events.emit('active', job);
-      await this.store.publish({
-        type: 'job:active',
-        queueName: this.queueName,
-        jobId: job.id,
-        timestamp: new Date(),
-      });
+      await this.publishEvent('job:active', this.queueName, job.id);
     }
 
     try {
@@ -424,17 +406,11 @@ export class Worker<T = unknown> {
             state: 'completed',
             returnvalue: result.value,
             completedAt: new Date(),
-            lockUntil: null,
-            lockedBy: null,
+            ...Worker.UNLOCK,
           });
 
           this.events.emit('completed', { job, result: result.value });
-          await this.store.publish({
-            type: 'job:completed',
-            queueName: this.queueName,
-            jobId: job.id,
-            timestamp: new Date(),
-          });
+          await this.publishEvent('job:completed', this.queueName, job.id);
 
           // Notify parent if child
           if (jobData.parentId && jobData.parentQueueName) {
@@ -443,12 +419,7 @@ export class Worker<T = unknown> {
               jobData.parentId,
             );
             if (parentState === 'waiting') {
-              await this.store.publish({
-                type: 'job:waiting',
-                queueName: jobData.parentQueueName,
-                jobId: jobData.parentId,
-                timestamp: new Date(),
-              });
+              await this.publishEvent('job:waiting', jobData.parentQueueName, jobData.parentId);
             }
           }
 
@@ -503,8 +474,7 @@ export class Worker<T = unknown> {
           attemptsMade,
           failedReason: error.message,
           delayUntil,
-          lockUntil: null,
-          lockedBy: null,
+          ...Worker.UNLOCK,
         });
       } else {
         // Retry immediately (no backoff configured)
@@ -512,8 +482,7 @@ export class Worker<T = unknown> {
           state: 'waiting',
           attemptsMade,
           failedReason: error.message,
-          lockUntil: null,
-          lockedBy: null,
+          ...Worker.UNLOCK,
         });
       }
     } else {
@@ -523,17 +492,11 @@ export class Worker<T = unknown> {
         attemptsMade,
         failedReason: error.message,
         failedAt: new Date(),
-        lockUntil: null,
-        lockedBy: null,
+        ...Worker.UNLOCK,
       });
 
       this.events.emit('failed', { job, error });
-      await this.store.publish({
-        type: 'job:failed',
-        queueName: this.queueName,
-        jobId: job.id,
-        timestamp: new Date(),
-      });
+      await this.publishEvent('job:failed', this.queueName, job.id);
 
       // Notify parent of child failure
       const freshForParent = await this.store.getJob(this.queueName, job.id);
@@ -564,35 +527,20 @@ export class Worker<T = unknown> {
           childJob.failedReason ?? 'Unknown child failure',
         );
         if (failed) {
-          await this.store.publish({
-            type: 'job:failed',
-            queueName: parentQueueName,
-            jobId: parentId,
-            timestamp: new Date(),
-          });
+          await this.publishEvent('job:failed', parentQueueName, parentId);
         }
         break;
       }
       case 'ignore': {
         const parentState = await this.store.notifyChildCompleted(parentQueueName, parentId);
         if (parentState === 'waiting') {
-          await this.store.publish({
-            type: 'job:waiting',
-            queueName: parentQueueName,
-            jobId: parentId,
-            timestamp: new Date(),
-          });
+          await this.publishEvent('job:waiting', parentQueueName, parentId);
         }
         break;
       }
       case 'remove': {
         await this.store.removeJob(parentQueueName, parentId);
-        await this.store.publish({
-          type: 'job:removed',
-          queueName: parentQueueName,
-          jobId: parentId,
-          timestamp: new Date(),
-        });
+        await this.publishEvent('job:removed', parentQueueName, parentId);
         break;
       }
     }
@@ -677,20 +625,14 @@ export class Worker<T = unknown> {
               attemptsMade,
               failedReason: 'Job stalled and exceeded max attempts',
               failedAt: new Date(),
-              lockUntil: null,
-              lockedBy: null,
+              ...Worker.UNLOCK,
             });
 
             this.events.emit('failed', {
               job,
               error: new Error('Job stalled and exceeded max attempts'),
             });
-            await this.store.publish({
-              type: 'job:failed',
-              queueName: this.queueName,
-              jobId: job.id,
-              timestamp: new Date(),
-            });
+            await this.publishEvent('job:failed', this.queueName, job.id);
 
             // Notify parent of stalled child failure
             if (job.parentId && job.parentQueueName) {
@@ -704,18 +646,12 @@ export class Worker<T = unknown> {
             await this.store.updateJob(this.queueName, job.id, {
               state: 'waiting',
               attemptsMade,
-              lockUntil: null,
-              lockedBy: null,
+              ...Worker.UNLOCK,
             });
           }
 
           this.events.emit('stalled', job.id);
-          await this.store.publish({
-            type: 'job:stalled',
-            queueName: this.queueName,
-            jobId: job.id,
-            timestamp: new Date(),
-          });
+          await this.publishEvent('job:stalled', this.queueName, job.id);
         }
       } catch (err) {
         this.events.emit('error', err);
@@ -760,19 +696,13 @@ export class Worker<T = unknown> {
       nextRepeat.limit = nextRepeat.limit - 1;
     }
 
-    const nextOpts = { ...job.opts, repeat: nextRepeat, delay };
-    // Remove jobId to avoid duplicate ID conflicts
-    delete nextOpts.jobId;
+    const { jobId: _, ...restOpts } = job.opts;
+    const nextOpts = { ...restOpts, repeat: nextRepeat, delay };
 
     const nextJobData = createJobData(this.queueName, job.name, job.data, nextOpts);
     const id = await this.store.saveJob(this.queueName, nextJobData);
 
-    await this.store.publish({
-      type: 'job:delayed',
-      queueName: this.queueName,
-      jobId: id,
-      timestamp: new Date(),
-    });
+    await this.publishEvent('job:delayed', this.queueName, id);
   }
 
   // ─── Rate Limiting ─────────────────────────────────────────────────
@@ -800,6 +730,16 @@ export class Worker<T = unknown> {
       throw new Error(`Cron expression "${cronExpr}" has no future runs`);
     }
     return nextRun.getTime() - Date.now();
+  }
+
+  // ─── Publish Helper ──────────────────────────────────────────────────
+
+  private publishEvent(
+    type: QueueEventType,
+    queueName: string,
+    jobId: string,
+  ): Promise<void> {
+    return this.store.publish({ type, queueName, jobId, timestamp: new Date() });
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────

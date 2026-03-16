@@ -112,7 +112,7 @@ export class PgStore implements StoreInterface {
         }
 
         // No valid dedup match — insert
-        const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
+        const id = this.extractJobId(job);
         await this.insertRow(tx, { ...job, id });
         return id;
       });
@@ -121,7 +121,7 @@ export class PgStore implements StoreInterface {
     }
 
     // No dedup key — simple insert
-    const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
+    const id = this.extractJobId(job);
     await this.insertRow(this.sql, { ...job, id });
     return id;
   }
@@ -153,7 +153,7 @@ export class PgStore implements StoreInterface {
           }
         }
 
-        const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
+        const id = this.extractJobId(job);
         await this.insertRow(tx, { ...job, id });
         ids.push(id);
       }
@@ -410,30 +410,21 @@ export class PgStore implements StoreInterface {
 
   async clean(queueName: string, state: JobState, grace: number): Promise<number> {
     const cutoff = new Date(Date.now() - grace);
+    const tsCol = state === 'completed'
+      ? this.sql`completed_at`
+      : state === 'failed'
+      ? this.sql`failed_at`
+      : this.sql`created_at`;
+    const nullCheck = state === 'completed' || state === 'failed'
+      ? this.sql`AND ${tsCol} IS NOT NULL`
+      : this.sql``;
 
-    let rows;
-    if (state === 'completed') {
-      rows = await this.sql`
-        DELETE FROM conveyor_jobs
-        WHERE queue_name = ${queueName} AND state = ${state}
-          AND completed_at IS NOT NULL AND completed_at < ${cutoff}
-        RETURNING id
-      `;
-    } else if (state === 'failed') {
-      rows = await this.sql`
-        DELETE FROM conveyor_jobs
-        WHERE queue_name = ${queueName} AND state = ${state}
-          AND failed_at IS NOT NULL AND failed_at < ${cutoff}
-        RETURNING id
-      `;
-    } else {
-      rows = await this.sql`
-        DELETE FROM conveyor_jobs
-        WHERE queue_name = ${queueName} AND state = ${state}
-          AND created_at < ${cutoff}
-        RETURNING id
-      `;
-    }
+    const rows = await this.sql`
+      DELETE FROM conveyor_jobs
+      WHERE queue_name = ${queueName} AND state = ${state}
+        ${nullCheck} AND ${tsCol} < ${cutoff}
+      RETURNING id
+    `;
 
     return rows.length;
   }
@@ -451,7 +442,7 @@ export class PgStore implements StoreInterface {
     return await this.sql.begin(async (tx) => {
       const ids: string[] = [];
       for (const entry of jobs) {
-        const id = ((entry.job as Partial<Pick<JobData, 'id'>>).id) ?? generateId();
+        const id = this.extractJobId(entry.job);
         await this.insertRow(tx, { ...entry.job, id });
         ids.push(id);
       }
@@ -460,17 +451,17 @@ export class PgStore implements StoreInterface {
   }
 
   async notifyChildCompleted(parentQueueName: string, parentId: string): Promise<JobState> {
-    const rows = await this.sql.unsafe(
-      `UPDATE conveyor_jobs
-       SET pending_children_count = GREATEST(pending_children_count - 1, 0),
-           state = CASE
-             WHEN pending_children_count - 1 <= 0 THEN 'waiting'
-             ELSE state
-           END
-       WHERE queue_name = $1 AND id = $2 AND state = 'waiting-children'
-       RETURNING state`,
-      [parentQueueName, parentId],
-    ) as { state: string }[];
+    const rows = await this.sql<{ state: string }[]>`
+      UPDATE conveyor_jobs
+      SET pending_children_count = GREATEST(pending_children_count - 1, 0),
+          state = CASE
+            WHEN pending_children_count - 1 <= 0 THEN 'waiting'
+            ELSE state
+          END
+      WHERE queue_name = ${parentQueueName} AND id = ${parentId}
+        AND state = 'waiting-children'
+      RETURNING state
+    `;
 
     if (rows.length === 0) return 'completed' as JobState;
     return rows[0]!.state as JobState;
@@ -481,18 +472,18 @@ export class PgStore implements StoreInterface {
     parentId: string,
     reason: string,
   ): Promise<boolean> {
-    const rows = await this.sql.unsafe(
-      `UPDATE conveyor_jobs
-       SET state = 'failed',
-           failed_reason = $3,
-           failed_at = NOW(),
-           lock_until = NULL,
-           locked_by = NULL
-       WHERE queue_name = $1 AND id = $2
-         AND state IN ('waiting-children', 'waiting')
-       RETURNING id`,
-      [parentQueueName, parentId, `Child failed: ${reason}`],
-    );
+    const failedReason = `Child failed: ${reason}`;
+    const rows = await this.sql`
+      UPDATE conveyor_jobs
+      SET state = 'failed',
+          failed_reason = ${failedReason},
+          failed_at = NOW(),
+          lock_until = NULL,
+          locked_by = NULL
+      WHERE queue_name = ${parentQueueName} AND id = ${parentId}
+        AND state IN ('waiting-children', 'waiting')
+      RETURNING id
+    `;
     return rows.length > 0;
   }
 
@@ -517,6 +508,11 @@ export class PgStore implements StoreInterface {
       return job.createdAt.getTime() + ttl >= Date.now();
     }
     return true;
+  }
+
+  /** Extract an optional `id` from a job or generate a new one. */
+  private extractJobId(job: Omit<JobData, 'id'>): string {
+    return (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
   }
 
   private async insertRow(
