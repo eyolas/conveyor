@@ -71,23 +71,10 @@ export class MemoryStore implements StoreInterface {
   // ─── Jobs CRUD ─────────────────────────────────────────────────────
 
   saveJob(queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
-    // Atomic dedup check: if the job has a deduplicationKey, check for existing match
     const dedupKey = (job as JobData).deduplicationKey;
     if (dedupKey) {
-      const queue = this.getQueue(queueName);
-      const now = Date.now();
-      for (const existing of queue.values()) {
-        if (existing.deduplicationKey === dedupKey) {
-          const ttl = existing.opts.deduplication?.ttl;
-          if (ttl !== undefined && existing.createdAt) {
-            const expiresAt = existing.createdAt.getTime() + ttl;
-            if (expiresAt < now) continue; // TTL expired, skip
-          }
-          if (existing.state !== 'completed' && existing.state !== 'failed') {
-            return Promise.resolve(existing.id);
-          }
-        }
-      }
+      const match = this.findActiveDedupMatch(queueName, dedupKey);
+      if (match) return Promise.resolve(match.id);
     }
 
     const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
@@ -137,25 +124,8 @@ export class MemoryStore implements StoreInterface {
     queueName: string,
     key: string,
   ): Promise<JobData | null> {
-    const queue = this.getQueue(queueName);
-    const now = Date.now();
-    for (const job of queue.values()) {
-      if (job.deduplicationKey === key) {
-        // Check TTL expiration
-        const ttl = job.opts.deduplication?.ttl;
-        if (ttl !== undefined && job.createdAt) {
-          const expiresAt = job.createdAt.getTime() + ttl;
-          if (expiresAt < now) {
-            continue; // TTL expired, skip this job
-          }
-        }
-        // Check if still active (not completed/failed)
-        if (job.state !== 'completed' && job.state !== 'failed') {
-          return Promise.resolve(structuredClone(job));
-        }
-      }
-    }
-    return Promise.resolve(null);
+    const match = this.findActiveDedupMatch(queueName, key);
+    return Promise.resolve(match ? structuredClone(match) : null);
   }
 
   // ─── Locking / Fetching ────────────────────────────────────────────
@@ -220,21 +190,27 @@ export class MemoryStore implements StoreInterface {
     const job = this.getQueue(queueName).get(jobId);
     if (!job || job.state !== 'active') return Promise.resolve(false);
 
-    this.getQueue(queueName).set(jobId, {
-      ...job,
-      lockUntil: new Date(Date.now() + duration),
-    });
+    this.getQueue(queueName).set(
+      jobId,
+      structuredClone({
+        ...job,
+        lockUntil: new Date(Date.now() + duration),
+      }),
+    );
     return Promise.resolve(true);
   }
 
   releaseLock(queueName: string, jobId: string): Promise<void> {
     const job = this.getQueue(queueName).get(jobId);
     if (job) {
-      this.getQueue(queueName).set(jobId, {
-        ...job,
-        lockUntil: null,
-        lockedBy: null,
-      });
+      this.getQueue(queueName).set(
+        jobId,
+        structuredClone({
+          ...job,
+          lockUntil: null,
+          lockedBy: null,
+        }),
+      );
     }
     return Promise.resolve();
   }
@@ -263,7 +239,7 @@ export class MemoryStore implements StoreInterface {
       .filter((job) => job.state === state)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-    return Promise.resolve(filtered.slice(start, end));
+    return Promise.resolve(filtered.slice(start, end).map((j) => structuredClone(j)));
   }
 
   countJobs(queueName: string, state: JobState): Promise<number> {
@@ -349,7 +325,7 @@ export class MemoryStore implements StoreInterface {
         job.lockUntil &&
         job.lockUntil.getTime() < now
       ) {
-        stalled.push(job);
+        stalled.push(structuredClone(job));
       }
     }
 
@@ -415,12 +391,18 @@ export class MemoryStore implements StoreInterface {
 
     const newCount = parent.pendingChildrenCount - 1;
     if (newCount <= 0) {
-      queue.set(parentId, { ...parent, pendingChildrenCount: 0, state: 'waiting' });
-      return Promise.resolve('waiting' as JobState);
+      const updated = structuredClone({
+        ...parent,
+        pendingChildrenCount: 0,
+        state: 'waiting' as JobState,
+      });
+      queue.set(parentId, updated);
+      return Promise.resolve(updated.state);
     }
 
-    queue.set(parentId, { ...parent, pendingChildrenCount: newCount });
-    return Promise.resolve(parent.state);
+    const updated = structuredClone({ ...parent, pendingChildrenCount: newCount });
+    queue.set(parentId, updated);
+    return Promise.resolve(updated.state);
   }
 
   failParentOnChildFailure(
@@ -432,14 +414,17 @@ export class MemoryStore implements StoreInterface {
     const parent = queue.get(parentId);
     if (!parent) return Promise.resolve(false);
 
-    queue.set(parentId, {
-      ...parent,
-      state: 'failed',
-      failedReason: `Child failed: ${reason}`,
-      failedAt: new Date(),
-      lockUntil: null,
-      lockedBy: null,
-    });
+    queue.set(
+      parentId,
+      structuredClone({
+        ...parent,
+        state: 'failed' as JobState,
+        failedReason: `Child failed: ${reason}`,
+        failedAt: new Date(),
+        lockUntil: null,
+        lockedBy: null,
+      }),
+    );
     return Promise.resolve(true);
   }
 
@@ -494,6 +479,28 @@ export class MemoryStore implements StoreInterface {
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────
+
+  /**
+   * Find an active (non-completed/failed) job matching the given deduplication key,
+   * respecting optional TTL expiration.
+   */
+  private findActiveDedupMatch(queueName: string, dedupKey: string): JobData | null {
+    const queue = this.getQueue(queueName);
+    const now = Date.now();
+    for (const job of queue.values()) {
+      if (job.deduplicationKey !== dedupKey) continue;
+      if (job.state === 'completed' || job.state === 'failed') continue;
+
+      const ttl = job.opts.deduplication?.ttl;
+      if (ttl !== undefined && job.createdAt) {
+        const expiresAt = job.createdAt.getTime() + ttl;
+        if (expiresAt < now) continue; // TTL expired
+      }
+
+      return job;
+    }
+    return null;
+  }
 
   private getQueue(queueName: string): Map<string, JobData> {
     if (!this.jobs.has(queueName)) {

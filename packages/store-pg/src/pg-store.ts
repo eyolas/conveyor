@@ -108,15 +108,7 @@ export class PgStore implements StoreInterface {
 
         if (existing.length > 0) {
           const matched = rowToJobData(existing[0]!);
-          const ttl = matched.opts.deduplication?.ttl;
-          if (ttl !== undefined && matched.createdAt) {
-            const expiresAt = matched.createdAt.getTime() + ttl;
-            if (expiresAt >= Date.now()) {
-              return matched.id;
-            }
-          } else {
-            return matched.id;
-          }
+          if (this.isDeduplicationValid(matched)) return matched.id;
         }
 
         // No valid dedup match — insert
@@ -154,14 +146,7 @@ export class PgStore implements StoreInterface {
 
           if (existing.length > 0) {
             const matched = rowToJobData(existing[0]!);
-            const ttl = matched.opts.deduplication?.ttl;
-            if (ttl !== undefined && matched.createdAt) {
-              const expiresAt = matched.createdAt.getTime() + ttl;
-              if (expiresAt >= Date.now()) {
-                ids.push(matched.id);
-                continue;
-              }
-            } else {
+            if (this.isDeduplicationValid(matched)) {
               ids.push(matched.id);
               continue;
             }
@@ -257,15 +242,7 @@ export class PgStore implements StoreInterface {
     if (rows.length === 0) return null;
 
     const job = rowToJobData(rows[0]!);
-
-    // Check TTL
-    const ttl = job.opts.deduplication?.ttl;
-    if (ttl !== undefined && job.createdAt) {
-      const expiresAt = job.createdAt.getTime() + ttl;
-      if (expiresAt < Date.now()) return null;
-    }
-
-    return job;
+    return this.isDeduplicationValid(job) ? job : null;
   }
 
   // ─── Locking / Fetching ────────────────────────────────────────────
@@ -281,45 +258,25 @@ export class PgStore implements StoreInterface {
     const orderFrag = opts?.lifo
       ? this.sql`priority ASC, seq DESC`
       : this.sql`priority ASC, seq ASC`;
+    const nameFilter = opts?.jobName ? this.sql`AND name = ${opts.jobName}` : this.sql``;
 
-    let rows: JobRow[];
-
-    if (opts?.jobName) {
-      rows = await this.sql<JobRow[]>`
-        WITH next_job AS (
-          SELECT id FROM conveyor_jobs
-          WHERE queue_name = ${queueName} AND state = 'waiting'
-            AND name = ${opts.jobName}
-            AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ${queueName})
-            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ${queueName} AND job_name = '__all__')
-          ORDER BY ${orderFrag}
-          LIMIT 1
-          FOR UPDATE SKIP LOCKED
-        )
-        UPDATE conveyor_jobs
-        SET state = 'active', processed_at = ${now}, lock_until = ${lockUntil}, locked_by = ${workerId}
-        FROM next_job
-        WHERE conveyor_jobs.queue_name = ${queueName} AND conveyor_jobs.id = next_job.id
-        RETURNING conveyor_jobs.*
-      `;
-    } else {
-      rows = await this.sql<JobRow[]>`
-        WITH next_job AS (
-          SELECT id FROM conveyor_jobs
-          WHERE queue_name = ${queueName} AND state = 'waiting'
-            AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ${queueName})
-            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ${queueName} AND job_name = '__all__')
-          ORDER BY ${orderFrag}
-          LIMIT 1
-          FOR UPDATE SKIP LOCKED
-        )
-        UPDATE conveyor_jobs
-        SET state = 'active', processed_at = ${now}, lock_until = ${lockUntil}, locked_by = ${workerId}
-        FROM next_job
-        WHERE conveyor_jobs.queue_name = ${queueName} AND conveyor_jobs.id = next_job.id
-        RETURNING conveyor_jobs.*
-      `;
-    }
+    const rows = await this.sql<JobRow[]>`
+      WITH next_job AS (
+        SELECT id FROM conveyor_jobs
+        WHERE queue_name = ${queueName} AND state = 'waiting'
+          ${nameFilter}
+          AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ${queueName})
+          AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ${queueName} AND job_name = '__all__')
+        ORDER BY ${orderFrag}
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      )
+      UPDATE conveyor_jobs
+      SET state = 'active', processed_at = ${now}, lock_until = ${lockUntil}, locked_by = ${workerId}
+      FROM next_job
+      WHERE conveyor_jobs.queue_name = ${queueName} AND conveyor_jobs.id = next_job.id
+      RETURNING conveyor_jobs.*
+    `;
 
     if (rows.length === 0) return null;
     return rowToJobData(rows[0]!);
@@ -549,6 +506,18 @@ export class PgStore implements StoreInterface {
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────
+
+  /**
+   * Check whether a deduplication match is still valid (TTL not expired).
+   * Assumes the job is already filtered to non-completed/non-failed states.
+   */
+  private isDeduplicationValid(job: JobData): boolean {
+    const ttl = job.opts.deduplication?.ttl;
+    if (ttl !== undefined && job.createdAt) {
+      return job.createdAt.getTime() + ttl >= Date.now();
+    }
+    return true;
+  }
 
   private async insertRow(
     conn: postgres.Sql | postgres.TransactionSql,
