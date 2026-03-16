@@ -75,7 +75,20 @@ roadmap:
       opentelemetry:
         status: todo
 
-  phase-5-tooling-ecosystem:
+  phase-5-documentation-website:
+    description: "Documentation site, getting started guide, BullMQ migration guide, store comparison"
+    status: todo
+    items:
+      documentation-site:
+        status: todo
+      getting-started-guide:
+        status: todo
+      bullmq-migration-guide:
+        status: todo
+      store-comparison-guide:
+        status: todo
+
+  phase-6-tooling-ecosystem:
     description: "Web dashboard, decoupled notifications, sandboxed workers"
     status: todo
     items:

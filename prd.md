@@ -707,12 +707,13 @@ The following features are intentionally **excluded** from V1 to keep the scope 
 
 ### Planned for V2 (in roadmap)
 
-- **Dashboard/Web UI** — Phase 5
-- **Sandboxed workers** (separate processes) — Phase 5
+- **Dashboard/Web UI** — Phase 6
+- **Sandboxed workers** (separate processes) — Phase 6
 - **Built-in metrics/observability** (OpenTelemetry) — Phase 4
 - **Groups** (grouped jobs with per-group rate limit/concurrency) — Phase 4
 - **Observables** (jobs as observables, streamed cancellation) — Phase 4
-- **Decoupled notification channels** (separate notifications from store, Option B) — Phase 5
+- **Documentation website** (API reference, guides, examples) — Phase 5
+- **Decoupled notification channels** (separate notifications from store, Option B) — Phase 6
 
 ### Under consideration (thinking)
 
@@ -821,7 +822,14 @@ A **single test suite** that runs against **each store** to guarantee identical 
 - [ ] Groups (per-group rate limit / concurrency)
 - [ ] OpenTelemetry integration
 
-### Phase 5 — Tooling & Ecosystem
+### Phase 5 — Documentation Website
+
+- [ ] Documentation site (API reference, guides, examples)
+- [ ] Getting started guide
+- [ ] Migration guide from BullMQ
+- [ ] Store comparison guide (which store for which use case)
+
+### Phase 6 — Tooling & Ecosystem
 
 - [ ] Web dashboard UI
 - [ ] Decoupled notification channels (Option B)
