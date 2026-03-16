@@ -1,0 +1,87 @@
+# Conveyor — Project Status
+# This file is the single source of truth for task and roadmap status.
+#
+# Roadmap & task lifecycle:
+#   todo → planned → in-progress → done
+#
+#   todo          No task file yet, just an idea in the roadmap
+#   planned       Task file created with detailed plan, ready for dev
+#   in-progress   Actively being worked on
+#   done          Completed and verified
+#
+# Thinking lifecycle (ideas not yet in roadmap):
+#   thinking → accepted | abandoned
+#
+#   thinking      Idea under consideration, needs discussion/analysis
+#   accepted      Idea validated → moved to roadmap as todo
+#   abandoned     Idea rejected with reason
+
+# ─── Thinking (ideas under consideration) ─────────────────────────────────────
+
+thinking:
+  redis-store:
+    description: Redis store adapter — ironic but could appeal to BullMQ migrators
+    status: thinking
+
+  cloudflare-d1:
+    description: Cloudflare D1 store + Worker edge/pull mode for serverless
+    status: thinking
+
+  dead-letter-queue:
+    description: Dead letter queue for permanently failed jobs
+    status: thinking
+
+# ─── Tasks ────────────────────────────────────────────────────────────────────
+
+tasks:
+  code-cleanup:
+    description: Refactoring & code cleanup (13 items across 3 phases)
+    status: done
+    file: tasks/code-cleanup.md
+
+  observables:
+    description: Job observation, streamed cancellation, AbortSignal support
+    status: planned
+    file: tasks/observables.md
+
+# ─── PRD Roadmap ──────────────────────────────────────────────────────────────
+
+roadmap:
+  phase-1-foundation:
+    description: "Deno 2 monorepo, Queue, Worker, Job, Events, MemoryStore, FIFO/LIFO, scheduling, dedup, pause/resume, conformance tests, docs"
+    status: done
+
+  phase-2-persistent-stores:
+    description: "PostgreSQL & SQLite adapters, migrations, global concurrency, integration tests"
+    status: done
+
+  phase-3-production-ready:
+    description: "Rate limiting, graceful shutdown, repeated jobs, README, logo, benchmarks, native Node/Bun CI, JSR publish"
+    status: done
+
+  phase-4-advanced-features:
+    description: "Flows/dependencies, job batching, observables, groups, OpenTelemetry"
+    status: in-progress
+    items:
+      flows:
+        status: done
+      batching:
+        status: done
+      observables:
+        status: planned
+        file: tasks/observables.md
+      groups:
+        status: todo
+      opentelemetry:
+        status: todo
+
+  phase-5-tooling-ecosystem:
+    description: "Web dashboard, decoupled notifications, sandboxed workers"
+    status: todo
+    items:
+      web-dashboard:
+        status: todo
+      decoupled-notifications:
+        status: todo
+      sandboxed-workers:
+        status: todo

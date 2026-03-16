@@ -183,11 +183,25 @@ batching, groups, observables, dead letter queue.
 
 ### Task Management
 
+- **`tasks/status.yml`** is the index of all tasks, roadmap phases, and ideas. Check it first to
+  know where things stand.
+- Roadmap & task lifecycle: `todo` → `planned` → `in-progress` → `done`
+  - `todo`: idea in the roadmap, no task file yet
+  - `planned`: task file created with detailed plan, ready for dev
+  - `in-progress`: actively being worked on
+  - `done`: completed and verified
+- Thinking lifecycle (ideas not yet in roadmap): `thinking` → `accepted` | `abandoned`
+  - `thinking`: idea under consideration, needs discussion or analysis
+  - `accepted`: validated → move to roadmap as `todo` (add to the relevant phase)
+  - `abandoned`: rejected, keep with a `reason:` for traceability
+- If a roadmap item has no `file:` link, propose creating a task file for it (plan the work, break
+  it into phases/checkboxes). Once the task file is created, set its status to `planned`.
 - Each initiative gets its own file in `tasks/` named after the feature (kebab-case)
 - Format: `tasks/<feature-name>.md` with checkable items (`- [ ]` / `- [x]`)
-- Add a `## Status` header at the top: `NOT STARTED`, `IN PROGRESS`, `DONE`
+- Add a `## Status` header at the top matching the status in `status.yml`
 - Add a `## Review` section when done (what worked, what didn't)
-- When starting work, check for an existing task file first
+- When starting work, check `tasks/status.yml` and existing task files first
+- When changing a task status, update **both** the task file and `tasks/status.yml`
 - One active task file per agent/user to avoid conflicts
 
 ### Lessons Learned (shared)

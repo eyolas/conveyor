@@ -702,17 +702,23 @@ await queue.close();
 The following features are intentionally **excluded** from V1 to keep the scope manageable:
 
 - ~~**Flows/dependencies** (job A depends on job B)~~ — ✅ Implemented (FlowProducer)
-- **Dashboard/Web UI** — V2
-- **Redis Store** (ironic) — V2 if requested by the community
-- **Cloudflare D1 store** (requires a Worker pull/edge mode) — V2
-- **Sandboxed workers** (separate processes) — V2
-- **Built-in metrics/observability** (OpenTelemetry) — V2
 - ~~**Job batching** (group N jobs into a single processing unit)~~ — ✅ Implemented
   (BatchProcessorFn)
-- **Groups** (grouped jobs with per-group rate limit/concurrency) — V2
-- **Observables** (jobs as observables, streamed cancellation) — V2
-- **Decoupled notification channels** (separate notifications from store, Option B) — V2
-- **Dead letter queue** — V2
+
+### Planned for V2 (in roadmap)
+
+- **Dashboard/Web UI** — Phase 5
+- **Sandboxed workers** (separate processes) — Phase 5
+- **Built-in metrics/observability** (OpenTelemetry) — Phase 4
+- **Groups** (grouped jobs with per-group rate limit/concurrency) — Phase 4
+- **Observables** (jobs as observables, streamed cancellation) — Phase 4
+- **Decoupled notification channels** (separate notifications from store, Option B) — Phase 5
+
+### Under consideration (thinking)
+
+- **Redis Store** (ironic) — if requested by the community
+- **Cloudflare D1 store** (requires a Worker pull/edge mode)
+- **Dead letter queue** — for permanently failed jobs
 
 ---
 
@@ -819,8 +825,6 @@ A **single test suite** that runs against **each store** to guarantee identical 
 
 - [ ] Web dashboard UI
 - [ ] Decoupled notification channels (Option B)
-- [ ] Redis store (if requested)
-- [ ] Cloudflare D1 store + Worker edge/pull mode
 - [ ] Sandboxed workers
 
 ---
