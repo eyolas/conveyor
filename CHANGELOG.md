@@ -2,6 +2,71 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-03-16
+
+### Features
+
+- **bench**: Comprehensive benchmark suite with report generator
+  (#21)([6295f69](https://github.com/eyolas/conveyor/commit/6295f697f351791b91e336a6c2620aeea17db3b0))
+- **core**: Add job batching support to Worker
+  (#17)([ecabaf7](https://github.com/eyolas/conveyor/commit/ecabaf7371d382b404a55d2430957e5f1314c958))
+- Add job flows and parent-child dependencies
+  (#12)([4f1c602](https://github.com/eyolas/conveyor/commit/4f1c6028cd16b8ddf79124ce53e3df56a2bcf8ea))
+
+### Bug Fixes
+
+- **ci**: Skip changelog commit when nothing
+  changed([22741e4](https://github.com/eyolas/conveyor/commit/22741e4eb483d324544fa050fd09ec803c31fa31))
+- **core**: Use StoreEventType instead of QueueEventType in publishEvent
+  helper([cd1b685](https://github.com/eyolas/conveyor/commit/cd1b685e72cd9348092be335751b431f3396f486))
+- **test**: Replace .resolves.not.toThrow() with plain await for bun test
+  compatibility([a3be878](https://github.com/eyolas/conveyor/commit/a3be878cb7ac7c0d2c272b295da15b7d541d8aab))
+- **test**: Fix formatting, lint, and remove non-portable conformance
+  test([69544d5](https://github.com/eyolas/conveyor/commit/69544d52e0fe0b185c9b3263f405560e8306acee))
+- **test**: Cast invalid parseDelay args to satisfy type
+  checker([438b70d](https://github.com/eyolas/conveyor/commit/438b70d5f431c5ba98a99a58e71f89c1dfd9d25b))
+
+### Refactoring
+
+- Complete code cleanup phase 3 (polish)
+  (#20)([42e99cd](https://github.com/eyolas/conveyor/commit/42e99cd4c3f0d9ed8582ed96aa783aa7bb430727))
+- **store-pg**: Rename extractJobId to resolveJobId for
+  clarity([72ed509](https://github.com/eyolas/conveyor/commit/72ed5096ca77e453474147337544d91097c64c3d))
+- **core,store-pg**: Extract helpers, replace unsafe SQL, clean up
+  patterns([e58e45f](https://github.com/eyolas/conveyor/commit/e58e45f865fc5e0ddedf07c6690725ab8feec7ac))
+- **stores**: Extract dedup helpers, unify fetchNextJob queries, add missing structuredClone
+  (#18)([42e9b84](https://github.com/eyolas/conveyor/commit/42e9b848c621d9e40711cb9f7f68cb282e68e682))
+
+### Documentation
+
+- Add observables feature task
+  plan([81f6ca9](https://github.com/eyolas/conveyor/commit/81f6ca9fd7aebac0a59cdd3d74bfbd2f4553287f))
+- Rename todo.md to code-cleanup.md per task naming
+  convention([574ed8f](https://github.com/eyolas/conveyor/commit/574ed8f65447e4d71a082b22de2f090fe8d262b2))
+- Improve task management and lessons workflow in
+  CLAUDE.md([bde66ce](https://github.com/eyolas/conveyor/commit/bde66ce7041d62ca93db68ceb420667e41d78f9f))
+- Add lessons learned from phase 2
+  refactoring([7162e9b](https://github.com/eyolas/conveyor/commit/7162e9b8e37b2e6f609fcc330a75f9197590e776))
+- Add CLAUDE.md and tasks/lessons.md for project conventions and
+  workflow([defe3ce](https://github.com/eyolas/conveyor/commit/defe3ce2b252b6655b8b17995ea4271bddf23c71))
+- Update PRD with job batching API and mark feature as
+  complete([5811e1b](https://github.com/eyolas/conveyor/commit/5811e1b74e187bce6f6cc5545ebb33c07a22e7b9))
+- Reorganize roadmap — split Phase 4/5 and reprioritize
+  features([dba9be7](https://github.com/eyolas/conveyor/commit/dba9be7770fab8c9ab134d8045f156114f0992e7))
+- Update PRD with FlowProducer API and job flows
+  documentation([5a9c4a5](https://github.com/eyolas/conveyor/commit/5a9c4a50145803bca50f6afe768083d87a3e6a25))
+- Update CHANGELOG.md for
+  v0.1.2([8d2b861](https://github.com/eyolas/conveyor/commit/8d2b8618f0886ea8bd8f449c6c8dbe8f66007dd8))
+
+### Testing
+
+- Add worker lifecycle tests and store conformance edge
+  cases([4c8f26c](https://github.com/eyolas/conveyor/commit/4c8f26c2dfcd70a171bfd67bf6ff1422f38c035c))
+- **core**: Add edge case and boundary tests for utils, events, job, and
+  queue([b59eda0](https://github.com/eyolas/conveyor/commit/b59eda06f6ec837726fab606a3033cb4740beb28))
+- **core**: Add comprehensive addBulk test
+  coverage([3efe712](https://github.com/eyolas/conveyor/commit/3efe71213c37a13a32a5a6d544ccb18337c3ea72))
+
 ## [0.1.2] - 2026-03-05
 
 ### Bug Fixes
