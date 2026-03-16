@@ -2,7 +2,7 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "vitest": "^3"
+    "vitest": "^4"
   },
   "dependencies": {
     "croner": "^10.0.0",
