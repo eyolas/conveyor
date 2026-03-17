@@ -1,7 +1,7 @@
 # Conveyor
 
 Multi-backend TypeScript job queue supporting PostgreSQL, SQLite, and in-memory stores. Deno 2
-monorepo with 8 workspace packages, published on JSR (v0.2.0).
+monorepo with 8 workspace packages, published on JSR (v0.3.0).
 
 BullMQ-like API without requiring Redis. See `prd.md` for full specs.
 
@@ -170,8 +170,8 @@ add() → [waiting] ──fetch──→ [active] ──success──→ [comple
 
 ### Out of Scope (V1) — Planned for V2
 
-Flows/dependencies, web dashboard, Redis store, Cloudflare D1, sandboxed workers, OpenTelemetry, job
-batching, groups, observables, dead letter queue.
+Groups, OpenTelemetry, web dashboard, Redis store, Cloudflare D1, sandboxed workers, dead letter
+queue.
 
 ## Workflow
 
