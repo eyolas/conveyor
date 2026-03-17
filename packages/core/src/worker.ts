@@ -31,14 +31,17 @@ import { Job } from './job.ts';
  *
  * @typeParam T - The type of the job payload.
  */
-export type ProcessorFn<T = unknown> = (job: Job<T>) => Promise<unknown>;
+export type ProcessorFn<T = unknown> = (job: Job<T>, signal: AbortSignal) => Promise<unknown>;
 
 /**
  * A function that processes a batch of jobs and returns per-job results.
  *
  * @typeParam T - The type of the job payload.
  */
-export type BatchProcessorFn<T = unknown> = (jobs: Job<T>[]) => Promise<BatchResult[]>;
+export type BatchProcessorFn<T = unknown> = (
+  jobs: Job<T>[],
+  signal: AbortSignal,
+) => Promise<BatchResult[]>;
 
 /**
  * A worker polls for jobs from a queue, locks them, and executes the
@@ -82,6 +85,7 @@ export class Worker<T = unknown> {
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private stalledTimer: ReturnType<typeof setTimeout> | null = null;
   private lockRenewTimers = new Map<string, ReturnType<typeof setInterval>>();
+  private abortControllers = new Map<string, AbortController>();
 
   /** Fields to clear when unlocking a job. */
   private static readonly UNLOCK = { lockUntil: null, lockedBy: null } as const;
@@ -182,6 +186,7 @@ export class Worker<T = unknown> {
       clearInterval(timer);
     }
     this.lockRenewTimers.clear();
+    this.abortControllers.clear();
 
     this.events.removeAllListeners();
   }
@@ -268,6 +273,10 @@ export class Worker<T = unknown> {
     this.activeCount++;
     const job = new Job(jobData as JobData<T>, this.store);
 
+    // Create AbortController for cancellation support
+    const controller = new AbortController();
+    this.abortControllers.set(job.id, controller);
+
     // Start lock renewal
     this.startLockRenewal(job.id);
 
@@ -278,8 +287,8 @@ export class Worker<T = unknown> {
     try {
       // Set up timeout if configured
       const result = job.opts.timeout
-        ? await this.withTimeout(this.processor!(job), job.opts.timeout)
-        : await this.processor!(job);
+        ? await this.withTimeout(this.processor!(job, controller.signal), job.opts.timeout)
+        : await this.processor!(job, controller.signal);
 
       // Success
       await this.store.updateJob(this.queueName, job.id, {
@@ -315,12 +324,31 @@ export class Worker<T = unknown> {
         await this.store.removeJob(this.queueName, job.id);
       }
     } catch (err) {
-      try {
-        await this.handleFailure(job, err as Error);
-      } catch (failureErr) {
-        this.events.emit('error', failureErr);
+      // If the job was cancelled via AbortSignal, mark as cancelled (no retry)
+      if (controller.signal.aborted) {
+        try {
+          const now = new Date();
+          await this.store.updateJob(this.queueName, job.id, {
+            state: 'failed',
+            failedReason: 'Job cancelled',
+            failedAt: now,
+            cancelledAt: now,
+            ...Worker.UNLOCK,
+          });
+          this.events.emit('cancelled', job);
+          await this.publishEvent('job:cancelled', this.queueName, job.id);
+        } catch (cancelErr) {
+          this.events.emit('error', cancelErr);
+        }
+      } else {
+        try {
+          await this.handleFailure(job, err as Error);
+        } catch (failureErr) {
+          this.events.emit('error', failureErr);
+        }
       }
     } finally {
+      this.abortControllers.delete(job.id);
       this.stopLockRenewal(job.id);
       this.activeCount--;
     }
@@ -368,6 +396,12 @@ export class Worker<T = unknown> {
     const jobs = jobDatas.map((jd) => new Job<T>(jd, this.store));
     const jobIds = jobs.map((j) => j.id);
 
+    // Create shared AbortController for the batch
+    const controller = new AbortController();
+    for (const jobId of jobIds) {
+      this.abortControllers.set(jobId, controller);
+    }
+
     // Start a single lock renewal for all jobs in the batch
     const batchKey = `batch-${generateId()}`;
     this.startBatchLockRenewal(batchKey, jobIds);
@@ -385,7 +419,7 @@ export class Worker<T = unknown> {
         .filter((t): t is number => t !== undefined && t > 0);
       const batchTimeout = timeouts.length > 0 ? Math.min(...timeouts) : undefined;
 
-      const processorPromise = this.batchProcessor!(jobs);
+      const processorPromise = this.batchProcessor!(jobs, controller.signal);
       const results: BatchResult[] = batchTimeout
         ? await this.withTimeout(processorPromise, batchTimeout)
         : await processorPromise;
@@ -444,15 +478,38 @@ export class Worker<T = unknown> {
         }
       }
     } catch (err) {
-      // Processor threw — fail ALL jobs
-      for (const job of jobs) {
-        try {
-          await this.handleFailure(job, err as Error);
-        } catch (failureErr) {
-          this.events.emit('error', failureErr);
+      // If the batch was cancelled via AbortSignal, mark all as cancelled (no retry)
+      if (controller.signal.aborted) {
+        for (const job of jobs) {
+          try {
+            const now = new Date();
+            await this.store.updateJob(this.queueName, job.id, {
+              state: 'failed',
+              failedReason: 'Job cancelled',
+              failedAt: now,
+              cancelledAt: now,
+              ...Worker.UNLOCK,
+            });
+            this.events.emit('cancelled', job);
+            await this.publishEvent('job:cancelled', this.queueName, job.id);
+          } catch (cancelErr) {
+            this.events.emit('error', cancelErr);
+          }
+        }
+      } else {
+        // Processor threw — fail ALL jobs
+        for (const job of jobs) {
+          try {
+            await this.handleFailure(job, err as Error);
+          } catch (failureErr) {
+            this.events.emit('error', failureErr);
+          }
         }
       }
     } finally {
+      for (const jobId of jobIds) {
+        this.abortControllers.delete(jobId);
+      }
       this.stopBatchLockRenewal(batchKey, jobIds);
       this.activeCount--;
     }
@@ -560,6 +617,17 @@ export class Worker<T = unknown> {
           this.lockDuration,
         );
         if (!extended) {
+          this.stopLockRenewal(jobId);
+          return;
+        }
+
+        // Check if the job has been cancelled
+        const freshJob = await this.store.getJob(this.queueName, jobId);
+        if (freshJob?.cancelledAt) {
+          const controller = this.abortControllers.get(jobId);
+          if (controller) {
+            controller.abort();
+          }
           this.stopLockRenewal(jobId);
         }
       } catch {

@@ -84,6 +84,13 @@ export const migrations: Migration[] = [
       CREATE INDEX idx_parent ON conveyor_jobs (parent_queue_name, parent_id);
     `,
   },
+  {
+    version: 3,
+    name: 'add_cancelled_at',
+    up: `
+      ALTER TABLE conveyor_jobs ADD COLUMN cancelled_at INTEGER;
+    `,
+  },
 ];
 
 /**

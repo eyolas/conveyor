@@ -241,6 +241,7 @@ export function createJobData<T>(
     parentId: null,
     parentQueueName: null,
     pendingChildrenCount: 0,
+    cancelledAt: null,
   };
 
   // If a custom jobId is provided, include it so the store can use it

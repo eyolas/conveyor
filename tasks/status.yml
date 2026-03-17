@@ -41,26 +41,26 @@ tasks:
 
   observables:
     description: Job observation, streamed cancellation, AbortSignal support
-    status: planned
+    status: done
     file: tasks/observables.md
 
 # ─── PRD Roadmap ──────────────────────────────────────────────────────────────
 
 roadmap:
   phase-1-foundation:
-    description: "Deno 2 monorepo, Queue, Worker, Job, Events, MemoryStore, FIFO/LIFO, scheduling, dedup, pause/resume, conformance tests, docs"
+    description: 'Deno 2 monorepo, Queue, Worker, Job, Events, MemoryStore, FIFO/LIFO, scheduling, dedup, pause/resume, conformance tests, docs'
     status: done
 
   phase-2-persistent-stores:
-    description: "PostgreSQL & SQLite adapters, migrations, global concurrency, integration tests"
+    description: 'PostgreSQL & SQLite adapters, migrations, global concurrency, integration tests'
     status: done
 
   phase-3-production-ready:
-    description: "Rate limiting, graceful shutdown, repeated jobs, README, logo, benchmarks, native Node/Bun CI, JSR publish"
+    description: 'Rate limiting, graceful shutdown, repeated jobs, README, logo, benchmarks, native Node/Bun CI, JSR publish'
     status: done
 
   phase-4-advanced-features:
-    description: "Flows/dependencies, job batching, observables, groups, OpenTelemetry"
+    description: 'Flows/dependencies, job batching, observables, groups, OpenTelemetry'
     status: in-progress
     items:
       flows:
@@ -68,7 +68,7 @@ roadmap:
       batching:
         status: done
       observables:
-        status: planned
+        status: done
         file: tasks/observables.md
       groups:
         status: todo
@@ -76,7 +76,7 @@ roadmap:
         status: todo
 
   phase-5-documentation-website:
-    description: "Documentation site, getting started guide, BullMQ migration guide, store comparison"
+    description: 'Documentation site, getting started guide, BullMQ migration guide, store comparison'
     status: todo
     items:
       documentation-site:
@@ -89,7 +89,7 @@ roadmap:
         status: todo
 
   phase-6-tooling-ecosystem:
-    description: "Web dashboard, decoupled notifications, sandboxed workers"
+    description: 'Web dashboard, decoupled notifications, sandboxed workers'
     status: todo
     items:
       web-dashboard:

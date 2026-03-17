@@ -7,6 +7,7 @@
  */
 
 import type { JobData, JobOptions, JobState, StoreInterface } from '@conveyor/shared';
+import { JobObservable } from './job-observable.ts';
 
 /**
  * A job instance wrapping raw {@linkcode JobData} with convenience methods
@@ -48,6 +49,7 @@ export class Job<T = unknown> {
   private _completedAt: Date | null;
   private _failedAt: Date | null;
   private _logs: string[];
+  private _cancelledAt: Date | null;
   private readonly _deduplicationKey: string | null;
   private readonly _delayUntil: Date | null;
   private readonly _lockUntil: Date | null;
@@ -80,6 +82,7 @@ export class Job<T = unknown> {
     this._completedAt = jobData.completedAt;
     this._failedAt = jobData.failedAt;
     this._logs = [...jobData.logs];
+    this._cancelledAt = jobData.cancelledAt;
     this._deduplicationKey = jobData.deduplicationKey;
     this._delayUntil = jobData.delayUntil;
     this._lockUntil = jobData.lockUntil;
@@ -130,6 +133,11 @@ export class Job<T = unknown> {
     return this._failedAt;
   }
 
+  /** When the job was cancelled. */
+  get cancelledAt(): Date | null {
+    return this._cancelledAt;
+  }
+
   /** Copy of the job's log messages. */
   get logs(): string[] {
     return [...this._logs];
@@ -149,6 +157,13 @@ export class Job<T = unknown> {
     }
     this._progress = progress;
     await this.store.updateJob(this.queueName, this.id, { progress });
+    await this.store.publish({
+      type: 'job:progress',
+      queueName: this.queueName,
+      jobId: this.id,
+      data: progress,
+      timestamp: new Date(),
+    });
   }
 
   /**
@@ -268,6 +283,17 @@ export class Job<T = unknown> {
     return result;
   }
 
+  // ─── Observation ──────────────────────────────────────────────────
+
+  /**
+   * Create a {@linkcode JobObservable} for this job.
+   *
+   * @returns A new observable bound to this job's lifecycle.
+   */
+  observe(): JobObservable<T> {
+    return new JobObservable<T>(this.id, this.queueName, this.store);
+  }
+
   // ─── Serialization ────────────────────────────────────────────────
 
   /**
@@ -299,6 +325,7 @@ export class Job<T = unknown> {
       parentId: this.parentId,
       parentQueueName: this.parentQueueName,
       pendingChildrenCount: 0,
+      cancelledAt: this._cancelledAt,
     };
   }
 }

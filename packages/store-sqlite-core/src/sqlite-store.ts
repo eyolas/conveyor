@@ -114,13 +114,13 @@ export class BaseSqliteStore implements StoreInterface {
           returnvalue, failed_reason, opts, deduplication_key, logs,
           priority, seq, created_at, processed_at, completed_at, failed_at,
           delay_until, lock_until, locked_by,
-          parent_id, parent_queue_name, pending_children_count
+          parent_id, parent_queue_name, pending_children_count, cancelled_at
         ) VALUES (
           :id, :queue_name, :name, :data, :state, :attempts_made, :progress,
           :returnvalue, :failed_reason, :opts, :deduplication_key, :logs,
           :priority, :seq, :created_at, :processed_at, :completed_at, :failed_at,
           :delay_until, :lock_until, :locked_by,
-          :parent_id, :parent_queue_name, :pending_children_count
+          :parent_id, :parent_queue_name, :pending_children_count, :cancelled_at
         )
       `),
       getJob: this.db.prepare(
@@ -269,6 +269,7 @@ export class BaseSqliteStore implements StoreInterface {
       parentId: 'parent_id',
       parentQueueName: 'parent_queue_name',
       pendingChildrenCount: 'pending_children_count',
+      cancelledAt: 'cancelled_at',
     };
 
     for (const [key, col] of Object.entries(columnMap)) {
@@ -278,7 +279,8 @@ export class BaseSqliteStore implements StoreInterface {
           sets.push(`${col} = ?`);
           values.push(val !== null && val !== undefined ? JSON.stringify(val) : null);
         } else if (
-          ['processedAt', 'completedAt', 'failedAt', 'delayUntil', 'lockUntil'].includes(key)
+          ['processedAt', 'completedAt', 'failedAt', 'delayUntil', 'lockUntil', 'cancelledAt']
+            .includes(key)
         ) {
           sets.push(`${col} = ?`);
           values.push(val instanceof Date ? val.getTime() : (val ?? null));
