@@ -62,9 +62,10 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version, name FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBeGreaterThanOrEqual(2);
+    expect(rows.length).toBeGreaterThanOrEqual(3);
     expect(rows[0]).toMatchObject({ version: 1, name: 'initial_schema' });
     expect(rows[1]).toMatchObject({ version: 2, name: 'add_parent_child_fields' });
+    expect(rows[2]).toMatchObject({ version: 3, name: 'add_cancelled_at' });
   });
 
   it('is idempotent — running twice has no effect', async () => {
@@ -74,17 +75,18 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    // Should still have exactly two migration entries
-    expect(rows.length).toBe(2);
+    // Should still have exactly three migration entries
+    expect(rows.length).toBe(3);
     expect(rows[0]!.version).toBe(1);
     expect(rows[1]!.version).toBe(2);
+    expect(rows[2]!.version).toBe(3);
   });
 
   it('skips already applied migrations', async () => {
     await runMigrations(sql);
 
     // Manually set max version higher to simulate future state
-    await sql`UPDATE conveyor_migrations SET version = 999 WHERE version = 2`;
+    await sql`UPDATE conveyor_migrations SET version = 999 WHERE version = 3`;
 
     // Running again should not error (nothing to apply)
     await runMigrations(sql);
@@ -92,9 +94,10 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBe(2);
+    expect(rows.length).toBe(3);
     expect(rows[0]!.version).toBe(1);
-    expect(rows[1]!.version).toBe(999);
+    expect(rows[1]!.version).toBe(2);
+    expect(rows[2]!.version).toBe(999);
   });
 
   it('concurrent calls do not conflict (advisory lock)', async () => {
@@ -108,8 +111,9 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBe(2);
+    expect(rows.length).toBe(3);
     expect(rows[0]!.version).toBe(1);
     expect(rows[1]!.version).toBe(2);
+    expect(rows[2]!.version).toBe(3);
   });
 });
