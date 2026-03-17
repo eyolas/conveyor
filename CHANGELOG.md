@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-03-17
+
+### Features
+
+- **core**: Add job observables and cancellation support
+  (#23)([7ec70f2](https://github.com/eyolas/conveyor/commit/7ec70f298b4a0dbdc9402739887e924c10c2b513))
+
+### Documentation
+
+- Update CLAUDE.md for
+  v0.3.0([f7a6a6b](https://github.com/eyolas/conveyor/commit/f7a6a6b85b3c795507848f3bcf09a45ec7a88794))
+- Add phase 5 (documentation website) and renumber phase
+  6([35a801a](https://github.com/eyolas/conveyor/commit/35a801a805f0454a92c1a5eec0d4594f80878d65))
+- Add tasks/status.yml index with lifecycle and thinking
+  workflow([82c8b3c](https://github.com/eyolas/conveyor/commit/82c8b3c339e5a7d773c2a62c971f09aa4ab94bf8))
+- Update CHANGELOG.md for
+  v0.2.0([591aa69](https://github.com/eyolas/conveyor/commit/591aa69354aeff77db31e4b9b51f02c29cb24c43))
+
 ## [0.2.0] - 2026-03-16
 
 ### Features
