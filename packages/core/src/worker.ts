@@ -326,15 +326,20 @@ export class Worker<T = unknown> {
     } catch (err) {
       // If the job was cancelled via AbortSignal, mark as cancelled (no retry)
       if (controller.signal.aborted) {
-        await this.store.updateJob(this.queueName, job.id, {
-          state: 'failed',
-          failedReason: 'Job cancelled',
-          failedAt: new Date(),
-          cancelledAt: new Date(),
-          ...Worker.UNLOCK,
-        });
-        this.events.emit('cancelled', job);
-        await this.publishEvent('job:cancelled', this.queueName, job.id);
+        try {
+          const now = new Date();
+          await this.store.updateJob(this.queueName, job.id, {
+            state: 'failed',
+            failedReason: 'Job cancelled',
+            failedAt: now,
+            cancelledAt: now,
+            ...Worker.UNLOCK,
+          });
+          this.events.emit('cancelled', job);
+          await this.publishEvent('job:cancelled', this.queueName, job.id);
+        } catch (cancelErr) {
+          this.events.emit('error', cancelErr);
+        }
       } else {
         try {
           await this.handleFailure(job, err as Error);
@@ -473,12 +478,32 @@ export class Worker<T = unknown> {
         }
       }
     } catch (err) {
-      // Processor threw — fail ALL jobs
-      for (const job of jobs) {
-        try {
-          await this.handleFailure(job, err as Error);
-        } catch (failureErr) {
-          this.events.emit('error', failureErr);
+      // If the batch was cancelled via AbortSignal, mark all as cancelled (no retry)
+      if (controller.signal.aborted) {
+        for (const job of jobs) {
+          try {
+            const now = new Date();
+            await this.store.updateJob(this.queueName, job.id, {
+              state: 'failed',
+              failedReason: 'Job cancelled',
+              failedAt: now,
+              cancelledAt: now,
+              ...Worker.UNLOCK,
+            });
+            this.events.emit('cancelled', job);
+            await this.publishEvent('job:cancelled', this.queueName, job.id);
+          } catch (cancelErr) {
+            this.events.emit('error', cancelErr);
+          }
+        }
+      } else {
+        // Processor threw — fail ALL jobs
+        for (const job of jobs) {
+          try {
+            await this.handleFailure(job, err as Error);
+          } catch (failureErr) {
+            this.events.emit('error', failureErr);
+          }
         }
       }
     } finally {

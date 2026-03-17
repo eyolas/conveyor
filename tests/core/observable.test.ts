@@ -27,8 +27,6 @@ function wait(ms: number) {
 
 // deno-lint-ignore require-await
 const noop = async () => 'done';
-// deno-lint-ignore require-await
-const noopOk = async () => 'ok';
 
 // ─── Observable receives lifecycle events ─────────────────────────
 
@@ -48,7 +46,7 @@ test('Observable receives active → completed events', async () => {
   const worker = new Worker('obs-queue', noop, { store, autoStart: false });
   worker.start();
 
-  await wait(2_500);
+  await wait(1_500);
   await worker.close();
   await queue.close();
   await store.disconnect();
@@ -76,7 +74,7 @@ test('Observable receives active → failed events', async () => {
   }, { store, autoStart: false });
   worker.start();
 
-  await wait(2_500);
+  await wait(1_500);
   await worker.close();
   await queue.close();
   await store.disconnect();
@@ -104,7 +102,7 @@ test('Observable receives progress events', async () => {
   }, { store, autoStart: false });
   worker.start();
 
-  await wait(2_500);
+  await wait(1_500);
   await worker.close();
   await queue.close();
   await store.disconnect();
@@ -129,10 +127,10 @@ test('Auto-dispose on terminal state', async () => {
     },
   });
 
-  const worker = new Worker('obs-queue', noopOk, { store, autoStart: false });
+  const worker = new Worker('obs-queue', noop, { store, autoStart: false });
   worker.start();
 
-  await wait(2_500);
+  await wait(1_500);
   await worker.close();
   await queue.close();
   await store.disconnect();
@@ -151,7 +149,7 @@ test('Late observer on completed job', async () => {
   const worker = new Worker('obs-queue', noop, { store, autoStart: false });
   worker.start();
 
-  await wait(2_500);
+  await wait(1_500);
   await worker.close();
 
   // Subscribe AFTER completion
@@ -186,10 +184,10 @@ test('Multiple observers on same job', async () => {
   observable.subscribe({ onCompleted: () => count1++ });
   observable.subscribe({ onCompleted: () => count2++ });
 
-  const worker = new Worker('obs-queue', noopOk, { store, autoStart: false });
+  const worker = new Worker('obs-queue', noop, { store, autoStart: false });
   worker.start();
 
-  await wait(2_500);
+  await wait(1_500);
   await worker.close();
   await queue.close();
   await store.disconnect();
@@ -215,10 +213,10 @@ test('Individual unsubscribe', async () => {
   });
   unsub();
 
-  const worker = new Worker('obs-queue', noopOk, { store, autoStart: false });
+  const worker = new Worker('obs-queue', noop, { store, autoStart: false });
   worker.start();
 
-  await wait(2_500);
+  await wait(1_500);
   await worker.close();
   observable.dispose();
   await queue.close();
@@ -244,10 +242,10 @@ test('dispose() stops all delivery', async () => {
   });
   observable.dispose();
 
-  const worker = new Worker('obs-queue', noopOk, { store, autoStart: false });
+  const worker = new Worker('obs-queue', noop, { store, autoStart: false });
   worker.start();
 
-  await wait(2_500);
+  await wait(1_500);
   await worker.close();
   await queue.close();
   await store.disconnect();
@@ -333,7 +331,7 @@ test('cancel() on completed job is no-op', async () => {
   const worker = new Worker('obs-queue', noop, { store, autoStart: false });
   worker.start();
 
-  await wait(2_500);
+  await wait(1_500);
   await worker.close();
 
   const observable = queue.observe(job.id);
@@ -383,7 +381,7 @@ test('Worker receives AbortSignal', async () => {
   }, { store, autoStart: false });
   worker.start();
 
-  await wait(2_500);
+  await wait(1_500);
   await worker.close();
   await queue.close();
   await store.disconnect();
@@ -403,7 +401,7 @@ test('Old-style processor still works (no signal usage)', async () => {
   }, { store, autoStart: false });
   worker.start();
 
-  await wait(2_500);
+  await wait(1_500);
 
   const fresh = await store.getJob('obs-queue', job.id);
   expect(fresh!.state).toBe('completed');

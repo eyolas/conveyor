@@ -65,13 +65,13 @@ export class JobObservable<T = unknown> {
     if (!this.storeCallback) {
       this.storeCallback = (event: StoreEvent) => {
         if (event.jobId !== this.jobId) return;
-        this.handleStoreEvent(event);
+        this.handleStoreEvent(event).catch(() => {});
       };
       this.store.subscribe(this.queueName, this.storeCallback);
     }
 
     // Late subscriber: check current state asynchronously
-    this.checkCurrentState(observer);
+    this.checkCurrentState(observer).catch(() => {});
 
     return () => {
       this.observers.delete(observer);
