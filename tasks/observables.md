@@ -101,6 +101,7 @@ Plan file: `.claude/plans/vectorized-percolating-penguin.md`
 ## Review
 
 All phases 1-8 implemented and verified:
+
 - 173/173 tests pass (155 existing + 18 new)
 - `deno task check` — all 8 packages type-check clean
 - `deno task lint` — clean
@@ -115,7 +116,7 @@ All phases 1-8 implemented and verified:
 | ------------------------------------------------ | -------------------------------------------------- |
 | `packages/shared/src/types.ts`                   | `cancelledAt`, event types, `JobObserver`          |
 | `packages/shared/src/utils.ts`                   | `cancelledAt: null` default                        |
-| `packages/shared/src/mod.ts`                     | Export `JobObserver`                                |
+| `packages/shared/src/mod.ts`                     | Export `JobObserver`                               |
 | `packages/core/src/job-observable.ts`            | **NEW**                                            |
 | `packages/core/src/job.ts`                       | `observe()`, `updateProgress()` publish            |
 | `packages/core/src/queue.ts`                     | `observe()`                                        |
