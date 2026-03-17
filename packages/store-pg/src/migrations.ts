@@ -96,6 +96,13 @@ export const migrations: Migration[] = [
       await tx`CREATE INDEX IF NOT EXISTS idx_parent ON conveyor_jobs (parent_queue_name, parent_id) WHERE parent_id IS NOT NULL`;
     },
   },
+  {
+    version: 3,
+    name: 'add_cancelled_at',
+    up: async (tx: postgres.Sql) => {
+      await tx`ALTER TABLE conveyor_jobs ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ`;
+    },
+  },
 ];
 
 /**

@@ -1206,6 +1206,29 @@ export function runConformanceTests(
     await store.disconnect();
   });
 
+  // ─── cancelledAt round-trip ─────────────────────────────────────────
+
+  test(`[${storeName}] cancelledAt round-trip`, async () => {
+    store = factory();
+    await store.connect();
+
+    const id = await store.saveJob(queueName, createJobData(queueName, 'cancel-test', {}));
+
+    // Initially null
+    const before = await store.getJob(queueName, id);
+    expect(before!.cancelledAt).toEqual(null);
+
+    // Set cancelledAt
+    const now = new Date();
+    await store.updateJob(queueName, id, { cancelledAt: now });
+
+    const after = await store.getJob(queueName, id);
+    expect(after!.cancelledAt).toBeDefined();
+    expect(after!.cancelledAt!.getTime()).toEqual(now.getTime());
+
+    await store.disconnect();
+  });
+
   // ─── updateJob opts syncs priority ─────────────────────────────────
 
   test(`[${storeName}] updateJob opts syncs priority`, async () => {

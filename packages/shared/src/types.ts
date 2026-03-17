@@ -124,6 +124,9 @@ export interface JobData<T = unknown> {
 
   /** Number of children not yet completed (`0` for leaf/standalone jobs). */
   pendingChildrenCount: number;
+
+  /** When the job was cancelled. */
+  cancelledAt: Date | null;
 }
 
 /** Configuration for retry backoff strategies. */
@@ -288,6 +291,7 @@ export type StoreEventType =
   | 'queue:drained'
   | 'queue:paused'
   | 'queue:resumed'
+  | 'job:cancelled'
   | 'queue:error';
 
 /** An event published through the store's pub/sub mechanism. */
@@ -320,6 +324,7 @@ export type QueueEventType =
   | 'delayed'
   | 'removed'
   | 'drained'
+  | 'cancelled'
   | 'paused'
   | 'resumed'
   | 'error';
@@ -612,6 +617,24 @@ export interface StoreInterface {
    * @returns Array of child job data.
    */
   getChildrenJobs(parentQueueName: string, parentId: string): Promise<JobData[]>;
+}
+
+/**
+ * Observer callbacks for job lifecycle events.
+ *
+ * @typeParam T - The type of the job payload.
+ */
+export interface JobObserver<T = unknown> {
+  /** Called when the job becomes active. */
+  onActive?: (job: JobData<T>) => void;
+  /** Called when the job reports progress. */
+  onProgress?: (job: JobData<T>, progress: number) => void;
+  /** Called when the job completes successfully. */
+  onCompleted?: (job: JobData<T>, result: unknown) => void;
+  /** Called when the job fails. */
+  onFailed?: (job: JobData<T>, error: string) => void;
+  /** Called when the job is cancelled. */
+  onCancelled?: (job: JobData<T>) => void;
 }
 
 /**

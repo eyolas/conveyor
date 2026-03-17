@@ -33,6 +33,7 @@ export type {
   FlowResult,
   HumanDuration,
   JobData,
+  JobObserver,
   JobOptions,
   JobState,
   LimiterOptions,
@@ -60,6 +61,7 @@ export {
 // Core classes
 export { EventBus } from './events.ts';
 export { FlowProducer } from './flow-producer.ts';
+export { JobObservable } from './job-observable.ts';
 export type { FlowProducerOptions } from './flow-producer.ts';
 export { Job } from './job.ts';
 export { Queue } from './queue.ts';

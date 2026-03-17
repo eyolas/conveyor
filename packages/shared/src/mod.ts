@@ -17,6 +17,7 @@ export type {
   FlowResult,
   HumanDuration,
   JobData,
+  JobObserver,
   JobOptions,
   JobState,
   LimiterOptions,

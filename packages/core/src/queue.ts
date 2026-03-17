@@ -18,6 +18,7 @@ import type {
 import { createJobData, hashPayload, parseDelay } from '@conveyor/shared';
 import { EventBus } from './events.ts';
 import { Job } from './job.ts';
+import { JobObservable } from './job-observable.ts';
 
 /**
  * A queue manages the creation and lifecycle of jobs.
@@ -315,6 +316,19 @@ export class Queue<T = unknown> {
   clean(state: JobState, grace: number): Promise<number> {
     this.assertNotClosed();
     return this.store.clean(this.name, state, grace);
+  }
+
+  // ─── Observation ───────────────────────────────────────────────────────
+
+  /**
+   * Create a {@linkcode JobObservable} to observe a job's lifecycle and optionally cancel it.
+   *
+   * @param jobId - The job ID to observe.
+   * @returns A new observable bound to the job.
+   */
+  observe(jobId: string): JobObservable<T> {
+    this.assertNotClosed();
+    return new JobObservable<T>(jobId, this.name, this.store);
   }
 
   // ─── Queries ─────────────────────────────────────────────────────────
