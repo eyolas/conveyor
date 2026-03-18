@@ -65,8 +65,8 @@ roadmap:
     status: done
 
   phase-4-advanced-features:
-    description: 'Flows/dependencies, job batching, observables, groups, OpenTelemetry'
-    status: in-progress
+    description: 'Flows/dependencies, job batching, observables, groups'
+    status: done
     items:
       flows:
         status: done
@@ -78,8 +78,6 @@ roadmap:
       groups:
         status: done
         file: tasks/groups.md
-      opentelemetry:
-        status: todo
 
   phase-5-documentation-website:
     description: 'Documentation site, getting started guide, BullMQ migration guide, store comparison'
@@ -95,7 +93,7 @@ roadmap:
         status: todo
 
   phase-6-tooling-ecosystem:
-    description: 'Web dashboard, decoupled notifications, sandboxed workers'
+    description: 'Web dashboard, decoupled notifications, sandboxed workers, OpenTelemetry'
     status: todo
     items:
       web-dashboard:
@@ -103,4 +101,6 @@ roadmap:
       decoupled-notifications:
         status: todo
       sandboxed-workers:
+        status: todo
+      opentelemetry:
         status: todo
