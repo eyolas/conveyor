@@ -170,7 +170,8 @@ export class MemoryStore implements StoreInterface {
       });
 
     // If group options are present, use round-robin group selection
-    const hasGroupOpts = opts?.groupConcurrency !== undefined || opts?.excludeGroups !== undefined;
+    const hasGroupOpts = opts?.groupConcurrency !== undefined ||
+      (opts?.excludeGroups !== undefined && opts.excludeGroups.length > 0);
     const job = hasGroupOpts
       ? this.pickGroupedJob(queueName, queue, waitingJobs, opts!)
       : waitingJobs[0] ?? null;

@@ -8,6 +8,7 @@
 import type {
   BatchOptions,
   BatchResult,
+  FetchOptions,
   GroupWorkerOptions,
   JobData,
   LimiterOptions,
@@ -254,7 +255,7 @@ export class Worker<T = unknown> {
       }
 
       // Build fetch options with group support
-      const fetchOpts: import('@conveyor/shared').FetchOptions = { lifo: this.lifo };
+      const fetchOpts: FetchOptions = { lifo: this.lifo };
       if (this.groupOptions?.concurrency !== undefined) {
         fetchOpts.groupConcurrency = this.groupOptions.concurrency;
       }
@@ -388,7 +389,7 @@ export class Worker<T = unknown> {
         }
 
         // Build fetch options with group support
-        const fetchOpts: import('@conveyor/shared').FetchOptions = { lifo: this.lifo };
+        const fetchOpts: FetchOptions = { lifo: this.lifo };
         if (this.groupOptions?.concurrency !== undefined) {
           fetchOpts.groupConcurrency = this.groupOptions.concurrency;
         }
