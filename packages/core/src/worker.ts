@@ -254,21 +254,12 @@ export class Worker<T = unknown> {
         if (globalActive >= this.maxGlobalConcurrency) break;
       }
 
-      // Build fetch options with group support
-      const fetchOpts: FetchOptions = { lifo: this.lifo };
-      if (this.groupOptions?.concurrency !== undefined) {
-        fetchOpts.groupConcurrency = this.groupOptions.concurrency;
-      }
-      if (this.groupOptions?.limiter) {
-        fetchOpts.excludeGroups = this.getExcludedGroups();
-      }
-
       // Fetch next job
       const jobData = await this.store.fetchNextJob(
         this.queueName,
         this.id,
         this.lockDuration,
-        fetchOpts,
+        this.buildFetchOptions(),
       );
 
       if (!jobData) break;
@@ -388,20 +379,11 @@ export class Worker<T = unknown> {
           if (globalActive >= this.maxGlobalConcurrency) break;
         }
 
-        // Build fetch options with group support
-        const fetchOpts: FetchOptions = { lifo: this.lifo };
-        if (this.groupOptions?.concurrency !== undefined) {
-          fetchOpts.groupConcurrency = this.groupOptions.concurrency;
-        }
-        if (this.groupOptions?.limiter) {
-          fetchOpts.excludeGroups = this.getExcludedGroups();
-        }
-
         const jobData = await this.store.fetchNextJob(
           this.queueName,
           this.id,
           this.lockDuration,
-          fetchOpts,
+          this.buildFetchOptions(),
         );
 
         if (!jobData) break;
@@ -821,6 +803,17 @@ export class Worker<T = unknown> {
     if (this.limiter) {
       this.rateLimitTimestamps.push(Date.now());
     }
+  }
+
+  private buildFetchOptions(): FetchOptions {
+    const opts: FetchOptions = { lifo: this.lifo };
+    if (this.groupOptions?.concurrency !== undefined) {
+      opts.groupConcurrency = this.groupOptions.concurrency;
+    }
+    if (this.groupOptions?.limiter) {
+      opts.excludeGroups = this.getExcludedGroups();
+    }
+    return opts;
   }
 
   // ─── Per-Group Rate Limiting ──────────────────────────────────────

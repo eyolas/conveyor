@@ -400,6 +400,7 @@ export class BaseSqliteStore implements StoreInterface {
     const now = Date.now();
     const lockUntil = now + lockDuration;
     const lifo = opts.lifo ?? false;
+    // order is always 'seq ASC' or 'seq DESC' — safe to interpolate in SQL
     const order = lifo ? 'seq DESC' : 'seq ASC';
     const excludeGroups = opts.excludeGroups ?? [];
     const groupConcurrency = opts.groupConcurrency;
