@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-03-18
+
+### Features
+
+- **groups**: Per-group concurrency, rate limiting, and round-robin
+  (#24)([97bb3fb](https://github.com/eyolas/conveyor/commit/97bb3fb246f9bad6439bfc40a014da472dc42eb4))
+
+### Bug Fixes
+
+- **ci**: Strip footer from release notes to avoid v0.1.0
+  duplication([f717fc2](https://github.com/eyolas/conveyor/commit/f717fc2379f58c68d2195aec1aaa883c19d7a716))
+
+### Documentation
+
+- Update CHANGELOG.md for
+  v0.3.0([87e9a3c](https://github.com/eyolas/conveyor/commit/87e9a3c8f158cac60e884c5daba235d986e5bb2b))
+
+### Bench
+
+- Regenerate RESULTS.md with observable, rate-limiting, and scheduling
+  benchmarks([a399082](https://github.com/eyolas/conveyor/commit/a399082956a2a3af6adb6aec1bc89c8d35b2a9fb))
+- Add observables, scheduling, and rate-limiting
+  benchmarks([69b8a1d](https://github.com/eyolas/conveyor/commit/69b8a1daf52d589e8a53db7fb1cb0ec086ac3e02))
+
 ## [0.3.0] - 2026-03-17
 
 ### Features
