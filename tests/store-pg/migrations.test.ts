@@ -17,6 +17,7 @@ describe('[PgStore] migrations', () => {
     // Drop all conveyor tables to start fresh
     await sql`DROP TABLE IF EXISTS conveyor_jobs CASCADE`;
     await sql`DROP TABLE IF EXISTS conveyor_paused_names CASCADE`;
+    await sql`DROP TABLE IF EXISTS conveyor_group_cursors CASCADE`;
     await sql`DROP TABLE IF EXISTS conveyor_migrations CASCADE`;
   });
 
@@ -31,10 +32,11 @@ describe('[PgStore] migrations', () => {
     const tables = await sql`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public'
-        AND table_name IN ('conveyor_migrations', 'conveyor_jobs', 'conveyor_paused_names')
+        AND table_name IN ('conveyor_migrations', 'conveyor_jobs', 'conveyor_paused_names', 'conveyor_group_cursors')
       ORDER BY table_name
     `;
     expect(tables.map((r) => r.table_name)).toEqual([
+      'conveyor_group_cursors',
       'conveyor_jobs',
       'conveyor_migrations',
       'conveyor_paused_names',
@@ -44,13 +46,14 @@ describe('[PgStore] migrations', () => {
     const indexes = await sql`
       SELECT indexname FROM pg_indexes
       WHERE schemaname = 'public'
-        AND indexname IN ('idx_fetch', 'idx_delayed', 'idx_dedup', 'idx_stalled', 'idx_parent')
+        AND indexname IN ('idx_fetch', 'idx_delayed', 'idx_dedup', 'idx_stalled', 'idx_parent', 'idx_group')
       ORDER BY indexname
     `;
     expect(indexes.map((r) => r.indexname)).toEqual([
       'idx_dedup',
       'idx_delayed',
       'idx_fetch',
+      'idx_group',
       'idx_parent',
       'idx_stalled',
     ]);
@@ -62,10 +65,11 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version, name FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBeGreaterThanOrEqual(3);
+    expect(rows.length).toBeGreaterThanOrEqual(4);
     expect(rows[0]).toMatchObject({ version: 1, name: 'initial_schema' });
     expect(rows[1]).toMatchObject({ version: 2, name: 'add_parent_child_fields' });
     expect(rows[2]).toMatchObject({ version: 3, name: 'add_cancelled_at' });
+    expect(rows[3]).toMatchObject({ version: 4, name: 'add_groups' });
   });
 
   it('is idempotent — running twice has no effect', async () => {
@@ -75,18 +79,19 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    // Should still have exactly three migration entries
-    expect(rows.length).toBe(3);
+    // Should still have exactly four migration entries
+    expect(rows.length).toBe(4);
     expect(rows[0]!.version).toBe(1);
     expect(rows[1]!.version).toBe(2);
     expect(rows[2]!.version).toBe(3);
+    expect(rows[3]!.version).toBe(4);
   });
 
   it('skips already applied migrations', async () => {
     await runMigrations(sql);
 
     // Manually set max version higher to simulate future state
-    await sql`UPDATE conveyor_migrations SET version = 999 WHERE version = 3`;
+    await sql`UPDATE conveyor_migrations SET version = 999 WHERE version = 4`;
 
     // Running again should not error (nothing to apply)
     await runMigrations(sql);
@@ -94,10 +99,11 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBe(3);
+    expect(rows.length).toBe(4);
     expect(rows[0]!.version).toBe(1);
     expect(rows[1]!.version).toBe(2);
-    expect(rows[2]!.version).toBe(999);
+    expect(rows[2]!.version).toBe(3);
+    expect(rows[3]!.version).toBe(999);
   });
 
   it('concurrent calls do not conflict (advisory lock)', async () => {
@@ -111,9 +117,10 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBe(3);
+    expect(rows.length).toBe(4);
     expect(rows[0]!.version).toBe(1);
     expect(rows[1]!.version).toBe(2);
     expect(rows[2]!.version).toBe(3);
+    expect(rows[3]!.version).toBe(4);
   });
 });

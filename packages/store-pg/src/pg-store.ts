@@ -304,9 +304,14 @@ export class PgStore implements StoreInterface {
   ): Promise<JobData | null> {
     const now = new Date();
     const lockUntil = new Date(now.getTime() + lockDuration);
-    const orderFrag = opts.lifo
-      ? this.sql`j.priority ASC, j.seq DESC`
-      : this.sql`j.priority ASC, j.seq ASC`;
+    // e.* alias for ranked CTE (FROM eligible_jobs e)
+    const eOrderFrag = opts.lifo
+      ? this.sql`e.priority ASC, e.seq DESC`
+      : this.sql`e.priority ASC, e.seq ASC`;
+    // bare columns for best CTE (SELECT * FROM ranked)
+    const bareOrderFrag = opts.lifo
+      ? this.sql`priority ASC, seq DESC`
+      : this.sql`priority ASC, seq ASC`;
     const nameFilter = opts.jobName ? this.sql`AND j.name = ${opts.jobName}` : this.sql``;
     const excludeGroups = opts.excludeGroups ?? [];
     const excludeFrag = excludeGroups.length > 0
@@ -351,7 +356,7 @@ export class PgStore implements StoreInterface {
             COALESCE(c.last_served_at, '1970-01-01'::timestamptz) AS cursor_ts,
             ROW_NUMBER() OVER (
               PARTITION BY e.effective_group_id
-              ORDER BY ${orderFrag}
+              ORDER BY ${eOrderFrag}
             ) AS rn
           FROM eligible_jobs e
           LEFT JOIN conveyor_group_cursors c
@@ -360,7 +365,7 @@ export class PgStore implements StoreInterface {
         best AS (
           SELECT * FROM ranked
           WHERE rn = 1
-          ORDER BY cursor_ts ASC, ${orderFrag}
+          ORDER BY cursor_ts ASC, ${bareOrderFrag}
           LIMIT 1
           FOR UPDATE SKIP LOCKED
         )
