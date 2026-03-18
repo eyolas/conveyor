@@ -195,6 +195,7 @@ export class PgStore implements StoreInterface {
       parentQueueName: 'parent_queue_name',
       pendingChildrenCount: 'pending_children_count',
       cancelledAt: 'cancelled_at',
+      groupId: 'group_id',
     };
 
     const row: Record<string, unknown> = {};
@@ -254,6 +255,13 @@ export class PgStore implements StoreInterface {
     lockDuration: number,
     opts?: FetchOptions,
   ): Promise<JobData | null> {
+    const hasGroupOpts = opts?.groupConcurrency !== undefined ||
+      (opts?.excludeGroups !== undefined && opts.excludeGroups.length > 0);
+
+    if (hasGroupOpts) {
+      return this.fetchNextJobGrouped(queueName, workerId, lockDuration, opts!);
+    }
+
     const now = new Date();
     const lockUntil = new Date(now.getTime() + lockDuration);
     const orderFrag = opts?.lifo
@@ -281,6 +289,104 @@ export class PgStore implements StoreInterface {
 
     if (rows.length === 0) return null;
     return rowToJobData(rows[0]!);
+  }
+
+  /**
+   * Fetch next job with round-robin group selection.
+   * Finds the least-recently-served eligible group, picks a job from it,
+   * and upserts the cursor.
+   */
+  private async fetchNextJobGrouped(
+    queueName: string,
+    workerId: string,
+    lockDuration: number,
+    opts: FetchOptions,
+  ): Promise<JobData | null> {
+    const now = new Date();
+    const lockUntil = new Date(now.getTime() + lockDuration);
+    const orderFrag = opts.lifo
+      ? this.sql`j.priority ASC, j.seq DESC`
+      : this.sql`j.priority ASC, j.seq ASC`;
+    const nameFilter = opts.jobName ? this.sql`AND j.name = ${opts.jobName}` : this.sql``;
+    const excludeGroups = opts.excludeGroups ?? [];
+    const excludeFrag = excludeGroups.length > 0
+      ? this.sql`AND COALESCE(j.group_id, '__ungrouped__') NOT IN ${this.sql(excludeGroups)}`
+      : this.sql``;
+    const groupConcurrency = opts.groupConcurrency;
+
+    // Use a transaction for atomicity
+    const result = await this.sql.begin(async (_tx) => {
+      const tx = sql(_tx);
+
+      // Build the concurrency filter as a subquery condition
+      const concurrencyFrag = groupConcurrency !== undefined
+        ? tx`
+          AND (
+            j.group_id IS NULL
+            OR (
+              SELECT COUNT(*) FROM conveyor_jobs active_j
+              WHERE active_j.queue_name = ${queueName}
+                AND active_j.state = 'active'
+                AND active_j.group_id = j.group_id
+            ) < ${groupConcurrency}
+          )
+        `
+        : tx``;
+
+      // Find eligible groups sorted by last-served (round-robin)
+      // Pick the best job from the least-recently-served eligible group
+      const rows = await tx<JobRow[]>`
+        WITH eligible_jobs AS (
+          SELECT j.*, COALESCE(j.group_id, '__ungrouped__') AS effective_group_id
+          FROM conveyor_jobs j
+          WHERE j.queue_name = ${queueName} AND j.state = 'waiting'
+            ${nameFilter}
+            ${excludeFrag}
+            ${concurrencyFrag}
+            AND j.name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ${queueName})
+            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ${queueName} AND job_name = '__all__')
+        ),
+        ranked AS (
+          SELECT e.*,
+            COALESCE(c.last_served_at, '1970-01-01'::timestamptz) AS cursor_ts,
+            ROW_NUMBER() OVER (
+              PARTITION BY e.effective_group_id
+              ORDER BY ${orderFrag}
+            ) AS rn
+          FROM eligible_jobs e
+          LEFT JOIN conveyor_group_cursors c
+            ON c.queue_name = ${queueName} AND c.group_id = e.effective_group_id
+        ),
+        best AS (
+          SELECT * FROM ranked
+          WHERE rn = 1
+          ORDER BY cursor_ts ASC, ${orderFrag}
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        )
+        UPDATE conveyor_jobs
+        SET state = 'active', processed_at = ${now}, lock_until = ${lockUntil}, locked_by = ${workerId}
+        FROM best
+        WHERE conveyor_jobs.queue_name = ${queueName} AND conveyor_jobs.id = best.id
+        RETURNING conveyor_jobs.*
+      `;
+
+      if (rows.length === 0) return null;
+
+      const fetched = rowToJobData(rows[0]!);
+      const effectiveGroupId = fetched.groupId ?? '__ungrouped__';
+
+      // Upsert cursor
+      await tx`
+        INSERT INTO conveyor_group_cursors (queue_name, group_id, last_served_at)
+        VALUES (${queueName}, ${effectiveGroupId}, ${now})
+        ON CONFLICT (queue_name, group_id) DO UPDATE SET last_served_at = ${now}
+      `;
+
+      return fetched;
+    });
+
+    return result;
   }
 
   async extendLock(
@@ -312,6 +418,24 @@ export class PgStore implements StoreInterface {
     const rows = await this.sql`
       SELECT COUNT(*)::int AS count FROM conveyor_jobs
       WHERE queue_name = ${queueName} AND state = 'active'
+    `;
+    return rows[0]?.count ?? 0;
+  }
+
+  // ─── Group Counts ────────────────────────────────────────────────
+
+  async getGroupActiveCount(queueName: string, groupId: string): Promise<number> {
+    const rows = await this.sql`
+      SELECT COUNT(*)::int AS count FROM conveyor_jobs
+      WHERE queue_name = ${queueName} AND state = 'active' AND group_id = ${groupId}
+    `;
+    return rows[0]?.count ?? 0;
+  }
+
+  async getWaitingGroupCount(queueName: string, groupId: string): Promise<number> {
+    const rows = await this.sql`
+      SELECT COUNT(*)::int AS count FROM conveyor_jobs
+      WHERE queue_name = ${queueName} AND state = 'waiting' AND group_id = ${groupId}
     `;
     return rows[0]?.count ?? 0;
   }
@@ -620,6 +744,6 @@ export class PgStore implements StoreInterface {
 
   /** Truncate all Conveyor tables. Intended for test cleanup only. */
   async truncateAll(): Promise<void> {
-    await this.sql`TRUNCATE conveyor_jobs, conveyor_paused_names`;
+    await this.sql`TRUNCATE conveyor_jobs, conveyor_paused_names, conveyor_group_cursors`;
   }
 }

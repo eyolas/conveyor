@@ -37,6 +37,7 @@ export interface JobRow {
   parent_queue_name: string | null;
   pending_children_count: number;
   cancelled_at: Date | null;
+  group_id: string | null;
 }
 
 /** Parse a value that may already be a JS object (driver auto-parsed) or a JSON string. */
@@ -85,6 +86,7 @@ export function rowToJobData(row: JobRow): JobData {
     parentQueueName: row.parent_queue_name ?? null,
     pendingChildrenCount: row.pending_children_count ?? 0,
     cancelledAt: row.cancelled_at ? new Date(row.cancelled_at) : null,
+    groupId: row.group_id ?? null,
   };
 }
 
@@ -123,5 +125,6 @@ export function jobDataToRow(
     parent_queue_name: job.parentQueueName ?? null,
     pending_children_count: job.pendingChildrenCount ?? 0,
     cancelled_at: job.cancelledAt,
+    group_id: job.groupId ?? null,
   };
 }

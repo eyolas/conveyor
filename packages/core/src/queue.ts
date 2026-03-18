@@ -85,6 +85,19 @@ export class Queue<T = unknown> {
       }
     }
 
+    // Check group maxSize
+    if (mergedOpts.group?.maxSize !== undefined && mergedOpts.group.id) {
+      const waitingCount = await this.store.getWaitingGroupCount(
+        this.name,
+        mergedOpts.group.id,
+      );
+      if (waitingCount >= mergedOpts.group.maxSize) {
+        throw new Error(
+          `Group "${mergedOpts.group.id}" has reached its maximum size of ${mergedOpts.group.maxSize}`,
+        );
+      }
+    }
+
     const id = await this.store.saveJob(this.name, jobData);
     const saved = await this.store.getJob(this.name, id);
 
@@ -214,6 +227,19 @@ export class Queue<T = unknown> {
       const { name, data, opts } = jobs[i]!;
       const mergedOpts = { ...this.defaultJobOptions, ...opts };
       const jobData = createJobData(this.name, name, data, mergedOpts);
+
+      // Check group maxSize
+      if (mergedOpts.group?.maxSize !== undefined && mergedOpts.group.id) {
+        const waitingCount = await this.store.getWaitingGroupCount(
+          this.name,
+          mergedOpts.group.id,
+        );
+        if (waitingCount >= mergedOpts.group.maxSize) {
+          throw new Error(
+            `Group "${mergedOpts.group.id}" has reached its maximum size of ${mergedOpts.group.maxSize}`,
+          );
+        }
+      }
 
       // Handle deduplication
       if (mergedOpts.deduplication) {

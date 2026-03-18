@@ -1229,6 +1229,180 @@ export function runConformanceTests(
     await store.disconnect();
   });
 
+  // ─── Groups ─────────────────────────────────────────────────────────
+
+  test(`[${storeName}] saveJob with groupId`, async () => {
+    store = factory();
+    await store.connect();
+
+    const jobData = createJobData(queueName, 'grouped-job', { v: 1 }, { group: { id: 'g1' } });
+    const id = await store.saveJob(queueName, jobData);
+
+    const job = await store.getJob(queueName, id);
+    expect(job).toBeDefined();
+    expect(job!.groupId).toEqual('g1');
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] getGroupActiveCount`, async () => {
+    store = factory();
+    await store.connect();
+
+    const j1 = createJobData(queueName, 'g-job', {}, { group: { id: 'ga' } });
+    const j2 = createJobData(queueName, 'g-job', {}, { group: { id: 'ga' } });
+    const j3 = createJobData(queueName, 'g-job', {}, { group: { id: 'gb' } });
+    await store.saveJob(queueName, j1);
+    await store.saveJob(queueName, j2);
+    await store.saveJob(queueName, j3);
+
+    expect(await store.getGroupActiveCount(queueName, 'ga')).toEqual(0);
+
+    await store.fetchNextJob(queueName, 'w1', 30_000, {
+      groupConcurrency: 10,
+    });
+
+    // One job should be active now — could be ga or gb depending on round-robin
+    const gaActive = await store.getGroupActiveCount(queueName, 'ga');
+    const gbActive = await store.getGroupActiveCount(queueName, 'gb');
+    expect(gaActive + gbActive).toEqual(1);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] getWaitingGroupCount`, async () => {
+    store = factory();
+    await store.connect();
+
+    const j1 = createJobData(queueName, 'g-job', {}, { group: { id: 'gw' } });
+    const j2 = createJobData(queueName, 'g-job', {}, { group: { id: 'gw' } });
+    const j3 = createJobData(queueName, 'g-job', {}, { group: { id: 'gx' } });
+    await store.saveJob(queueName, j1);
+    await store.saveJob(queueName, j2);
+    await store.saveJob(queueName, j3);
+
+    expect(await store.getWaitingGroupCount(queueName, 'gw')).toEqual(2);
+    expect(await store.getWaitingGroupCount(queueName, 'gx')).toEqual(1);
+    expect(await store.getWaitingGroupCount(queueName, 'gz')).toEqual(0);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] fetchNextJob round-robin across groups`, async () => {
+    store = factory();
+    await store.connect();
+
+    // Add 2 jobs per group in order: A, A, B, B
+    await store.saveJob(queueName, createJobData(queueName, 'a1', {}, { group: { id: 'A' } }));
+    await store.saveJob(queueName, createJobData(queueName, 'a2', {}, { group: { id: 'A' } }));
+    await store.saveJob(queueName, createJobData(queueName, 'b1', {}, { group: { id: 'B' } }));
+    await store.saveJob(queueName, createJobData(queueName, 'b2', {}, { group: { id: 'B' } }));
+
+    const fetched: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const job = await store.fetchNextJob(queueName, `w${i}`, 30_000, {
+        groupConcurrency: 10,
+      });
+      if (job) fetched.push(job.name);
+    }
+
+    expect(fetched.length).toEqual(4);
+    // Round-robin should alternate groups: first fetch from A, then B, then A, then B
+    // (or B then A — depends on initial cursor, but they should alternate)
+    const groups = fetched.map((n) => n.charAt(0));
+    // No two consecutive fetches from the same group (with 2 groups and 4 jobs)
+    expect(groups[0]).not.toEqual(groups[1]);
+    expect(groups[2]).not.toEqual(groups[3]);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] fetchNextJob respects groupConcurrency`, async () => {
+    store = factory();
+    await store.connect();
+
+    // 3 jobs in group C, concurrency = 1
+    await store.saveJob(queueName, createJobData(queueName, 'c1', {}, { group: { id: 'C' } }));
+    await store.saveJob(queueName, createJobData(queueName, 'c2', {}, { group: { id: 'C' } }));
+    await store.saveJob(queueName, createJobData(queueName, 'c3', {}, { group: { id: 'C' } }));
+
+    // First fetch should succeed
+    const first = await store.fetchNextJob(queueName, 'w1', 30_000, {
+      groupConcurrency: 1,
+    });
+    expect(first).toBeDefined();
+    expect(first!.groupId).toEqual('C');
+
+    // Second fetch should fail (concurrency = 1, already 1 active in group C)
+    const second = await store.fetchNextJob(queueName, 'w2', 30_000, {
+      groupConcurrency: 1,
+    });
+    expect(second).toEqual(null);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] fetchNextJob with excludeGroups`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'x1', {}, { group: { id: 'X' } }));
+    await store.saveJob(queueName, createJobData(queueName, 'y1', {}, { group: { id: 'Y' } }));
+
+    // Exclude group X
+    const job = await store.fetchNextJob(queueName, 'w1', 30_000, {
+      excludeGroups: ['X'],
+    });
+    expect(job).toBeDefined();
+    expect(job!.groupId).toEqual('Y');
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] mixed grouped and ungrouped jobs`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'grouped', {}, { group: { id: 'G' } }));
+    await store.saveJob(queueName, createJobData(queueName, 'ungrouped', {}));
+
+    // Both should be fetchable
+    const first = await store.fetchNextJob(queueName, 'w1', 30_000, {
+      groupConcurrency: 10,
+    });
+    expect(first).toBeDefined();
+
+    const second = await store.fetchNextJob(queueName, 'w2', 30_000, {
+      groupConcurrency: 10,
+    });
+    expect(second).toBeDefined();
+
+    const names = [first!.name, second!.name].sort();
+    expect(names).toEqual(['grouped', 'ungrouped']);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] no regression for non-grouped usage`, async () => {
+    store = factory();
+    await store.connect();
+
+    // Regular jobs without group options — should work as before
+    await store.saveJob(queueName, createJobData(queueName, 'regular-1', {}));
+    await store.saveJob(queueName, createJobData(queueName, 'regular-2', {}));
+
+    const first = await store.fetchNextJob(queueName, 'w1', 30_000);
+    expect(first).toBeDefined();
+    expect(first!.name).toEqual('regular-1');
+    expect(first!.groupId).toEqual(null);
+
+    const second = await store.fetchNextJob(queueName, 'w2', 30_000);
+    expect(second).toBeDefined();
+    expect(second!.name).toEqual('regular-2');
+
+    await store.disconnect();
+  });
+
   // ─── updateJob opts syncs priority ─────────────────────────────────
 
   test(`[${storeName}] updateJob opts syncs priority`, async () => {

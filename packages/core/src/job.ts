@@ -54,6 +54,7 @@ export class Job<T = unknown> {
   private readonly _delayUntil: Date | null;
   private readonly _lockUntil: Date | null;
   private readonly _lockedBy: string | null;
+  private readonly _groupId: string | null;
 
   private readonly store: StoreInterface;
 
@@ -87,6 +88,7 @@ export class Job<T = unknown> {
     this._delayUntil = jobData.delayUntil;
     this._lockUntil = jobData.lockUntil;
     this._lockedBy = jobData.lockedBy;
+    this._groupId = jobData.groupId;
 
     this.store = store;
   }
@@ -141,6 +143,11 @@ export class Job<T = unknown> {
   /** Copy of the job's log messages. */
   get logs(): string[] {
     return [...this._logs];
+  }
+
+  /** Group ID this job belongs to (`null` if ungrouped). */
+  get groupId(): string | null {
+    return this._groupId;
   }
 
   // ─── Mutations ────────────────────────────────────────────────────
@@ -326,6 +333,7 @@ export class Job<T = unknown> {
       parentQueueName: this.parentQueueName,
       pendingChildrenCount: 0,
       cancelledAt: this._cancelledAt,
+      groupId: this._groupId,
     };
   }
 }

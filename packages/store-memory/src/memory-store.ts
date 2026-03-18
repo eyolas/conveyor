@@ -40,6 +40,8 @@ export class MemoryStore implements StoreInterface {
   private insertionCounter = 0;
   private pausedNames = new Map<string, Set<string>>();
   private subscribers = new Map<string, Set<EventCallback>>();
+  /** Round-robin cursor: queueName → groupId → lastServedTimestamp */
+  private groupCursors = new Map<string, Map<string, number>>();
   private readonly onEventHandlerError: (error: unknown) => void;
 
   constructor(options?: StoreOptions) {
@@ -61,6 +63,7 @@ export class MemoryStore implements StoreInterface {
     this.insertionCounter = 0;
     this.pausedNames.clear();
     this.subscribers.clear();
+    this.groupCursors.clear();
     return Promise.resolve();
   }
 
@@ -166,7 +169,12 @@ export class MemoryStore implements StoreInterface {
         return opts?.lifo ? orderB - orderA : orderA - orderB;
       });
 
-    const job = waitingJobs[0];
+    // If group options are present, use round-robin group selection
+    const hasGroupOpts = opts?.groupConcurrency !== undefined || opts?.excludeGroups !== undefined;
+    const job = hasGroupOpts
+      ? this.pickGroupedJob(queueName, queue, waitingJobs, opts!)
+      : waitingJobs[0] ?? null;
+
     if (!job) return Promise.resolve(null);
 
     // Lock the job
@@ -180,6 +188,61 @@ export class MemoryStore implements StoreInterface {
 
     queue.set(job.id, locked);
     return Promise.resolve(structuredClone(locked));
+  }
+
+  /**
+   * Pick the next job using round-robin group selection.
+   * Groups are sorted by least-recently-served. For each group,
+   * we check concurrency caps and exclusion lists.
+   */
+  private pickGroupedJob(
+    queueName: string,
+    queue: Map<string, JobData>,
+    waitingJobs: JobData[],
+    opts: FetchOptions,
+  ): JobData | null {
+    const excludeGroups = new Set(opts.excludeGroups ?? []);
+
+    // Collect distinct groups from waiting jobs
+    const groupJobs = new Map<string, JobData[]>();
+    for (const job of waitingJobs) {
+      const gid = job.groupId ?? '__ungrouped__';
+      if (!groupJobs.has(gid)) groupJobs.set(gid, []);
+      groupJobs.get(gid)!.push(job);
+    }
+
+    if (groupJobs.size === 0) return null;
+
+    // Sort groups by last-served timestamp (oldest first = round-robin)
+    const cursors = this.getGroupCursors(queueName);
+    const sortedGroups = Array.from(groupJobs.keys()).sort((a, b) => {
+      return (cursors.get(a) ?? 0) - (cursors.get(b) ?? 0);
+    });
+
+    for (const gid of sortedGroups) {
+      // Skip excluded groups
+      if (excludeGroups.has(gid)) continue;
+
+      // Check group concurrency cap
+      if (opts.groupConcurrency !== undefined && gid !== '__ungrouped__') {
+        let groupActiveCount = 0;
+        for (const j of queue.values()) {
+          if (j.state === 'active' && (j.groupId ?? '__ungrouped__') === gid) {
+            groupActiveCount++;
+          }
+        }
+        if (groupActiveCount >= opts.groupConcurrency) continue;
+      }
+
+      const candidates = groupJobs.get(gid)!;
+      if (candidates.length > 0) {
+        // Update cursor
+        cursors.set(gid, Date.now());
+        return candidates[0]!;
+      }
+    }
+
+    return null;
   }
 
   extendLock(
@@ -222,6 +285,26 @@ export class MemoryStore implements StoreInterface {
     let count = 0;
     for (const job of queue.values()) {
       if (job.state === 'active') count++;
+    }
+    return Promise.resolve(count);
+  }
+
+  // ─── Group Counts ────────────────────────────────────────────────
+
+  getGroupActiveCount(queueName: string, groupId: string): Promise<number> {
+    const queue = this.getQueue(queueName);
+    let count = 0;
+    for (const job of queue.values()) {
+      if (job.state === 'active' && job.groupId === groupId) count++;
+    }
+    return Promise.resolve(count);
+  }
+
+  getWaitingGroupCount(queueName: string, groupId: string): Promise<number> {
+    const queue = this.getQueue(queueName);
+    let count = 0;
+    for (const job of queue.values()) {
+      if (job.state === 'waiting' && job.groupId === groupId) count++;
     }
     return Promise.resolve(count);
   }
@@ -514,5 +597,12 @@ export class MemoryStore implements StoreInterface {
       this.insertionOrder.set(queueName, new Map());
     }
     return this.insertionOrder.get(queueName)!;
+  }
+
+  private getGroupCursors(queueName: string): Map<string, number> {
+    if (!this.groupCursors.has(queueName)) {
+      this.groupCursors.set(queueName, new Map());
+    }
+    return this.groupCursors.get(queueName)!;
   }
 }
