@@ -103,6 +103,22 @@ export const migrations: Migration[] = [
       await tx`ALTER TABLE conveyor_jobs ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ`;
     },
   },
+  {
+    version: 4,
+    name: 'add_groups',
+    up: async (tx: postgres.Sql) => {
+      await tx`ALTER TABLE conveyor_jobs ADD COLUMN IF NOT EXISTS group_id TEXT`;
+      await tx`CREATE INDEX IF NOT EXISTS idx_group ON conveyor_jobs (queue_name, group_id, state) WHERE group_id IS NOT NULL`;
+      await tx`
+        CREATE TABLE IF NOT EXISTS conveyor_group_cursors (
+          queue_name    TEXT NOT NULL,
+          group_id      TEXT NOT NULL,
+          last_served_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (queue_name, group_id)
+        )
+      `;
+    },
+  },
 ];
 
 /**

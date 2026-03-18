@@ -91,6 +91,20 @@ export const migrations: Migration[] = [
       ALTER TABLE conveyor_jobs ADD COLUMN cancelled_at INTEGER;
     `,
   },
+  {
+    version: 4,
+    name: 'add_groups',
+    up: `
+      ALTER TABLE conveyor_jobs ADD COLUMN group_id TEXT;
+      CREATE INDEX idx_group ON conveyor_jobs (queue_name, group_id, state);
+      CREATE TABLE IF NOT EXISTS conveyor_group_cursors (
+        queue_name     TEXT NOT NULL,
+        group_id       TEXT NOT NULL,
+        last_served_at INTEGER NOT NULL,
+        PRIMARY KEY (queue_name, group_id)
+      );
+    `,
+  },
 ];
 
 /**

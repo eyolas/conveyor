@@ -31,6 +31,8 @@ export type {
   FetchOptions,
   FlowJob,
   FlowResult,
+  GroupOptions,
+  GroupWorkerOptions,
   HumanDuration,
   JobData,
   JobObserver,

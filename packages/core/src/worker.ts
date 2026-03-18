@@ -8,6 +8,8 @@
 import type {
   BatchOptions,
   BatchResult,
+  FetchOptions,
+  GroupWorkerOptions,
   JobData,
   LimiterOptions,
   QueueEventType,
@@ -77,7 +79,9 @@ export class Worker<T = unknown> {
   private readonly stalledInterval: number;
   private readonly limiter: LimiterOptions | null;
   private readonly lifo: boolean;
+  private readonly groupOptions: GroupWorkerOptions | null;
   private rateLimitTimestamps: number[] = [];
+  private groupRateLimitTimestamps = new Map<string, number[]>();
 
   private activeCount = 0;
   private closed = false;
@@ -125,6 +129,7 @@ export class Worker<T = unknown> {
     this.stalledInterval = options.stalledInterval ?? 30_000;
     this.limiter = options.limiter ?? null;
     this.lifo = options.lifo ?? false;
+    this.groupOptions = options.group ?? null;
 
     // Start processing unless autoStart is explicitly false
     if (options.autoStart !== false) {
@@ -254,13 +259,18 @@ export class Worker<T = unknown> {
         this.queueName,
         this.id,
         this.lockDuration,
-        { lifo: this.lifo },
+        this.buildFetchOptions(),
       );
 
       if (!jobData) break;
 
       // Record timestamp for rate limiting
       this.recordRateLimitTimestamp();
+
+      // Record per-group rate limit timestamp
+      if (jobData.groupId && this.groupOptions?.limiter) {
+        this.recordGroupRateLimitTimestamp(jobData.groupId);
+      }
 
       // Process the job (don't await — allows concurrency)
       this.processJob(jobData as JobData<T>).catch((err) => {
@@ -373,12 +383,17 @@ export class Worker<T = unknown> {
           this.queueName,
           this.id,
           this.lockDuration,
-          { lifo: this.lifo },
+          this.buildFetchOptions(),
         );
 
         if (!jobData) break;
 
         this.recordRateLimitTimestamp();
+
+        if (jobData.groupId && this.groupOptions?.limiter) {
+          this.recordGroupRateLimitTimestamp(jobData.groupId);
+        }
+
         collected.push(jobData as JobData<T>);
       }
 
@@ -788,6 +803,50 @@ export class Worker<T = unknown> {
     if (this.limiter) {
       this.rateLimitTimestamps.push(Date.now());
     }
+  }
+
+  private buildFetchOptions(): FetchOptions {
+    const opts: FetchOptions = { lifo: this.lifo };
+    if (this.groupOptions?.concurrency !== undefined) {
+      opts.groupConcurrency = this.groupOptions.concurrency;
+    }
+    if (this.groupOptions?.limiter) {
+      opts.excludeGroups = this.getExcludedGroups();
+    }
+    return opts;
+  }
+
+  // ─── Per-Group Rate Limiting ──────────────────────────────────────
+
+  private isGroupRateLimited(groupId: string): boolean {
+    const limiter = this.groupOptions?.limiter;
+    if (!limiter) return false;
+    const now = Date.now();
+    const windowStart = now - limiter.duration;
+    let timestamps = this.groupRateLimitTimestamps.get(groupId);
+    if (!timestamps) return false;
+    timestamps = timestamps.filter((t) => t > windowStart);
+    this.groupRateLimitTimestamps.set(groupId, timestamps);
+    return timestamps.length >= limiter.max;
+  }
+
+  private recordGroupRateLimitTimestamp(groupId: string): void {
+    if (!this.groupRateLimitTimestamps.has(groupId)) {
+      this.groupRateLimitTimestamps.set(groupId, []);
+    }
+    this.groupRateLimitTimestamps.get(groupId)!.push(Date.now());
+  }
+
+  private getExcludedGroups(): string[] {
+    const limiter = this.groupOptions?.limiter;
+    if (!limiter) return [];
+    const excluded: string[] = [];
+    for (const groupId of this.groupRateLimitTimestamps.keys()) {
+      if (this.isGroupRateLimited(groupId)) {
+        excluded.push(groupId);
+      }
+    }
+    return excluded;
   }
 
   // ─── Cron Helpers ─────────────────────────────────────────────────

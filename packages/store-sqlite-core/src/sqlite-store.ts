@@ -114,13 +114,15 @@ export class BaseSqliteStore implements StoreInterface {
           returnvalue, failed_reason, opts, deduplication_key, logs,
           priority, seq, created_at, processed_at, completed_at, failed_at,
           delay_until, lock_until, locked_by,
-          parent_id, parent_queue_name, pending_children_count, cancelled_at
+          parent_id, parent_queue_name, pending_children_count, cancelled_at,
+          group_id
         ) VALUES (
           :id, :queue_name, :name, :data, :state, :attempts_made, :progress,
           :returnvalue, :failed_reason, :opts, :deduplication_key, :logs,
           :priority, :seq, :created_at, :processed_at, :completed_at, :failed_at,
           :delay_until, :lock_until, :locked_by,
-          :parent_id, :parent_queue_name, :pending_children_count, :cancelled_at
+          :parent_id, :parent_queue_name, :pending_children_count, :cancelled_at,
+          :group_id
         )
       `),
       getJob: this.db.prepare(
@@ -270,6 +272,7 @@ export class BaseSqliteStore implements StoreInterface {
       parentQueueName: 'parent_queue_name',
       pendingChildrenCount: 'pending_children_count',
       cancelledAt: 'cancelled_at',
+      groupId: 'group_id',
     };
 
     for (const [key, col] of Object.entries(columnMap)) {
@@ -338,6 +341,15 @@ export class BaseSqliteStore implements StoreInterface {
     lockDuration: number,
     opts?: FetchOptions,
   ): Promise<JobData | null> {
+    const hasGroupOpts = opts?.groupConcurrency !== undefined ||
+      (opts?.excludeGroups !== undefined && opts.excludeGroups.length > 0);
+
+    if (hasGroupOpts) {
+      return Promise.resolve(
+        this.fetchNextJobGrouped(queueName, workerId, lockDuration, opts!),
+      );
+    }
+
     const now = Date.now();
     const lockUntil = now + lockDuration;
     const lifo = opts?.lifo ?? false;
@@ -376,6 +388,116 @@ export class BaseSqliteStore implements StoreInterface {
     return Promise.resolve(rowToJobData(result));
   }
 
+  /**
+   * Fetch next job with round-robin group selection (SQLite version).
+   */
+  private fetchNextJobGrouped(
+    queueName: string,
+    workerId: string,
+    lockDuration: number,
+    opts: FetchOptions,
+  ): JobData | null {
+    const now = Date.now();
+    const lockUntil = now + lockDuration;
+    const lifo = opts.lifo ?? false;
+    // order is always 'seq ASC' or 'seq DESC' — safe to interpolate in SQL
+    const order = lifo ? 'seq DESC' : 'seq ASC';
+    const excludeGroups = opts.excludeGroups ?? [];
+    const groupConcurrency = opts.groupConcurrency;
+
+    const result = this.runTransaction(() => {
+      // Build the waiting jobs query with filters
+      const nameFilter = opts.jobName ? 'AND j.name = ?' : '';
+      let excludeFilter = '';
+      const excludePlaceholders: string[] = [];
+      if (excludeGroups.length > 0) {
+        const placeholders = excludeGroups.map(() => '?').join(', ');
+        excludeFilter = `AND COALESCE(j.group_id, '__ungrouped__') NOT IN (${placeholders})`;
+        excludePlaceholders.push(...excludeGroups);
+      }
+
+      // Find distinct eligible groups sorted by cursor (round-robin)
+      const groupQuery = `
+        SELECT DISTINCT COALESCE(j.group_id, '__ungrouped__') AS gid
+        FROM conveyor_jobs j
+        WHERE j.queue_name = ? AND j.state = 'waiting'
+          ${nameFilter}
+          ${excludeFilter}
+          AND j.name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+          AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
+        ORDER BY (
+          SELECT COALESCE(c.last_served_at, 0)
+          FROM conveyor_group_cursors c
+          WHERE c.queue_name = ? AND c.group_id = COALESCE(j.group_id, '__ungrouped__')
+        ) ASC
+      `;
+      const groupParams: unknown[] = [queueName];
+      if (opts.jobName) groupParams.push(opts.jobName);
+      groupParams.push(...excludePlaceholders);
+      groupParams.push(queueName, queueName, queueName);
+
+      const groups = this.db.prepare(groupQuery).all(
+        ...groupParams as unknown[],
+      ) as { gid: string }[];
+
+      for (const { gid } of groups) {
+        // Check group concurrency cap (skip for ungrouped)
+        if (groupConcurrency !== undefined && gid !== '__ungrouped__') {
+          const activeRow = this.db.prepare(`
+            SELECT COUNT(*) AS count FROM conveyor_jobs
+            WHERE queue_name = ? AND state = 'active' AND group_id = ?
+          `).get(queueName, gid) as { count: number };
+          if (activeRow.count >= groupConcurrency) continue;
+        }
+
+        // Pick the best job from this group
+        const groupFilter = gid === '__ungrouped__'
+          ? 'AND j.group_id IS NULL'
+          : 'AND j.group_id = ?';
+        const jobQuery = `
+          SELECT j.id FROM conveyor_jobs j
+          WHERE j.queue_name = ? AND j.state = 'waiting'
+            ${nameFilter}
+            ${groupFilter}
+            AND j.name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ?)
+            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ? AND job_name = '__all__')
+          ORDER BY j.priority ASC, j.${order}
+          LIMIT 1
+        `;
+        const jobParams: unknown[] = [queueName];
+        if (opts.jobName) jobParams.push(opts.jobName);
+        if (gid !== '__ungrouped__') jobParams.push(gid);
+        jobParams.push(queueName, queueName);
+
+        const candidate = this.db.prepare(jobQuery).get(
+          ...jobParams as unknown[],
+        ) as { id: string } | undefined;
+        if (!candidate) continue;
+
+        // Lock the job
+        this.db.prepare(`
+          UPDATE conveyor_jobs
+          SET state = 'active', processed_at = ?, lock_until = ?, locked_by = ?
+          WHERE queue_name = ? AND id = ?
+        `).run(now, lockUntil, workerId, queueName, candidate.id);
+
+        // Upsert cursor
+        this.db.prepare(`
+          INSERT INTO conveyor_group_cursors (queue_name, group_id, last_served_at)
+          VALUES (?, ?, ?)
+          ON CONFLICT (queue_name, group_id) DO UPDATE SET last_served_at = ?
+        `).run(queueName, gid, now, now);
+
+        return this.stmts.getJob.get(queueName, candidate.id) as JobRow | undefined;
+      }
+
+      return null;
+    });
+
+    if (!result) return null;
+    return rowToJobData(result);
+  }
+
   extendLock(
     queueName: string,
     jobId: string,
@@ -403,6 +525,22 @@ export class BaseSqliteStore implements StoreInterface {
 
   getActiveCount(queueName: string): Promise<number> {
     const row = this.stmts.activeCount.get(queueName) as { count: number };
+    return Promise.resolve(row.count);
+  }
+
+  // ─── Group Counts ────────────────────────────────────────────────
+
+  getGroupActiveCount(queueName: string, groupId: string): Promise<number> {
+    const row = this.db.prepare(
+      "SELECT COUNT(*) AS count FROM conveyor_jobs WHERE queue_name = ? AND state = 'active' AND group_id = ?",
+    ).get(queueName, groupId) as { count: number };
+    return Promise.resolve(row.count);
+  }
+
+  getWaitingGroupCount(queueName: string, groupId: string): Promise<number> {
+    const row = this.db.prepare(
+      "SELECT COUNT(*) AS count FROM conveyor_jobs WHERE queue_name = ? AND state = 'waiting' AND group_id = ?",
+    ).get(queueName, groupId) as { count: number };
     return Promise.resolve(row.count);
   }
 

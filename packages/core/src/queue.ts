@@ -85,6 +85,19 @@ export class Queue<T = unknown> {
       }
     }
 
+    // Check group maxSize
+    if (mergedOpts.group?.maxSize !== undefined && mergedOpts.group.id) {
+      const waitingCount = await this.store.getWaitingGroupCount(
+        this.name,
+        mergedOpts.group.id,
+      );
+      if (waitingCount >= mergedOpts.group.maxSize) {
+        throw new Error(
+          `Group "${mergedOpts.group.id}" has reached its maximum size of ${mergedOpts.group.maxSize}`,
+        );
+      }
+    }
+
     const id = await this.store.saveJob(this.name, jobData);
     const saved = await this.store.getJob(this.name, id);
 
@@ -210,10 +223,26 @@ export class Queue<T = unknown> {
     const toSave: Omit<JobData<T>, 'id'>[] = [];
     const toSaveIndices: number[] = [];
 
+    // Track how many jobs we're about to add per group (for maxSize checks)
+    const pendingGroupCounts = new Map<string, number>();
+
     for (let i = 0; i < jobs.length; i++) {
       const { name, data, opts } = jobs[i]!;
       const mergedOpts = { ...this.defaultJobOptions, ...opts };
       const jobData = createJobData(this.name, name, data, mergedOpts);
+
+      // Check group maxSize (accounting for jobs already queued in this batch)
+      if (mergedOpts.group?.maxSize !== undefined && mergedOpts.group.id) {
+        const groupId = mergedOpts.group.id;
+        const waitingCount = await this.store.getWaitingGroupCount(this.name, groupId);
+        const pendingCount = pendingGroupCounts.get(groupId) ?? 0;
+        if (waitingCount + pendingCount >= mergedOpts.group.maxSize) {
+          throw new Error(
+            `Group "${groupId}" has reached its maximum size of ${mergedOpts.group.maxSize}`,
+          );
+        }
+        pendingGroupCounts.set(groupId, pendingCount + 1);
+      }
 
       // Handle deduplication
       if (mergedOpts.deduplication) {

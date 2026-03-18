@@ -127,6 +127,9 @@ export interface JobData<T = unknown> {
 
   /** When the job was cancelled. */
   cancelledAt: Date | null;
+
+  /** Group ID this job belongs to (`null` if ungrouped). */
+  groupId: string | null;
 }
 
 /** Configuration for retry backoff strategies. */
@@ -216,6 +219,27 @@ export interface JobOptions {
    * - `'remove'`: parent is removed if any child fails
    */
   failParentOnChildFailure?: 'fail' | 'ignore' | 'remove';
+
+  /** Assign this job to a group. */
+  group?: GroupOptions;
+}
+
+/** Options for assigning a job to a group. */
+export interface GroupOptions {
+  /** Group identifier (e.g. tenant ID, user ID). */
+  id: string;
+
+  /** Maximum number of waiting jobs allowed in this group. Throws on `add()` if exceeded. */
+  maxSize?: number;
+}
+
+/** Worker-side group configuration. */
+export interface GroupWorkerOptions {
+  /** Max concurrent active jobs per group (distributed, enforced by the store). */
+  concurrency?: number;
+
+  /** Per-group rate limiter (worker-local sliding window). */
+  limiter?: LimiterOptions;
 }
 
 /** Options for creating a {@linkcode Queue}. */
@@ -275,6 +299,9 @@ export interface WorkerOptions {
 
   /** Batch processing configuration. When set, the worker fetches multiple jobs per cycle. */
   batch?: BatchOptions;
+
+  /** Per-group concurrency and rate limiting configuration. */
+  group?: GroupWorkerOptions;
 }
 
 /** Event types emitted by the store (used for cross-process pub/sub). */
@@ -336,6 +363,12 @@ export interface FetchOptions {
 
   /** Filter by job name. */
   jobName?: string;
+
+  /** Max concurrent active jobs per group (distributed). */
+  groupConcurrency?: number;
+
+  /** Group IDs to exclude from fetching (e.g. rate-limited groups). */
+  excludeGroups?: string[];
 }
 
 /** Options for {@linkcode Queue.pause} and {@linkcode Queue.resume}. */
@@ -617,6 +650,24 @@ export interface StoreInterface {
    * @returns Array of child job data.
    */
   getChildrenJobs(parentQueueName: string, parentId: string): Promise<JobData[]>;
+
+  /**
+   * Count active jobs in a specific group.
+   *
+   * @param queueName - The queue to count in.
+   * @param groupId - The group identifier.
+   * @returns The number of active jobs in the group.
+   */
+  getGroupActiveCount(queueName: string, groupId: string): Promise<number>;
+
+  /**
+   * Count waiting jobs in a specific group.
+   *
+   * @param queueName - The queue to count in.
+   * @param groupId - The group identifier.
+   * @returns The number of waiting jobs in the group.
+   */
+  getWaitingGroupCount(queueName: string, groupId: string): Promise<number>;
 }
 
 /**

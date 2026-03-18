@@ -44,6 +44,11 @@ tasks:
     status: done
     file: tasks/observables.md
 
+  groups:
+    description: Per-group concurrency, rate limiting, and round-robin fairness
+    status: done
+    file: tasks/groups.md
+
 # ─── PRD Roadmap ──────────────────────────────────────────────────────────────
 
 roadmap:
@@ -71,7 +76,8 @@ roadmap:
         status: done
         file: tasks/observables.md
       groups:
-        status: todo
+        status: done
+        file: tasks/groups.md
       opentelemetry:
         status: todo
 
