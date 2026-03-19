@@ -53,28 +53,34 @@ onMounted(() => {
       <div class="conveyor-track" aria-hidden="true">
         <div class="track-line"></div>
         <div class="track-zones">
-          <div class="zone zone-waiting">
-            <span>WAITING</span>
-          </div>
-          <div class="zone zone-active">
-            <span>ACTIVE</span>
-          </div>
-          <div class="zone zone-done">
-            <span>COMPLETED</span>
-          </div>
+          <div class="zone zone-waiting"><span>WAITING</span></div>
+          <div class="zone zone-active"><span>PROCESSING</span></div>
+          <div class="zone zone-done"><span>DONE</span></div>
         </div>
         <div class="jobs-stream">
-          <div class="job-box j1"><span>job:1</span></div>
-          <div class="job-box j2"><span>job:2</span></div>
-          <div class="job-box j3"><span>job:3</span></div>
-          <div class="job-box j4"><span>job:4</span></div>
-          <div class="job-box j5"><span>job:5</span></div>
-          <div class="job-box j6"><span>job:6</span></div>
-          <div class="job-box j7"><span>job:7</span></div>
-          <div class="job-box j8"><span>job:8</span></div>
+          <div class="job-box j1">
+            <span class="jb-name">email</span>
+            <span class="jb-tag tag-delay">30s</span>
+          </div>
+          <div class="job-box j2">
+            <span class="jb-name">resize</span>
+            <span class="jb-tag tag-prio">high</span>
+          </div>
+          <div class="job-box j3">
+            <span class="jb-name">deploy</span>
+            <span class="jb-tag tag-flow">flow</span>
+          </div>
+          <div class="job-box j4">
+            <span class="jb-name">sync</span>
+            <span class="jb-tag tag-retry">2/3</span>
+          </div>
+          <div class="job-box j5">
+            <span class="jb-name">notify</span>
+            <span class="jb-tag tag-cron">cron</span>
+          </div>
         </div>
         <div class="track-teeth">
-          <span v-for="n in 40" :key="n" class="tooth"></span>
+          <span v-for="n in 48" :key="n" class="tooth"></span>
         </div>
       </div>
     </section>
@@ -487,7 +493,7 @@ export default {
   width: 100%;
   max-width: 900px;
   margin: 4rem auto 0;
-  height: 100px;
+  height: 110px;
   opacity: 0;
   animation: fadeUp 0.8s ease forwards;
   animation-delay: 1s;
@@ -495,10 +501,10 @@ export default {
 
 .track-line {
   position: absolute;
-  top: 50%;
+  top: 55%;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 2px;
   background: var(--c-border);
   transform: translateY(-50%);
 }
@@ -510,14 +516,14 @@ export default {
   right: 0;
   display: flex;
   justify-content: space-around;
-  padding: 0 5%;
+  padding: 0 8%;
 }
 
 .zone {
   font-family: 'Fira Code', monospace;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: 600;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   padding: 3px 12px;
   border-radius: 4px;
@@ -530,39 +536,54 @@ export default {
 
 .jobs-stream {
   position: absolute;
-  top: 50%;
+  top: 55%;
   left: 0;
   width: 100%;
-  height: 28px;
+  height: 36px;
   transform: translateY(-50%);
 }
 
 .job-box {
   position: absolute;
   top: 0;
-  left: -60px;
-  width: 54px;
-  height: 28px;
-  border-radius: 5px;
+  left: -120px;
+  height: 36px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
   font-family: 'Fira Code', monospace;
-  font-size: 0.6rem;
-  font-weight: 500;
   color: #fff;
-  animation: convey 8s linear infinite;
+  animation: convey 10s linear infinite;
   will-change: transform;
+  white-space: nowrap;
 }
 
+.jb-name {
+  font-size: 0.6rem;
+  font-weight: 600;
+}
+
+.jb-tag {
+  font-size: 0.5rem;
+  font-weight: 500;
+  padding: 1px 5px;
+  border-radius: 3px;
+  opacity: 0.9;
+}
+
+.tag-delay { background: rgba(255, 255, 255, 0.15); }
+.tag-prio { background: rgba(255, 200, 50, 0.25); color: #FFD866; }
+.tag-retry { background: rgba(248, 81, 73, 0.25); color: #FF9A95; }
+.tag-flow { background: rgba(99, 179, 237, 0.25); color: #90CDF4; }
+.tag-cron { background: rgba(167, 139, 250, 0.25); color: #C4B5FD; }
+
 .j1 { animation-delay: 0s; }
-.j2 { animation-delay: 1s; }
-.j3 { animation-delay: 2s; }
-.j4 { animation-delay: 3s; }
-.j5 { animation-delay: 4s; }
-.j6 { animation-delay: 5s; }
-.j7 { animation-delay: 6s; }
-.j8 { animation-delay: 7s; }
+.j2 { animation-delay: -8s; }
+.j3 { animation-delay: -6s; }
+.j4 { animation-delay: -4s; }
+.j5 { animation-delay: -2s; }
 
 @keyframes convey {
   0% {
@@ -571,50 +592,50 @@ export default {
     box-shadow: 0 0 12px var(--c-brand-glow);
     opacity: 0;
   }
-  5% { opacity: 1; }
-  0%, 33% {
-    background: var(--c-brand);
-    box-shadow: 0 0 12px var(--c-brand-glow);
+  4% { opacity: 1; }
+  0%, 30% {
+    background: rgba(240, 118, 35, 0.7);
+    box-shadow: 0 2px 12px var(--c-brand-glow);
   }
-  40%, 60% {
-    background: #0E7490;
-    box-shadow: 0 0 12px var(--c-cyan-glow);
+  37%, 60% {
+    background: rgba(14, 116, 144, 0.7);
+    box-shadow: 0 2px 12px var(--c-cyan-glow);
   }
-  67%, 95% {
-    background: #059669;
-    box-shadow: 0 0 12px rgba(52, 211, 153, 0.3);
+  67%, 96% {
+    background: rgba(5, 150, 105, 0.7);
+    box-shadow: 0 2px 12px rgba(52, 211, 153, 0.25);
   }
-  95% { opacity: 1; }
+  96% { opacity: 1; }
   100% {
-    transform: translateX(calc(900px + 60px));
-    background: #059669;
+    transform: translateX(calc(900px + 120px));
+    background: rgba(5, 150, 105, 0.7);
     opacity: 0;
   }
 }
 
 .track-teeth {
   position: absolute;
-  bottom: 8px;
+  bottom: 4px;
   left: 0;
   right: 0;
   display: flex;
-  gap: 4px;
+  gap: 3px;
   overflow: hidden;
-  animation: teeth-scroll 2s linear infinite;
+  animation: teeth-scroll 1.5s linear infinite;
 }
 
 .tooth {
   flex-shrink: 0;
-  width: 18px;
-  height: 4px;
-  border-radius: 2px;
+  width: 16px;
+  height: 3px;
+  border-radius: 1.5px;
   background: var(--c-border);
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
 @keyframes teeth-scroll {
   0% { transform: translateX(0); }
-  100% { transform: translateX(-22px); }
+  100% { transform: translateX(-19px); }
 }
 
 /* ─── Features Section ───────────────────────────── */
