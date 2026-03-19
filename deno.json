@@ -36,7 +36,10 @@
     "lint": "deno lint",
     "fmt": "deno fmt",
     "check": "deno check packages/*/src/mod.ts",
-    "setup": "git config core.hooksPath .githooks"
+    "setup": "git config core.hooksPath .githooks",
+    "docs:dev": "cd docs && npx vitepress dev",
+    "docs:build": "cd docs && npx vitepress build",
+    "docs:preview": "cd docs && npx vitepress preview"
   },
   "fmt": {
     "lineWidth": 100,

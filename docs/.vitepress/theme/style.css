@@ -1,0 +1,39 @@
+:root {
+  --vp-c-brand-1: #E8652B;
+  --vp-c-brand-2: #F4845F;
+  --vp-c-brand-3: #E8652B;
+  --vp-c-brand-soft: rgba(232, 101, 43, 0.14);
+
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-text: #fff;
+  --vp-button-brand-bg: #E8652B;
+  --vp-button-brand-hover-border: transparent;
+  --vp-button-brand-hover-text: #fff;
+  --vp-button-brand-hover-bg: #F4845F;
+  --vp-button-brand-active-border: transparent;
+  --vp-button-brand-active-text: #fff;
+  --vp-button-brand-active-bg: #D05520;
+
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(135deg, #E8652B 10%, #F4845F 100%);
+  --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(232, 101, 43, 0.2) 10%, rgba(244, 132, 95, 0.2) 100%);
+  --vp-home-hero-image-filter: blur(44px);
+}
+
+.dark {
+  --vp-c-brand-1: #F4845F;
+  --vp-c-brand-2: #E8652B;
+  --vp-c-brand-3: #F4845F;
+  --vp-c-brand-soft: rgba(244, 132, 95, 0.16);
+
+  --vp-button-brand-bg: #E8652B;
+  --vp-button-brand-hover-bg: #F4845F;
+  --vp-button-brand-active-bg: #D05520;
+
+  --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(232, 101, 43, 0.3) 10%, rgba(244, 132, 95, 0.15) 100%);
+}
+
+/* Custom code block background */
+.dark .vp-code-group .vp-adaptive-theme {
+  --shiki-dark-bg: #1E293B;
+}
