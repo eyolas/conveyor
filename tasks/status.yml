@@ -86,17 +86,17 @@ roadmap:
 
   phase-5-documentation-website:
     description: 'Documentation site, getting started guide, BullMQ migration guide, store comparison'
-    status: todo
+    status: in-progress
     items:
       documentation-site:
-        status: planned
+        status: in-progress
         file: tasks/documentation-site.md
       getting-started-guide:
-        status: todo
+        status: done
       bullmq-migration-guide:
-        status: todo
+        status: done
       store-comparison-guide:
-        status: todo
+        status: done
 
   phase-6-tooling-ecosystem:
     description: 'Web dashboard, decoupled notifications, sandboxed workers, OpenTelemetry'
