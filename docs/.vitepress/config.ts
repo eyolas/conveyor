@@ -1,5 +1,48 @@
 import { defineConfig } from 'vitepress';
 
+function guideSidebar() {
+  return [
+    {
+      text: 'Introduction',
+      collapsed: true,
+      items: [
+        { text: 'What is Conveyor?', link: '/guide/' },
+        { text: 'Getting Started', link: '/guide/getting-started' },
+        { text: 'Installation', link: '/guide/installation' },
+      ],
+    },
+    {
+      text: 'Concepts',
+      collapsed: true,
+      items: [
+        { text: 'Architecture', link: '/concepts/architecture' },
+        { text: 'Job Lifecycle', link: '/concepts/job-lifecycle' },
+        { text: 'Stores', link: '/concepts/stores' },
+        { text: 'Multi-Runtime', link: '/concepts/multi-runtime' },
+      ],
+    },
+    {
+      text: 'Features',
+      collapsed: true,
+      items: [
+        { text: 'Scheduling', link: '/features/scheduling' },
+        { text: 'Retry & Backoff', link: '/features/retry-backoff' },
+        { text: 'Concurrency', link: '/features/concurrency' },
+        { text: 'Rate Limiting', link: '/features/rate-limiting' },
+        { text: 'Deduplication', link: '/features/deduplication' },
+        { text: 'Priority & Ordering', link: '/features/priority-ordering' },
+        { text: 'Pause / Resume', link: '/features/pause-resume' },
+        { text: 'Flows', link: '/features/flows' },
+        { text: 'Batching', link: '/features/batching' },
+        { text: 'Observables', link: '/features/observables' },
+        { text: 'Groups', link: '/features/groups' },
+        { text: 'Events', link: '/features/events' },
+        { text: 'Graceful Shutdown', link: '/features/graceful-shutdown' },
+      ],
+    },
+  ];
+}
+
 export default defineConfig({
   title: 'Conveyor',
   description: 'A multi-backend job queue for Deno, Node.js, and Bun',
@@ -28,80 +71,14 @@ export default defineConfig({
     ],
 
     sidebar: {
-      '/guide/': [
-        {
-          text: 'Introduction',
-          items: [
-            { text: 'What is Conveyor?', link: '/guide/' },
-            { text: 'Getting Started', link: '/guide/getting-started' },
-            { text: 'Installation', link: '/guide/installation' },
-          ],
-        },
-        {
-          text: 'Concepts',
-          items: [
-            { text: 'Architecture', link: '/concepts/architecture' },
-            { text: 'Job Lifecycle', link: '/concepts/job-lifecycle' },
-            { text: 'Stores', link: '/concepts/stores' },
-            { text: 'Multi-Runtime', link: '/concepts/multi-runtime' },
-          ],
-        },
-        {
-          text: 'Features',
-          items: [
-            { text: 'Scheduling', link: '/features/scheduling' },
-            { text: 'Retry & Backoff', link: '/features/retry-backoff' },
-            { text: 'Concurrency', link: '/features/concurrency' },
-            { text: 'Rate Limiting', link: '/features/rate-limiting' },
-            { text: 'Deduplication', link: '/features/deduplication' },
-            { text: 'Priority & Ordering', link: '/features/priority-ordering' },
-            { text: 'Pause / Resume', link: '/features/pause-resume' },
-            { text: 'Flows', link: '/features/flows' },
-            { text: 'Batching', link: '/features/batching' },
-            { text: 'Observables', link: '/features/observables' },
-            { text: 'Groups', link: '/features/groups' },
-            { text: 'Events', link: '/features/events' },
-            { text: 'Graceful Shutdown', link: '/features/graceful-shutdown' },
-          ],
-        },
-      ],
-
-      '/concepts/': [
-        {
-          text: 'Concepts',
-          items: [
-            { text: 'Architecture', link: '/concepts/architecture' },
-            { text: 'Job Lifecycle', link: '/concepts/job-lifecycle' },
-            { text: 'Stores', link: '/concepts/stores' },
-            { text: 'Multi-Runtime', link: '/concepts/multi-runtime' },
-          ],
-        },
-      ],
-
-      '/features/': [
-        {
-          text: 'Features',
-          items: [
-            { text: 'Scheduling', link: '/features/scheduling' },
-            { text: 'Retry & Backoff', link: '/features/retry-backoff' },
-            { text: 'Concurrency', link: '/features/concurrency' },
-            { text: 'Rate Limiting', link: '/features/rate-limiting' },
-            { text: 'Deduplication', link: '/features/deduplication' },
-            { text: 'Priority & Ordering', link: '/features/priority-ordering' },
-            { text: 'Pause / Resume', link: '/features/pause-resume' },
-            { text: 'Flows', link: '/features/flows' },
-            { text: 'Batching', link: '/features/batching' },
-            { text: 'Observables', link: '/features/observables' },
-            { text: 'Groups', link: '/features/groups' },
-            { text: 'Events', link: '/features/events' },
-            { text: 'Graceful Shutdown', link: '/features/graceful-shutdown' },
-          ],
-        },
-      ],
+      '/guide/': guideSidebar(),
+      '/concepts/': guideSidebar(),
+      '/features/': guideSidebar(),
 
       '/stores/': [
         {
           text: 'Stores',
+          collapsed: true,
           items: [
             { text: 'Overview', link: '/stores/' },
             { text: 'Memory', link: '/stores/memory' },
@@ -118,6 +95,7 @@ export default defineConfig({
       '/api/': [
         {
           text: 'API Reference',
+          collapsed: true,
           items: [
             { text: 'Overview', link: '/api/' },
             { text: 'Queue', link: '/api/queue' },
@@ -135,6 +113,7 @@ export default defineConfig({
       '/examples/': [
         {
           text: 'Examples',
+          collapsed: true,
           items: [
             { text: 'Overview', link: '/examples/' },
             { text: 'Basic (Memory)', link: '/examples/basic' },
@@ -147,6 +126,7 @@ export default defineConfig({
       '/advanced/': [
         {
           text: 'Advanced',
+          collapsed: true,
           items: [
             { text: 'Benchmarks', link: '/advanced/benchmarks' },
             { text: 'Migration from BullMQ', link: '/advanced/migration-from-bullmq' },
@@ -170,7 +150,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright 2026-present Conveyor contributors',
+      copyright: 'Copyright 2026-present David Touzet & Conveyor contributors',
     },
   },
 });
