@@ -497,6 +497,8 @@ export default {
   opacity: 0;
   animation: fadeUp 0.8s ease forwards;
   animation-delay: 1s;
+  mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
 }
 
 .track-line {
@@ -588,11 +590,7 @@ export default {
 @keyframes convey {
   0% {
     transform: translateX(0);
-    background: var(--c-brand);
-    box-shadow: 0 0 12px var(--c-brand-glow);
-    opacity: 0;
   }
-  4% { opacity: 1; }
   0%, 30% {
     background: rgba(240, 118, 35, 0.7);
     box-shadow: 0 2px 12px var(--c-brand-glow);
@@ -601,15 +599,12 @@ export default {
     background: rgba(14, 116, 144, 0.7);
     box-shadow: 0 2px 12px var(--c-cyan-glow);
   }
-  67%, 96% {
+  67%, 100% {
     background: rgba(5, 150, 105, 0.7);
     box-shadow: 0 2px 12px rgba(52, 211, 153, 0.25);
   }
-  96% { opacity: 1; }
   100% {
     transform: translateX(calc(900px + 120px));
-    background: rgba(5, 150, 105, 0.7);
-    opacity: 0;
   }
 }
 
