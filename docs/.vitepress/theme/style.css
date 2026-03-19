@@ -1,39 +1,186 @@
+/* ─── Fonts ───────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+
+/* ─── Brand Palette ───────────────────────────────── */
 :root {
-  --vp-c-brand-1: #E8652B;
-  --vp-c-brand-2: #F4845F;
-  --vp-c-brand-3: #E8652B;
-  --vp-c-brand-soft: rgba(232, 101, 43, 0.14);
+  --vp-c-brand-1: #F07623;
+  --vp-c-brand-2: #FF9A52;
+  --vp-c-brand-3: #E85D04;
+  --vp-c-brand-soft: rgba(240, 118, 35, 0.12);
 
   --vp-button-brand-border: transparent;
   --vp-button-brand-text: #fff;
-  --vp-button-brand-bg: #E8652B;
+  --vp-button-brand-bg: #F07623;
   --vp-button-brand-hover-border: transparent;
   --vp-button-brand-hover-text: #fff;
-  --vp-button-brand-hover-bg: #F4845F;
+  --vp-button-brand-hover-bg: #FF9A52;
   --vp-button-brand-active-border: transparent;
   --vp-button-brand-active-text: #fff;
-  --vp-button-brand-active-bg: #D05520;
+  --vp-button-brand-active-bg: #E85D04;
 
   --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: linear-gradient(135deg, #E8652B 10%, #F4845F 100%);
-  --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(232, 101, 43, 0.2) 10%, rgba(244, 132, 95, 0.2) 100%);
+  --vp-home-hero-name-background: linear-gradient(135deg, #F07623 10%, #FF9A52 100%);
+  --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(240, 118, 35, 0.2) 10%, rgba(255, 154, 82, 0.2) 100%);
   --vp-home-hero-image-filter: blur(44px);
+
+  /* Typography */
+  --vp-font-family-base: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --vp-font-family-mono: 'Fira Code', ui-monospace, 'Cascadia Code', monospace;
+
+  /* Custom tokens */
+  --cv-font-display: 'Bricolage Grotesque', var(--vp-font-family-base);
+  --cv-radius: 10px;
+  --cv-surface: #F8FAFC;
+  --cv-surface-2: #F1F5F9;
 }
 
 .dark {
-  --vp-c-brand-1: #F4845F;
-  --vp-c-brand-2: #E8652B;
-  --vp-c-brand-3: #F4845F;
-  --vp-c-brand-soft: rgba(244, 132, 95, 0.16);
+  --vp-c-brand-1: #FF9A52;
+  --vp-c-brand-2: #F07623;
+  --vp-c-brand-3: #FF9A52;
+  --vp-c-brand-soft: rgba(255, 154, 82, 0.12);
 
-  --vp-button-brand-bg: #E8652B;
-  --vp-button-brand-hover-bg: #F4845F;
-  --vp-button-brand-active-bg: #D05520;
+  --vp-button-brand-bg: #F07623;
+  --vp-button-brand-hover-bg: #FF9A52;
+  --vp-button-brand-active-bg: #E85D04;
 
-  --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(232, 101, 43, 0.3) 10%, rgba(244, 132, 95, 0.15) 100%);
+  --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(240, 118, 35, 0.25) 10%, rgba(255, 154, 82, 0.1) 100%);
+
+  --cv-surface: #111827;
+  --cv-surface-2: #1C2433;
+
+  /* Deeper dark backgrounds */
+  --vp-c-bg: #0C1018;
+  --vp-c-bg-alt: #111827;
+  --vp-c-bg-elv: #141A26;
+  --vp-c-bg-soft: #1C2433;
 }
 
-/* Custom code block background */
-.dark .vp-code-group .vp-adaptive-theme {
-  --shiki-dark-bg: #1E293B;
+/* ─── Global Typography ──────────────────────────── */
+h1, h2, h3, h4 {
+  font-family: var(--cv-font-display) !important;
+  letter-spacing: -0.02em;
+}
+
+.vp-doc h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--vp-c-brand-1), var(--vp-c-brand-2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.vp-doc h2 {
+  font-weight: 700;
+  border-top: none;
+  padding-top: 1.5rem;
+  border-bottom: 2px solid var(--vp-c-brand-soft);
+}
+
+/* ─── Navigation ─────────────────────────────────── */
+.VPNav {
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+
+.dark .VPNav {
+  background: rgba(12, 16, 24, 0.85) !important;
+}
+
+.VPNavBarTitle .title {
+  font-family: var(--cv-font-display) !important;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* ─── Sidebar ────────────────────────────────────── */
+.VPSidebar .group .title {
+  font-family: var(--cv-font-display) !important;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* ─── Code Blocks ────────────────────────────────── */
+.dark .vp-code-group .vp-adaptive-theme,
+.dark div[class*="language-"] {
+  --shiki-dark-bg: #0D1117 !important;
+  background: #0D1117 !important;
+}
+
+div[class*="language-"] {
+  border-radius: var(--cv-radius);
+  border: 1px solid var(--vp-c-divider);
+}
+
+.dark div[class*="language-"] {
+  border-color: #2A3344;
+}
+
+div[class*="language-"] code {
+  font-family: var(--vp-font-family-mono);
+}
+
+/* ─── Custom Container Enhancements ──────────────── */
+.custom-block {
+  border-radius: var(--cv-radius);
+}
+
+.custom-block.tip {
+  border-color: var(--vp-c-brand-soft);
+}
+
+/* ─── Scrollbar (dark mode) ──────────────────────── */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #2A3344;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #3B4A5F;
+}
+
+/* ─── Home page — remove default padding for custom component ── */
+.is-home .VPContent .VPDoc,
+.is-home .VPContent {
+  padding: 0 !important;
+}
+
+.is-home .vp-doc {
+  padding: 0 !important;
+  max-width: 100% !important;
+}
+
+.is-home .vp-doc > div {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+/* ─── Selection highlight ────────────────────────── */
+::selection {
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+}
+
+/* ─── Footer on home page ────────────────────────── */
+.VPFooter {
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+.dark .VPFooter {
+  border-color: #2A3344;
+}
+
+/* ─── Smooth page transitions ────────────────────── */
+.VPContent {
+  transition: opacity 0.2s ease;
 }
