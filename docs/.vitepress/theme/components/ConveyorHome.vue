@@ -134,12 +134,9 @@ onMounted(() => {
         <div class="runtime-cards">
           <div class="runtime-card">
             <div class="runtime-logo deno">
-              <svg viewBox="0 0 512 512" width="40" height="40">
-                <path d="M256 0C114.6 0 0 114.6 0 256s114.6 256 256 256 256-114.6 256-256S397.4 0 256 0z" fill="currentColor"/>
-                <path d="M256 28.5c125.6 0 227.5 101.9 227.5 227.5S381.6 483.5 256 483.5 28.5 381.6 28.5 256 130.4 28.5 256 28.5z" fill="var(--vp-c-bg)"/>
-                <path d="M376 256c0-66.3-53.7-120-120-120s-120 53.7-120 120c0 45.5 25.3 85.1 62.6 105.4L212 298c-4.4-10.2-6.9-21.3-6.9-33 0-46.4 37.6-84 84-84s84 37.6 84 84c0 11.7-2.4 22.8-6.7 32.9l13.5 43.4C404.3 321 376 291.5 376 256z" fill="currentColor"/>
-                <circle cx="317" cy="232" r="16" fill="currentColor"/>
-                <path d="M261 256l15.5 88.3c.8 4.5-2.2 8.8-6.7 9.6l-.5.1c-4.5.8-8.8-2.2-9.6-6.7L244.2 259" stroke="currentColor" stroke-width="8" fill="none"/>
+              <!-- Deno logo (Simple Icons) -->
+              <svg viewBox="0 0 24 24" width="44" height="44" fill="currentColor">
+                <path d="M1.105 18.02A11.9 11.9 0 0 1 0 12.985q0-.698.078-1.376a12 12 0 0 1 .231-1.34A12 12 0 0 1 4.025 4.02a12 12 0 0 1 5.46-2.771 12 12 0 0 1 3.428-.23c1.452.112 2.825.477 4.077 1.05a12 12 0 0 1 2.78 1.774 12.02 12.02 0 0 1 4.053 7.078A12 12 0 0 1 24 12.985q0 .454-.036.914a12 12 0 0 1-.728 3.305 12 12 0 0 1-2.38 3.875c-1.33 1.357-3.02 1.962-4.43 1.936a4.4 4.4 0 0 1-2.724-1.024c-.99-.853-1.391-1.83-1.53-2.919a5 5 0 0 1 .128-1.518c.105-.38.37-1.116.76-1.437-.455-.197-1.04-.624-1.226-.829-.045-.05-.04-.13 0-.183a.155.155 0 0 1 .177-.053c.392.134.869.267 1.372.35.66.111 1.484.25 2.317.292 2.03.1 4.153-.813 4.812-2.627s.403-3.609-1.96-4.685-3.454-2.356-5.363-3.128c-1.247-.505-2.636-.205-4.06.582-3.838 2.121-7.277 8.822-5.69 15.032a.191.191 0 0 1-.315.19 12 12 0 0 1-1.25-1.634 12 12 0 0 1-.769-1.404M11.57 6.087c.649-.051 1.214.501 1.31 1.236.13.979-.228 1.99-1.41 2.013-1.01.02-1.315-.997-1.248-1.614.066-.616.574-1.575 1.35-1.635"/>
               </svg>
             </div>
             <span class="runtime-name">Deno 2</span>
@@ -147,8 +144,16 @@ onMounted(() => {
           </div>
           <div class="runtime-card">
             <div class="runtime-logo node">
-              <svg viewBox="0 0 256 289" width="36" height="40">
-                <path d="M128 288.464c-3.975 0-7.685-1.06-11.13-2.915l-35.247-20.936c-5.3-2.915-2.65-3.975-1.06-4.505 7.155-2.385 8.48-2.915 15.9-7.155.795-.53 1.855-.265 2.65.265l27.032 16.166c1.06.53 2.385.53 3.18 0l105.74-61.217c1.06-.53 1.59-1.59 1.59-2.915V83.08c0-1.325-.53-2.385-1.59-2.915L128.795 19.213c-1.06-.53-2.385-.53-3.18 0L19.875 80.165c-1.06.53-1.59 1.855-1.59 2.915v122.17c0 1.06.53 2.385 1.59 2.915l28.887 16.695c15.635 7.95 25.44-1.325 25.44-10.6V93.15c0-1.59 1.325-3.18 3.18-3.18h13.25c1.59 0 3.18 1.325 3.18 3.18v121.11c0 20.936-11.395 33.126-31.27 33.126-6.095 0-10.865 0-24.38-6.625L11.13 224.6C4.24 220.625 0 213.205 0 205.25V83.08c0-7.95 4.24-15.37 11.13-19.345L116.87 2.518c6.625-3.71 15.635-3.71 22.26 0L244.87 63.735c6.89 3.975 11.13 11.395 11.13 19.345v122.17c0 7.95-4.24 15.37-11.13 19.345L139.13 285.549c-3.445 1.855-7.42 2.915-11.13 2.915z" fill="currentColor"/>
+              <!-- Official Node.js logo -->
+              <svg viewBox="0 0 426.95 485.988" width="38" height="44">
+                <defs>
+                  <linearGradient id="node-a" x1="310.495" x2="116.427" y1="44.907" y2="441.049" gradientUnits="userSpaceOnUse"><stop offset=".3" stop-color="#3e863d"/><stop offset=".5" stop-color="#55934f"/><stop offset=".8" stop-color="#5aad45"/></linearGradient>
+                  <linearGradient id="node-b" x1="21.339" x2="409.585" y1="389.396" y2="102.11" gradientUnits="userSpaceOnUse"><stop offset=".57" stop-color="#3e863d"/><stop offset=".72" stop-color="#619857"/><stop offset="1" stop-color="#76ac64"/></linearGradient>
+                  <linearGradient id="node-c" x1="12.058" x2="426.643" y1="242.887" y2="242.887" gradientUnits="userSpaceOnUse"><stop offset=".16" stop-color="#6bbf47"/><stop offset=".38" stop-color="#79b461"/><stop offset=".47" stop-color="#75ac64"/><stop offset=".7" stop-color="#659e5a"/><stop offset=".9" stop-color="#3e863d"/></linearGradient>
+                </defs>
+                <path fill="url(#node-a)" d="M201.985 3.074 11.511 113.014A22.99 22.99 0 0 0 0 132.934v220.033a22.98 22.98 0 0 0 11.511 19.92L202 482.912a23.06 23.06 0 0 0 23.013 0l190.454-110.025a23.04 23.04 0 0 0 11.483-19.92V132.934a22.99 22.99 0 0 0-11.528-19.92L224.993 3.074a23.16 23.16 0 0 0-23.058 0"/>
+                <path fill="url(#node-b)" d="M4.72 366.937a23 23 0 0 0 6.782 5.95l163.392 94.378 27.217 15.643a23.1 23.1 0 0 0 13.265 3.007 23.6 23.6 0 0 0 4.521-.828L420.788 117.25a22.8 22.8 0 0 0-5.353-4.25L290.716 40.979 224.789 3.047a24 24 0 0 0-5.968-2.4Z"/>
+                <path fill="url(#node-c)" d="M211.19.127a23.2 23.2 0 0 0-9.2 2.947L12.058 112.7l204.806 373.034a22.9 22.9 0 0 0 8.183-2.822l190.474-110.025a23.08 23.08 0 0 0 11.122-15.715L217.858.5A24 24 0 0 0 213.2.041q-.95 0-1.9.09"/>
               </svg>
             </div>
             <span class="runtime-name">Node.js 18+</span>
@@ -156,12 +161,9 @@ onMounted(() => {
           </div>
           <div class="runtime-card">
             <div class="runtime-logo bun">
-              <svg viewBox="0 0 80 80" width="40" height="40">
-                <circle cx="40" cy="40" r="38" fill="currentColor"/>
-                <circle cx="40" cy="40" r="35" fill="var(--vp-c-bg)"/>
-                <ellipse cx="30" cy="35" rx="4" ry="6" fill="currentColor"/>
-                <ellipse cx="50" cy="35" rx="4" ry="6" fill="currentColor"/>
-                <path d="M28 48 Q40 58 52 48" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round"/>
+              <!-- Official Bun logo -->
+              <svg viewBox="0 0 24 24" width="44" height="44" fill="currentColor">
+                <path d="M12 22.596c6.628 0 12-4.338 12-9.688 0-3.318-2.057-6.248-5.219-7.986-1.286-.715-2.297-1.357-3.139-1.89C14.058 2.025 13.08 1.404 12 1.404c-1.097 0-2.334.785-3.966 1.821a49.92 49.92 0 0 1-2.816 1.697C2.057 6.66 0 9.59 0 12.908c0 5.35 5.372 9.687 12 9.687v.001ZM10.599 4.715c.334-.759.503-1.58.498-2.409 0-.145.202-.187.23-.029.658 2.783-.902 4.162-2.057 4.624-.124.048-.199-.121-.103-.209a5.763 5.763 0 0 0 1.432-1.977Zm2.058-.102a5.82 5.82 0 0 0-.782-2.306v-.016c-.069-.123.086-.263.185-.172 1.962 2.111 1.307 4.067.556 5.051-.082.103-.23-.003-.189-.126a5.85 5.85 0 0 0 .23-2.431Zm1.776-.561a5.727 5.727 0 0 0-1.612-1.806v-.014c-.112-.085-.024-.274.114-.218 2.595 1.087 2.774 3.18 2.459 4.407a.116.116 0 0 1-.049.071.11.11 0 0 1-.153-.026.122.122 0 0 1-.022-.083 5.891 5.891 0 0 0-.737-2.331Zm-5.087.561c-.617.546-1.282.76-2.063 1-.117 0-.195-.078-.156-.181 1.752-.909 2.376-1.649 2.999-2.778 0 0 .155-.118.188.085 0 .304-.349 1.329-.968 1.874Zm4.945 11.237a2.957 2.957 0 0 1-.937 1.553c-.346.346-.8.565-1.286.62a2.178 2.178 0 0 1-1.327-.62 2.955 2.955 0 0 1-.925-1.553.244.244 0 0 1 .064-.198.234.234 0 0 1 .193-.069h3.965a.226.226 0 0 1 .19.07c.05.053.073.125.063.197Zm-5.458-2.176a1.862 1.862 0 0 1-2.384-.245 1.98 1.98 0 0 1-.233-2.447c.207-.319.503-.566.848-.713a1.84 1.84 0 0 1 1.092-.11c.366.075.703.261.967.531a1.98 1.98 0 0 1 .408 2.114 1.931 1.931 0 0 1-.698.869v.001Zm8.495.005a1.86 1.86 0 0 1-2.381-.253 1.964 1.964 0 0 1-.547-1.366c0-.384.11-.76.32-1.079.207-.319.503-.567.849-.713a1.844 1.844 0 0 1 1.093-.108c.367.076.704.262.968.534a1.98 1.98 0 0 1 .4 2.117 1.932 1.932 0 0 1-.702.868Z"/>
               </svg>
             </div>
             <span class="runtime-name">Bun 1.1+</span>
@@ -180,10 +182,15 @@ onMounted(() => {
         <div class="store-cards">
           <a href="/stores/postgresql" class="store-card">
             <div class="store-icon pg">
-              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7"/>
-                <ellipse cx="12" cy="7" rx="8" ry="4"/>
-                <path d="M4 12c0 2.21 3.582 4 8 4s8-1.79 8-4"/>
+              <!-- Official PostgreSQL Slonik -->
+              <svg viewBox="0 0 512 512" width="36" height="36">
+                <path d="M378.5 372.5c3.2-26.9 2.3-30.8 22.3-26.5l5.1.4c15.4.7 35.5-2.5 47.4-8 25.5-11.8 40.6-31.5 15.5-26.4-57.3 11.8-61.2-7.6-61.2-7.6 60.5-89.7 85.8-203.6 63.9-231.5C411.9-3 308.8 33 307.1 33.9l-.5.1c-11.3-2.3-24-3.8-38.2-4-25.9-.4-45.6 6.8-60.5 18.1 0 0-183.8-75.7-175.2 95.2 1.8 36.4 52.1 275.2 112.1 203 21.9-26.4 43.1-48.7 43.1-48.7 10.5 7 23.1 10.6 36.3 9.3l1-.9c-.3 3.3-.2 6.5.4 10.3-15.5 17.3-10.9 20.3-41.8 26.7-31.3 6.4-12.9 17.9-.9 20.9 14.5 3.6 48.2 8.8 70.9-23l-.9 3.6c6.1 4.9 10.3 31.6 9.6 55.8s-1.2 40.8 3.6 53.8 9.5 42.2 50.1 33.5c33.9-7.3 51.5-26.1 54-57.6 1.7-22.4 5.7-19 5.9-39l3.2-9.5c3.6-30.3.6-40.1 21.5-35.5l5.1.4c15.4.7 35.5-2.5 47.4-8 25.5-11.7 40.5-31.4 15.5-26.3" fill="#336791"/>
+                <path d="M256.3 329.5c-1.6 56.4.4 113.2 5.9 126.9 5.5 13.8 17.3 40.6 58 31.9 33.9-7.3 46.3-21.4 51.6-52.4 3.9-22.9 11.6-86.4 12.5-99.4M207.6 46.9S23.7-28.3 32.2 142.7c1.8 36.4 52.1 275.2 112.1 203 21.9-26.4 41.8-47.1 41.8-47.1M306.9 33.2c-6.4 2 102.3-39.7 164.1 39.2 21.8 27.9-3.5 141.8-63.9 231.5" fill="none" stroke="#fff" stroke-width="12.465" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M407 303.9s3.9 19.4 61.2 7.6c25.1-5.2 10 14.5-15.5 26.4-20.9 9.7-67.7 12.2-68.5-1.2-1.9-34.7 24.8-24.2 22.8-32.8-1.7-7.8-13.6-15.5-21.5-34.5-6.9-16.7-94.3-144.4 24.2-125.5 4.3-.9-30.9-112.7-141.8-114.5S160.7 165.8 160.7 165.8" fill="none" stroke="#fff" stroke-width="12.465" stroke-linecap="round" stroke-linejoin="bevel"/>
+                <path d="M225.2 315.7c-15.5 17.3-10.9 20.3-41.8 26.7-31.3 6.4-12.9 17.9-.9 20.9 14.5 3.6 48.2 8.8 70.9-23 6.9-9.7 0-25.1-9.5-29.1-4.6-2-10.8-4.4-18.7 4.5M224.2 315.4c-1.6-10.2 3.3-22.2 8.6-36.4 7.9-21.2 26.1-42.4 11.5-109.7-10.8-50.1-83.6-10.4-83.6-3.6s3.3 34.5-1.2 66.7c-5.9 42 26.7 77.6 64.3 73.9" fill="none" stroke="#fff" stroke-width="12.465" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M206.9 164.7c-.3 2.3 4.3 8.5 10.2 9.3 6 .8 11.1-4 11.4-6.3s-4.2-4.9-10.2-5.7c-6-.9-11.1.3-11.4 2.7z" fill="#fff" stroke="#fff" stroke-width="4.155"/>
+                <path d="M388.4 159.9c.3 2.3-4.2 8.5-10.2 9.3s-11.1-4-11.4-6.3 4.3-4.9 10.2-5.7 11.1.4 11.4 2.7z" fill="#fff" stroke="#fff" stroke-width="2.078"/>
+                <path d="M409.8 143.9c1 18.2-3.9 30.6-4.5 50-.9 28.2 13.4 60.4-8.2 92.7" fill="none" stroke="#fff" stroke-width="12.465" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </div>
             <h4>PostgreSQL</h4>
@@ -192,9 +199,9 @@ onMounted(() => {
           </a>
           <a href="/stores/sqlite" class="store-card">
             <div class="store-icon sqlite">
-              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
+              <!-- Official SQLite logo -->
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
+                <path d="M21.678.521c-1.032-.92-2.28-.55-3.513.544a8.71 8.71 0 0 0-.547.535c-2.109 2.237-4.066 6.38-4.674 9.544.237.48.422 1.093.544 1.561a13.044 13.044 0 0 1 .164.703s-.019-.071-.096-.296l-.05-.146a1.689 1.689 0 0 0-.033-.08c-.138-.32-.518-.995-.686-1.289-.143.423-.27.818-.376 1.176.484.884.778 2.4.778 2.4s-.025-.099-.147-.442c-.107-.303-.644-1.244-.772-1.464-.217.804-.304 1.346-.226 1.478.152.256.296.698.422 1.186.286 1.1.485 2.44.485 2.44l.017.224a22.41 22.41 0 0 0 .056 2.748c.095 1.146.273 2.13.5 2.657l.155-.084c-.334-1.038-.47-2.399-.41-3.967.09-2.398.642-5.29 1.661-8.304 1.723-4.55 4.113-8.201 6.3-9.945-1.993 1.8-4.692 7.63-5.5 9.788-.904 2.416-1.545 4.684-1.931 6.857.666-2.037 2.821-2.912 2.821-2.912s1.057-1.304 2.292-3.166c-.74.169-1.955.458-2.362.629-.6.251-.762.337-.762.337s1.945-1.184 3.613-1.72C21.695 7.9 24.195 2.767 21.678.521m-18.573.543A1.842 1.842 0 0 0 1.27 2.9v16.608a1.84 1.84 0 0 0 1.835 1.834h9.418a22.953 22.953 0 0 1-.052-2.707c-.006-.062-.011-.141-.016-.2a27.01 27.01 0 0 0-.473-2.378c-.121-.47-.275-.898-.369-1.057-.116-.197-.098-.31-.097-.432 0-.12.015-.245.037-.386a9.98 9.98 0 0 1 .234-1.045l.217-.028c-.017-.035-.014-.065-.031-.097l-.041-.381a32.8 32.8 0 0 1 .382-1.194l.2-.019c-.008-.016-.01-.038-.018-.053l-.043-.316c.63-3.28 2.587-7.443 4.8-9.791.066-.069.133-.128.198-.194Z"/>
               </svg>
             </div>
             <h4>SQLite</h4>
@@ -203,10 +210,11 @@ onMounted(() => {
           </a>
           <a href="/stores/memory" class="store-card">
             <div class="store-icon mem">
-              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="4" y="4" width="16" height="16" rx="2"/>
-                <path d="M9 9h6v6H9z"/>
-                <path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/>
+              <!-- Memory / RAM chip -->
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="6" width="14" height="12" rx="1.5"/>
+                <rect x="8" y="9" width="8" height="6" rx="1" fill="currentColor" opacity="0.15"/>
+                <path d="M8 6V3m4 3V3m4 3V3M8 18v3m4-3v3m4-3v3"/>
               </svg>
             </div>
             <h4>In-Memory</h4>
@@ -236,32 +244,32 @@ onMounted(() => {
 <script lang="ts">
 const features = [
   {
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.08"/><path d="M12 6v6l4 2" stroke-width="2"/></svg>',
     title: 'Scheduling',
     details: 'Delays, cron expressions, and human-readable intervals like "every 2 hours" or "in 10 minutes".',
   },
   {
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" stroke-width="2"/></svg>',
     title: 'Retry & Backoff',
     details: 'Fixed, exponential, or custom backoff. Configure max attempts, delays, and failure handling.',
   },
   {
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.08"/><rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.08"/><rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.08"/><rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.08"/><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
     title: 'Concurrency',
     details: 'Per-worker and global cross-worker concurrency limits with distributed locking.',
   },
   {
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/><circle cx="6" cy="16" r="1.5" fill="currentColor" opacity="0.15" stroke="none"/><circle cx="12" cy="10" r="1.5" fill="currentColor" opacity="0.15" stroke="none"/><circle cx="18" cy="4" r="1.5" fill="currentColor" opacity="0.15" stroke="none"/></svg>',
     title: 'Rate Limiting',
     details: 'Sliding window rate limiter. Set max jobs per duration to protect downstream services.',
   },
   {
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0-6h18"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="6" r="3" fill="currentColor" opacity="0.08"/><circle cx="6" cy="18" r="3" fill="currentColor" opacity="0.08"/><circle cx="18" cy="18" r="3" fill="currentColor" opacity="0.08"/><circle cx="12" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M12 9v2M9.5 16l-1.5-1M14.5 16l1.5-1" stroke-width="2"/></svg>',
     title: 'Flows & Dependencies',
     details: 'Parent-child job trees. A parent waits until all children complete before executing.',
   },
   {
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/><circle cx="9" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"/></svg>',
     title: 'Observables & Events',
     details: 'Reactive job observables and a rich event bus — progress, stalled, drained, and more.',
   },
@@ -854,8 +862,8 @@ export default {
   margin-bottom: 1.25rem;
 }
 
-.store-icon.pg { background: rgba(34, 211, 238, 0.1); color: var(--c-cyan); }
-.store-icon.sqlite { background: rgba(167, 139, 250, 0.1); color: var(--c-violet); }
+.store-icon.pg { background: rgba(51, 103, 145, 0.1); }
+.store-icon.sqlite { background: rgba(0, 130, 200, 0.08); color: #0F80CC; }
 .store-icon.mem { background: rgba(52, 211, 153, 0.1); color: var(--c-green); }
 
 .store-card h4 {
@@ -908,31 +916,161 @@ export default {
 
 /* ─── Light Mode Overrides ───────────────────────── */
 :root:not(.dark) .conveyor-home {
-  --c-surface: #F8FAFC;
-  --c-surface-2: #F1F5F9;
-  --c-border: #E2E8F0;
-  --c-text: #0F172A;
-  --c-text-muted: #64748B;
-  --c-brand-glow: rgba(240, 118, 35, 0.15);
+  --c-surface: #FFFFFF;
+  --c-surface-2: #FFF7F0;
+  --c-border: rgba(0, 0, 0, 0.06);
+  --c-text: #1A1523;
+  --c-text-muted: #6B6278;
+  --c-brand-glow: rgba(240, 118, 35, 0.12);
+  --c-cyan: #0891B2;
+  --c-green: #059669;
+  --c-violet: #7C3AED;
+}
+
+/* Hero — warm cream gradient instead of dark grid */
+:root:not(.dark) .hero {
+  background: linear-gradient(180deg, #FFFBF5 0%, #FFF4E8 40%, #FFFFFF 100%);
 }
 
 :root:not(.dark) .hero-grid-bg {
   background-image:
-    linear-gradient(rgba(148, 163, 184, 0.2) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.2) 1px, transparent 1px);
+    linear-gradient(rgba(240, 118, 35, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(240, 118, 35, 0.06) 1px, transparent 1px);
+  mask-image: radial-gradient(ellipse 60% 50% at 50% 40%, black 20%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 40%, black 20%, transparent 100%);
 }
 
 :root:not(.dark) .hero-glow {
-  opacity: 0.3;
+  background: radial-gradient(ellipse, rgba(240, 118, 35, 0.12) 0%, rgba(255, 154, 82, 0.06) 50%, transparent 70%);
+  opacity: 1;
+  filter: blur(60px);
 }
 
+:root:not(.dark) .line-2 em {
+  background: linear-gradient(135deg, #D4580A 0%, #F07623 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Cards — white with soft shadows instead of borders */
+:root:not(.dark) .feature-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.03);
+}
+
+:root:not(.dark) .feature-card:hover {
+  border-color: rgba(240, 118, 35, 0.15);
+  box-shadow: 0 8px 32px rgba(240, 118, 35, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: #FFFBF7;
+}
+
+:root:not(.dark) .store-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.03);
+}
+
+:root:not(.dark) .store-card:hover {
+  border-color: rgba(240, 118, 35, 0.15);
+  box-shadow: 0 8px 32px rgba(240, 118, 35, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+:root:not(.dark) .runtime-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.03);
+}
+
+:root:not(.dark) .runtime-card:hover {
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+/* Alternating section backgrounds */
+:root:not(.dark) .features-section {
+  background: #FAFAF8;
+}
+
+:root:not(.dark) .stores-section {
+  background: #FAFAF8;
+}
+
+/* CTA — warm gradient */
+:root:not(.dark) .cta-section {
+  background: linear-gradient(180deg, #FFFFFF 0%, #FFF7F0 100%);
+}
+
+/* Code block — stays dark, but lighter shadow */
 :root:not(.dark) .code-window {
   background: #1E293B;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.1), 0 8px 24px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+:root:not(.dark) .code-chrome {
+  background: #1A2332;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Buttons */
+:root:not(.dark) .btn-primary {
+  box-shadow: 0 4px 16px rgba(240, 118, 35, 0.25), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+:root:not(.dark) .btn-primary:hover {
+  box-shadow: 0 8px 24px rgba(240, 118, 35, 0.3), 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 :root:not(.dark) .btn-ghost {
-  background: #fff;
+  background: #FFFFFF;
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+:root:not(.dark) .btn-ghost:hover {
+  border-color: rgba(0, 0, 0, 0.15);
+  background: #FAFAF8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* Badge */
+:root:not(.dark) .hero-badge {
+  background: #FFFFFF;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  color: var(--c-text-muted);
+}
+
+/* Conveyor track */
+:root:not(.dark) .track-line {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+:root:not(.dark) .tooth {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+:root:not(.dark) .zone-waiting { color: #D4580A; border-color: rgba(212, 88, 10, 0.2); background: rgba(240, 118, 35, 0.06); }
+:root:not(.dark) .zone-active { color: #0E7490; border-color: rgba(14, 116, 144, 0.2); background: rgba(14, 116, 144, 0.06); }
+:root:not(.dark) .zone-done { color: #059669; border-color: rgba(5, 150, 105, 0.2); background: rgba(5, 150, 105, 0.06); }
+
+/* Store icon backgrounds — slightly stronger in light */
+:root:not(.dark) .store-icon.pg { background: rgba(51, 103, 145, 0.08); }
+:root:not(.dark) .store-icon.sqlite { background: rgba(0, 130, 200, 0.06); color: #0A6FB8; }
+:root:not(.dark) .store-icon.mem { background: rgba(5, 150, 105, 0.08); color: #059669; }
+
+/* Feature icon */
+:root:not(.dark) .feature-icon {
+  background: rgba(240, 118, 35, 0.07);
+  color: #D4580A;
+}
+
+/* Store tag */
+:root:not(.dark) .store-tag {
+  background: rgba(212, 88, 10, 0.06);
+  color: #D4580A;
+  border-color: rgba(212, 88, 10, 0.15);
 }
 
 /* ─── Responsive ─────────────────────────────────── */
