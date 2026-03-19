@@ -244,32 +244,32 @@ onMounted(() => {
 <script lang="ts">
 const features = [
   {
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.08"/><path d="M12 6v6l4 2" stroke-width="2"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><circle cx="12" cy="12" r="10" opacity="0.15"/><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2"/></svg>',
     title: 'Scheduling',
     details: 'Delays, cron expressions, and human-readable intervals like "every 2 hours" or "in 10 minutes".',
   },
   {
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" stroke-width="2"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M1 4v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8v4l2.5 1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     title: 'Retry & Backoff',
     details: 'Fixed, exponential, or custom backoff. Configure max attempts, delays, and failure handling.',
   },
   {
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.08"/><rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.08"/><rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.08"/><rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.08"/><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5" opacity="0.2"/><rect x="14" y="3" width="7" height="7" rx="1.5" opacity="0.35"/><rect x="3" y="14" width="7" height="7" rx="1.5" opacity="0.35"/><rect x="14" y="14" width="7" height="7" rx="1.5" opacity="0.5"/></svg>',
     title: 'Concurrency',
     details: 'Per-worker and global cross-worker concurrency limits with distributed locking.',
   },
   {
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/><circle cx="6" cy="16" r="1.5" fill="currentColor" opacity="0.15" stroke="none"/><circle cx="12" cy="10" r="1.5" fill="currentColor" opacity="0.15" stroke="none"/><circle cx="18" cy="4" r="1.5" fill="currentColor" opacity="0.15" stroke="none"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><rect x="5" y="10" width="4" height="10" rx="1" opacity="0.2"/><rect x="10" y="6" width="4" height="14" rx="1" opacity="0.35"/><rect x="15" y="2" width="4" height="18" rx="1" opacity="0.5"/><path d="M3 20h18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
     title: 'Rate Limiting',
     details: 'Sliding window rate limiter. Set max jobs per duration to protect downstream services.',
   },
   {
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="6" r="3" fill="currentColor" opacity="0.08"/><circle cx="6" cy="18" r="3" fill="currentColor" opacity="0.08"/><circle cx="18" cy="18" r="3" fill="currentColor" opacity="0.08"/><circle cx="12" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M12 9v2M9.5 16l-1.5-1M14.5 16l1.5-1" stroke-width="2"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><circle cx="12" cy="5" r="3.5" opacity="0.4"/><circle cx="5" cy="19" r="3" opacity="0.25"/><circle cx="19" cy="19" r="3" opacity="0.25"/><path d="M12 8.5v4M8.5 16.5l-2 1M15.5 16.5l2 1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
     title: 'Flows & Dependencies',
     details: 'Parent-child job trees. A parent waits until all children complete before executing.',
   },
   {
-    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/><circle cx="9" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"/></svg>',
+    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M2 12h4l3-8 6 16 3-8h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="12" r="2.5" opacity="0.25"/><circle cx="15" cy="12" r="2.5" opacity="0.25"/></svg>',
     title: 'Observables & Events',
     details: 'Reactive job observables and a rich event bus — progress, stalled, drained, and more.',
   },
@@ -292,9 +292,9 @@ export default {
   --c-cyan-glow: rgba(34, 211, 238, 0.2);
   --c-green: #34D399;
   --c-violet: #A78BFA;
-  --c-surface: #111827;
-  --c-surface-2: #1C2433;
-  --c-border: #2A3344;
+  --c-surface: #151D2B;
+  --c-surface-2: #1E2838;
+  --c-border: #2D3A4E;
   --c-text: #E2E8F0;
   --c-text-muted: #94A3B8;
 
@@ -660,44 +660,35 @@ export default {
   border-radius: 14px;
   border: 1px solid var(--c-border);
   background: var(--c-surface);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  opacity: 0;
-  transform: translateY(20px);
-  animation: fadeUp 0.5s ease forwards;
-  animation-delay: var(--delay);
-}
-
-.conveyor-home.visible .feature-card {
-  opacity: 0;
-  animation: fadeUp 0.5s ease forwards;
-  animation-delay: calc(1.2s + var(--delay));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
 .feature-card:hover {
-  border-color: rgba(240, 118, 35, 0.3);
-  background: var(--c-surface-2);
+  border-color: rgba(240, 118, 35, 0.4);
   transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(240, 118, 35, 0.1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(240, 118, 35, 0.15);
 }
 
 .feature-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: rgba(240, 118, 35, 0.1);
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(240, 118, 35, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
   color: var(--c-brand);
 }
 
 .feature-card h3 {
   font-family: 'Bricolage Grotesque', var(--vp-font-family-base);
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 700;
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.6rem;
   color: var(--c-text);
+  letter-spacing: -0.01em;
 }
 
 .feature-card p {
