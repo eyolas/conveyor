@@ -44,13 +44,14 @@
   "fmt": {
     "lineWidth": 100,
     "indentWidth": 2,
-    "singleQuote": true
+    "singleQuote": true,
+    "exclude": ["docs/"]
   },
   "lint": {
     "rules": {
       "tags": ["recommended"]
     },
-    "exclude": ["tests/bun-vitest-shim.ts", "bunfig.toml"]
+    "exclude": ["tests/bun-vitest-shim.ts", "bunfig.toml", "docs/"]
   },
   "compilerOptions": {
     "strict": true,
