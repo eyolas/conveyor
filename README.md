@@ -9,6 +9,11 @@
   BullMQ-like API with PostgreSQL, SQLite, and in-memory support.
 </p>
 
+<p align="center">
+  <a href="https://github.com/eyolas/conveyor/actions/workflows/ci.yml"><img src="https://github.com/eyolas/conveyor/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/eyolas/conveyor/actions/workflows/deploy-docs.yml"><img src="https://github.com/eyolas/conveyor/actions/workflows/deploy-docs.yml/badge.svg" alt="Deploy Docs" /></a>
+</p>
+
 ## Why Conveyor?
 
 - **No Redis required** -- use PostgreSQL, SQLite, or in-memory instead

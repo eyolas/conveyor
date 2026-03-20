@@ -51,6 +51,18 @@ export default defineConfig({
     ['link', { rel: 'icon', href: '/logo.jpeg' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
+    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { property: 'og:title', content: 'Conveyor' }],
+    [
+      'meta',
+      {
+        property: 'og:description',
+        content: 'A multi-backend job queue for Deno, Node.js, and Bun',
+      },
+    ],
+    ['meta', { property: 'og:image', content: 'https://conveyor.run/logo.jpeg' }],
+    ['meta', { property: 'og:url', content: 'https://conveyor.run' }],
+    ['meta', { name: 'twitter:card', content: 'summary' }],
   ],
 
   sitemap: {
