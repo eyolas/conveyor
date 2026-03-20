@@ -33,7 +33,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
           else
-            VERSION="v$(node -e "const c = JSON.parse(require('fs').readFileSync('../deno.json','utf8')); console.log(c.version)")"
+            VERSION="v$(node -e "const c = JSON.parse(require('fs').readFileSync('../packages/core/deno.json','utf8')); console.log(c.version)")"
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           sed -i "s/v0\.4\.0/$VERSION/g" .vitepress/config.ts
