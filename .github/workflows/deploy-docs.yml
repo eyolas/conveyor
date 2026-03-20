@@ -1,0 +1,51 @@
+name: Deploy Docs
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build & Deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642195f82ba3ce0e56b3259 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Install dependencies
+        working-directory: docs
+        run: npm ci
+
+      - name: Inject version from tag or deno.json
+        working-directory: docs
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="v$(node -e "const c = JSON.parse(require('fs').readFileSync('../deno.json','utf8')); console.log(c.version)")"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          sed -i "s/v0\.4\.0/$VERSION/g" .vitepress/config.ts
+          echo "Injected version: $VERSION"
+
+      - name: Build VitePress
+        working-directory: docs
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@da0e0235e5c69c76502b35c0d9e4f6de1e070161 # v3.14.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy docs/.vitepress/dist --project-name=conveyor-docs

@@ -85,11 +85,11 @@ roadmap:
         file: tasks/groups.md
 
   phase-5-documentation-website:
-    description: 'Documentation site, getting started guide, BullMQ migration guide, store comparison'
+    description: 'Documentation site, getting started guide, BullMQ migration guide, store comparison, Cloudflare deployment'
     status: in-progress
     items:
       documentation-site:
-        status: in-progress
+        status: done
         file: tasks/documentation-site.md
       getting-started-guide:
         status: done
@@ -97,6 +97,9 @@ roadmap:
         status: done
       store-comparison-guide:
         status: done
+      cloudflare-deploy:
+        status: planned
+        file: tasks/docs-cloudflare-deploy.md
 
   phase-6-tooling-ecosystem:
     description: 'Web dashboard, decoupled notifications, sandboxed workers, OpenTelemetry'
