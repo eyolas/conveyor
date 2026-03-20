@@ -168,4 +168,11 @@ export default withMermaid(defineConfig({
       copyright: 'Copyright 2026-present David Touzet & Conveyor contributors',
     },
   },
+
+  mermaid: {
+    theme: 'base',
+    themeVariables: {
+      fontSize: '16px',
+    },
+  },
 }));

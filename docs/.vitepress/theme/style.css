@@ -180,6 +180,51 @@ div[class*="language-"] code {
   border-color: #2A3344;
 }
 
+/* ─── Mermaid Diagrams ──────────────────────────── */
+.vp-doc .mermaid {
+  overflow-x: auto;
+  cursor: zoom-in;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: var(--cv-radius);
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  transition: background 0.2s ease;
+}
+
+.vp-doc .mermaid:hover {
+  background: var(--vp-c-bg-soft);
+}
+
+.vp-doc .mermaid svg {
+  max-width: 100%;
+  min-width: 600px;
+  height: auto;
+}
+
+.vp-doc .mermaid.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: var(--vp-c-bg);
+  cursor: zoom-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  border: none;
+  border-radius: 0;
+}
+
+.vp-doc .mermaid.fullscreen svg {
+  min-width: unset;
+  max-width: 95vw;
+  max-height: 90vh;
+}
+
+.dark .vp-doc .mermaid {
+  border-color: #2A3344;
+}
+
 /* ─── Smooth page transitions ────────────────────── */
 .VPContent {
   transition: opacity 0.2s ease;
