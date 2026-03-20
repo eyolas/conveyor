@@ -20,26 +20,48 @@ A job can be in one of six states:
 ## State Machine
 
 ```mermaid
-stateDiagram-v2
-    [*] --> waiting : add()
-    [*] --> delayed : add() with delay
-    [*] --> waiting_children : FlowProducer.add() (parent)
+flowchart LR
+    subgraph Entry
+        add["add()"]
+        addDelay["add() with delay"]
+        flow["FlowProducer.add()"]
+    end
 
-    delayed --> waiting : delay expires (promoteDelayedJobs)
+    subgraph Pending["Pending States"]
+        waiting([🕐 waiting])
+        delayed([⏳ delayed])
+        waitChildren([👶 waiting-children])
+    end
 
-    waiting_children --> waiting : all children completed
-    waiting_children --> failed : child fails (policy = fail)
+    active([⚡ active])
 
-    waiting --> active : worker fetches + locks
+    subgraph Terminal["Terminal States"]
+        completed([✅ completed])
+        failed([❌ failed])
+    end
 
-    active --> completed : processor succeeds
-    active --> failed : processor throws
-    active --> waiting : stalled (lock expired, re-enqueued)
+    add --> waiting
+    addDelay --> delayed
+    flow --> waitChildren
 
-    failed --> waiting : retry (attempts remaining)
-    failed --> [*] : no retries left
+    delayed -- "delay expires" --> waiting
+    waitChildren -- "all children done" --> waiting
+    waitChildren -. "child fails" .-> failed
 
-    completed --> [*]
+    waiting -- "worker fetches + locks" --> active
+
+    active -- "success" --> completed
+    active -. "throws" .-> failed
+    active -. "stalled" .-> waiting
+
+    failed -. "retry" .-> waiting
+
+    style waiting fill:#3b82f6,color:#fff,stroke:#2563eb
+    style delayed fill:#a855f7,color:#fff,stroke:#9333ea
+    style waitChildren fill:#8b5cf6,color:#fff,stroke:#7c3aed
+    style active fill:#f59e0b,color:#fff,stroke:#d97706
+    style completed fill:#22c55e,color:#fff,stroke:#16a34a
+    style failed fill:#ef4444,color:#fff,stroke:#dc2626
 ```
 
 ## Adding Jobs
@@ -200,20 +222,33 @@ const result = await flow.add({
 ### Flow State Transitions
 
 ```mermaid
-stateDiagram-v2
-    [*] --> waiting_children : parent created
-    [*] --> waiting : child created
+flowchart TD
+    flowAdd["FlowProducer.add()"] --> parent([👶 parent: waiting-children])
+    flowAdd --> childA([🕐 child A: waiting])
+    flowAdd --> childB([🕐 child B: waiting])
 
-    waiting --> active : child fetched
-    active --> completed : child succeeds
+    childA -- "fetched" --> childAActive([⚡ child A: active])
+    childB -- "fetched" --> childBActive([⚡ child B: active])
 
-    completed --> waiting_children : notifyChildCompleted (pendingCount--)
+    childAActive -- "success" --> childADone([✅ child A: completed])
+    childBActive -- "success" --> childBDone([✅ child B: completed])
 
-    waiting_children --> waiting : pendingChildrenCount reaches 0
-    waiting_children --> failed : child fails (policy = fail)
+    childADone -- "pendingCount--" --> parent
+    childBDone -- "pendingCount = 0" --> parentReady([🕐 parent: waiting])
 
-    waiting --> active : parent fetched
-    active --> completed : parent succeeds
+    parentReady -- "fetched" --> parentActive([⚡ parent: active])
+    parentActive -- "success" --> parentDone([✅ parent: completed])
+
+    style parent fill:#8b5cf6,color:#fff,stroke:#7c3aed
+    style childA fill:#3b82f6,color:#fff,stroke:#2563eb
+    style childB fill:#3b82f6,color:#fff,stroke:#2563eb
+    style childAActive fill:#f59e0b,color:#fff,stroke:#d97706
+    style childBActive fill:#f59e0b,color:#fff,stroke:#d97706
+    style childADone fill:#22c55e,color:#fff,stroke:#16a34a
+    style childBDone fill:#22c55e,color:#fff,stroke:#16a34a
+    style parentReady fill:#3b82f6,color:#fff,stroke:#2563eb
+    style parentActive fill:#f59e0b,color:#fff,stroke:#d97706
+    style parentDone fill:#22c55e,color:#fff,stroke:#16a34a
 ```
 
 ### How It Works

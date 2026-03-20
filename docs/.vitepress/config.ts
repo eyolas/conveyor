@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress';
+import { withMermaid } from 'vitepress-plugin-mermaid';
 
 function guideSidebar() {
   return [
@@ -43,7 +44,7 @@ function guideSidebar() {
   ];
 }
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: 'Conveyor',
   description: 'A multi-backend job queue for Deno, Node.js, and Bun',
 
@@ -167,4 +168,4 @@ export default defineConfig({
       copyright: 'Copyright 2026-present David Touzet & Conveyor contributors',
     },
   },
-});
+}));
