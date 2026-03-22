@@ -86,7 +86,7 @@ roadmap:
 
   phase-5-documentation-website:
     description: 'Documentation site, getting started guide, BullMQ migration guide, store comparison, Cloudflare deployment'
-    status: in-progress
+    status: done
     items:
       documentation-site:
         status: done
@@ -98,7 +98,7 @@ roadmap:
       store-comparison-guide:
         status: done
       cloudflare-deploy:
-        status: planned
+        status: done
         file: tasks/docs-cloudflare-deploy.md
 
   phase-6-tooling-ecosystem:
