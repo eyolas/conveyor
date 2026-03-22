@@ -129,11 +129,23 @@ feat(shared): add ConveyorError, JobNotFoundError, InvalidJobStateError
 
 ---
 
-### Task 2: Add `stacktrace` to `JobData` and `createJobData`
+### Task 2: Add `stacktrace` Field (shared + stores + Job class)
+
+All changes for the `stacktrace` field are grouped in one task to avoid broken intermediate
+commits (`deno task check` would fail if only `JobData` is updated without stores and Job).
 
 **Files:**
 - Modify: `packages/shared/src/types.ts:61-133` (JobData interface)
 - Modify: `packages/shared/src/utils.ts:222-246` (createJobData)
+- Modify: `packages/store-pg/src/mapping.ts:14-41` (JobRow), `:64-91` (rowToJobData), `:100-130` (jobDataToRow)
+- Modify: `packages/store-pg/src/pg-store.ts:178-199` (columnMap)
+- Modify: `packages/store-pg/src/migrations.ts` (add v5)
+- Modify: `packages/store-sqlite-core/src/mapping.ts:16-43` (JobRow), `:74-101` (rowToJobData), `:110-142` (jobDataToRow)
+- Modify: `packages/store-sqlite-core/src/sqlite-store.ts:255-276` (columnMap), INSERT statement
+- Modify: `packages/store-sqlite-core/src/migrations.ts` (add v5)
+- Modify: `packages/core/src/job.ts`
+
+#### Part A: Shared types
 
 - [ ] **Step 1: Add `stacktrace` field to `JobData`**
 
@@ -153,29 +165,7 @@ In `packages/shared/src/utils.ts`, add `stacktrace: [],` after the `logs: [],` l
     stacktrace: [],
 ```
 
-- [ ] **Step 3: Run type check**
-
-Run: `deno task check`
-Expected: FAIL — stores and Job class don't handle `stacktrace` yet. Note the errors for
-reference in subsequent tasks.
-
-- [ ] **Step 4: Commit**
-
-```
-feat(shared): add stacktrace field to JobData
-```
-
----
-
-### Task 3: Store Migrations and Mappings
-
-**Files:**
-- Modify: `packages/store-pg/src/mapping.ts:14-41` (JobRow), `:64-91` (rowToJobData), `:100-130` (jobDataToRow)
-- Modify: `packages/store-pg/src/pg-store.ts:178-199` (columnMap)
-- Modify: `packages/store-pg/src/migrations.ts` (add v5)
-- Modify: `packages/store-sqlite-core/src/mapping.ts:16-43` (JobRow), `:74-101` (rowToJobData), `:110-142` (jobDataToRow)
-- Modify: `packages/store-sqlite-core/src/sqlite-store.ts:255-276` (columnMap), INSERT statement
-- Modify: `packages/store-sqlite-core/src/migrations.ts` (add v5)
+#### Part B: Store mappings and migrations
 
 - [ ] **Step 1: PG mapping — add `stacktrace` to `JobRow`**
 
@@ -302,25 +292,9 @@ In `packages/store-sqlite-core/src/migrations.ts`, add after the last migration:
 The memory store uses `structuredClone({ ...job, ...updates })` in `updateJob()` — it handles
 any new field automatically. No changes needed.
 
-- [ ] **Step 13: Run type check**
+#### Part C: Job class refactor
 
-Run: `deno task check`
-Expected: FAIL — Job class still needs `stacktrace`. But stores should be clean.
-
-- [ ] **Step 14: Commit**
-
-```
-feat(stores): add stacktrace column and mappings
-```
-
----
-
-### Task 4: Job Class — Refactor Fields and Add `stacktrace`
-
-**Files:**
-- Modify: `packages/core/src/job.ts`
-
-- [ ] **Step 1: Change `data` from `readonly` to private backing field**
+- [ ] **Step 13: Change `data` from `readonly` to private backing field**
 
 Replace:
 ```typescript
@@ -351,7 +325,7 @@ Update `toJSON()` (line 316):
       data: this._data,
 ```
 
-- [ ] **Step 2: Change `opts` from `readonly` to private backing field**
+- [ ] **Step 14: Change `opts` from `readonly` to private backing field**
 
 Replace:
 ```typescript
@@ -382,7 +356,7 @@ Update `toJSON()` (line 322):
       opts: this._opts,
 ```
 
-- [ ] **Step 3: Remove `readonly` from `_delayUntil`, `_lockUntil`, `_lockedBy`**
+- [ ] **Step 15: Remove `readonly` from `_delayUntil`, `_lockUntil`, `_lockedBy`**
 
 Change lines 54-56 from:
 ```typescript
@@ -398,7 +372,7 @@ To:
   private _lockedBy: string | null;
 ```
 
-- [ ] **Step 4: Add `_stacktrace` field, constructor init, getter, and toJSON**
+- [ ] **Step 16: Add `_stacktrace` field, constructor init, getter, and toJSON**
 
 Add private field (after `_groupId`):
 ```typescript
@@ -423,25 +397,27 @@ Add to `toJSON()` (after `groupId`):
       stacktrace: this._stacktrace,
 ```
 
-- [ ] **Step 5: Run type check**
+#### Part D: Verify and commit
+
+- [ ] **Step 17: Run type check**
 
 Run: `deno task check`
 Expected: PASS — all types should now align
 
-- [ ] **Step 6: Run existing tests**
+- [ ] **Step 18: Run existing tests**
 
 Run: `deno task test:core`
 Expected: PASS — no behavior changes yet
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 19: Commit**
 
 ```
-refactor(core): make data/opts/delayUntil mutable, add stacktrace to Job
+feat: add stacktrace field to JobData, stores, and Job class
 ```
 
 ---
 
-### Task 5: Worker — Stacktrace Accumulation
+### Task 3: Worker — Stacktrace Accumulation
 
 **Files:**
 - Modify: `packages/core/src/worker.ts:533-585` (handleFailure)
@@ -451,9 +427,9 @@ refactor(core): make data/opts/delayUntil mutable, add stacktrace to Job
 Create section in `tests/core/job-mutations.test.ts`:
 
 ```typescript
-import { test, expect } from 'vitest';
+import { expect, test } from 'vitest';
+import { Job, Queue, Worker } from '@conveyor/core';
 import { MemoryStore } from '@conveyor/store-memory';
-import { Job, Queue, Worker } from '../../packages/core/src/mod.ts';
 
 const queueName = 'test-mutations';
 
@@ -511,7 +487,7 @@ test('Job.stacktrace is empty array by default', async () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `deno test tests/core/job-mutations.test.ts`
+Run: `deno -A npm:vitest run tests/core/job-mutations.test.ts`
 Expected: FAIL — stacktrace is not populated by handleFailure yet
 
 - [ ] **Step 3: Implement stacktrace accumulation in handleFailure**
@@ -562,7 +538,7 @@ Call 3 (terminal failure, ~line 563):
 
 - [ ] **Step 4: Run tests**
 
-Run: `deno test tests/core/job-mutations.test.ts`
+Run: `deno -A npm:vitest run tests/core/job-mutations.test.ts`
 Expected: PASS
 
 - [ ] **Step 5: Run full core tests**
@@ -578,7 +554,7 @@ feat(core): accumulate error stacktraces across retries in handleFailure
 
 ---
 
-### Task 6: Job Mutations — `promote()` and `moveToDelayed()`
+### Task 4: Job Mutations — `promote()` and `moveToDelayed()`
 
 **Files:**
 - Modify: `packages/core/src/job.ts`
@@ -593,7 +569,7 @@ import {
   ConveyorError,
   InvalidJobStateError,
   JobNotFoundError,
-} from '../../packages/shared/src/mod.ts';
+} from '@conveyor/shared';
 
 // ─── promote() ────────────────────────────────────────────────────
 
@@ -724,7 +700,7 @@ test('Job.moveToDelayed throws RangeError if timestamp is in the past', async ()
 
 - [ ] **Step 4: Run tests to verify they fail**
 
-Run: `deno test tests/core/job-mutations.test.ts`
+Run: `deno -A npm:vitest run tests/core/job-mutations.test.ts`
 Expected: FAIL — methods don't exist
 
 - [ ] **Step 5: Implement `promote()` and `moveToDelayed()`**
@@ -808,7 +784,7 @@ import { InvalidJobStateError, JobNotFoundError } from '@conveyor/shared';
 
 - [ ] **Step 6: Run tests**
 
-Run: `deno test tests/core/job-mutations.test.ts`
+Run: `deno -A npm:vitest run tests/core/job-mutations.test.ts`
 Expected: PASS
 
 - [ ] **Step 7: Commit**
@@ -819,7 +795,7 @@ feat(core): add Job.promote() and Job.moveToDelayed()
 
 ---
 
-### Task 7: Job Mutations — `discard()`, `updateData()`, `clearLogs()`
+### Task 5: Job Mutations — `discard()`, `updateData()`, `clearLogs()`
 
 **Files:**
 - Modify: `packages/core/src/job.ts`
@@ -951,7 +927,7 @@ test('Job.clearLogs empties the logs array', async () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `deno test tests/core/job-mutations.test.ts`
+Run: `deno -A npm:vitest run tests/core/job-mutations.test.ts`
 Expected: FAIL — methods don't exist
 
 - [ ] **Step 3: Implement `discard()`, `updateData()`, `clearLogs()`**
@@ -1019,7 +995,7 @@ Add to `packages/core/src/job.ts`:
 
 - [ ] **Step 4: Run tests**
 
-Run: `deno test tests/core/job-mutations.test.ts`
+Run: `deno -A npm:vitest run tests/core/job-mutations.test.ts`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -1030,7 +1006,7 @@ feat(core): add Job.discard(), Job.updateData(), Job.clearLogs()
 
 ---
 
-### Task 8: Job Mutations — `changeDelay()` and `changePriority()`
+### Task 6: Job Mutations — `changeDelay()` and `changePriority()`
 
 **Files:**
 - Modify: `packages/core/src/job.ts`
@@ -1146,7 +1122,7 @@ test('Job.changePriority throws InvalidJobStateError if active', async () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `deno test tests/core/job-mutations.test.ts`
+Run: `deno -A npm:vitest run tests/core/job-mutations.test.ts`
 Expected: FAIL — methods don't exist
 
 - [ ] **Step 3: Implement `changeDelay()` and `changePriority()`**
@@ -1200,7 +1176,7 @@ Add to `packages/core/src/job.ts`:
 
 - [ ] **Step 4: Run tests**
 
-Run: `deno test tests/core/job-mutations.test.ts`
+Run: `deno -A npm:vitest run tests/core/job-mutations.test.ts`
 Expected: PASS
 
 - [ ] **Step 5: Run full test suite**
@@ -1216,7 +1192,7 @@ feat(core): add Job.changeDelay() and Job.changePriority()
 
 ---
 
-### Task 9: Final Verification
+### Task 7: Final Verification
 
 - [ ] **Step 1: Run full core tests**
 
