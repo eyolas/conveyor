@@ -97,9 +97,9 @@ You can also use `jsr:` specifiers directly or configure an import map in `deno.
 ```jsonc
 {
   "imports": {
-    "@conveyor/core": "jsr:@conveyor/core@^0.4.0",
-    "@conveyor/store-memory": "jsr:@conveyor/store-memory@^0.4.0",
-    "@conveyor/store-sqlite-deno": "jsr:@conveyor/store-sqlite-deno@^0.4.0"
+    "@conveyor/core": "jsr:@conveyor/core@^1.0.0",
+    "@conveyor/store-memory": "jsr:@conveyor/store-memory@^1.0.0",
+    "@conveyor/store-sqlite-deno": "jsr:@conveyor/store-sqlite-deno@^1.0.0"
   }
 }
 ```

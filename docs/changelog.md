@@ -3,7 +3,13 @@
 For the full changelog, see
 [CHANGELOG.md on GitHub](https://github.com/eyolas/conveyor/blob/main/CHANGELOG.md).
 
-## Latest: v0.4.0 (2026-03-18)
+## Latest: v1.0.0 (2026-03-22)
+
+- **v1.0 stable release**
+- Dynamic version selector in docs
+- Auto-deploy docs on release
+
+## v0.4.0 (2026-03-18)
 
 - **Groups**: Per-group concurrency, rate limiting, and round-robin
 

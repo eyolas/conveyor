@@ -781,42 +781,42 @@
     "members": {
       "packages/core": {
         "dependencies": [
-          "jsr:@conveyor/shared@0.4",
+          "jsr:@conveyor/shared@1",
           "npm:croner@10"
         ]
       },
       "packages/store-memory": {
         "dependencies": [
-          "jsr:@conveyor/shared@0.4"
+          "jsr:@conveyor/shared@1"
         ]
       },
       "packages/store-pg": {
         "dependencies": [
-          "jsr:@conveyor/shared@0.4",
+          "jsr:@conveyor/shared@1",
           "npm:postgres@^3.4.0"
         ]
       },
       "packages/store-sqlite-bun": {
         "dependencies": [
-          "jsr:@conveyor/shared@0.4",
-          "jsr:@conveyor/store-sqlite-core@0.4"
+          "jsr:@conveyor/shared@1",
+          "jsr:@conveyor/store-sqlite-core@1"
         ]
       },
       "packages/store-sqlite-core": {
         "dependencies": [
-          "jsr:@conveyor/shared@0.4"
+          "jsr:@conveyor/shared@1"
         ]
       },
       "packages/store-sqlite-deno": {
         "dependencies": [
-          "jsr:@conveyor/shared@0.4",
-          "jsr:@conveyor/store-sqlite-core@0.4"
+          "jsr:@conveyor/shared@1",
+          "jsr:@conveyor/store-sqlite-core@1"
         ]
       },
       "packages/store-sqlite-node": {
         "dependencies": [
-          "jsr:@conveyor/shared@0.4",
-          "jsr:@conveyor/store-sqlite-core@0.4"
+          "jsr:@conveyor/shared@1",
+          "jsr:@conveyor/store-sqlite-core@1"
         ]
       }
     }

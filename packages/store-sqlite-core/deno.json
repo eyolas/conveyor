@@ -1,9 +1,9 @@
 {
   "name": "@conveyor/store-sqlite-core",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "exports": "./src/mod.ts",
   "imports": {
-    "@conveyor/shared": "jsr:@conveyor/shared@^0.4.0"
+    "@conveyor/shared": "jsr:@conveyor/shared@^1.0.0"
   },
   "publish": {
     "include": ["src/**/*.ts", "deno.json", "README.md", "LICENSE"]
