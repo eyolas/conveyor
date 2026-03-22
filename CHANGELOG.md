@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2026-03-22
+
+### Bug Fixes
+
+- **hooks**: Exclude docs/ from pre-commit deno
+  fmt([9a9a173](https://github.com/eyolas/conveyor/commit/9a9a1734b4b892f9e60b8123dead533c0a489aa2))
+- **ci**: Read version from packages/core/deno.json instead of
+  root([6166fcd](https://github.com/eyolas/conveyor/commit/6166fcd22d005b3d45e4aa549b179677104906c8))
+- **ci**: Correct wrangler-action SHA in deploy-docs
+  workflow([36d698d](https://github.com/eyolas/conveyor/commit/36d698db160dc6afaa21c9fd10c75ce47f83cd23))
+- **ci**: Correct setup-node action SHA in deploy-docs
+  workflow([3bc618d](https://github.com/eyolas/conveyor/commit/3bc618ddba481a53b34a7c671a05f164e3a36b7c))
+
+### Documentation
+
+- Add dynamic version selector and auto-deploy on
+  release([6bc2daf](https://github.com/eyolas/conveyor/commit/6bc2daf660d0fcc5062ca8acb1ae7f0a06e29ea7))
+- Add synced runtime tabs and conditional tip on multi-runtime
+  page([ae75cee](https://github.com/eyolas/conveyor/commit/ae75ceea06b7e1c7e2a3cea8ddca031d7faf4089))
+- Add click-to-zoom on Mermaid diagrams and increase font
+  size([8e3b0d5](https://github.com/eyolas/conveyor/commit/8e3b0d5b53840b47cb98d200ba6a11a4e28c66b2))
+- Add Mermaid support and improve lifecycle
+  diagrams([5ded1ff](https://github.com/eyolas/conveyor/commit/5ded1ffdd373bac33cb07c7534cda7cbff228231))
+- Add OG meta tags and CI/deploy badges to
+  README([0576c61](https://github.com/eyolas/conveyor/commit/0576c610be0917ff8229723d51d54e29fd447545))
+- Add VitePress documentation site (45 pages)
+  (#25)([eb9c582](https://github.com/eyolas/conveyor/commit/eb9c582bb92f6100abbd62e48125acf22d67283f))
+- Plan BullMQ API parity task (post
+  v1.0)([a4ef767](https://github.com/eyolas/conveyor/commit/a4ef767627b073efcbcc626ab661b4c96f71763f))
+- Plan documentation site with VitePress + Cloudflare
+  Pages([18b3bde](https://github.com/eyolas/conveyor/commit/18b3bdec5d312d6654b2f3c83963af801d504637))
+- Update CHANGELOG.md for
+  v0.4.0([f77cfdb](https://github.com/eyolas/conveyor/commit/f77cfdbd495005782bda52dea7946b0df4c2b650))
+
 ## [0.4.0] - 2026-03-18
 
 ### Features
