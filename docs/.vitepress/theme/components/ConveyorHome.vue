@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import versions from '../../../versions.json';
 
 const visible = ref(false);
 onMounted(() => {
@@ -19,7 +20,7 @@ onMounted(() => {
       <div class="hero-content">
         <div class="hero-badge">
           <span class="badge-dot"></span>
-          v0.4.0 &mdash; Open Source
+          {{ versions.fullVersion }} &mdash; Open Source
         </div>
 
         <h1 class="hero-title">

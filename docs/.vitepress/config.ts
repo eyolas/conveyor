@@ -1,5 +1,41 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { defineConfig } from 'vitepress';
 import { withMermaid } from 'vitepress-plugin-mermaid';
+
+interface VersionEntry {
+  text: string;
+  link: string;
+}
+
+interface VersionsConfig {
+  current: string;
+  fullVersion: string;
+  versions: VersionEntry[];
+}
+
+function loadVersions(): VersionsConfig {
+  const raw = readFileSync(resolve(__dirname, '../versions.json'), 'utf-8');
+  return JSON.parse(raw);
+}
+
+function versionNav() {
+  const { current, versions } = loadVersions();
+  const items = [
+    { text: 'Changelog', link: '/changelog' },
+  ];
+
+  if (versions.length > 0) {
+    items.push(
+      ...versions.map((v) => ({
+        text: `${v.text} (old)`,
+        link: v.link,
+      })),
+    );
+  }
+
+  return { text: current, items };
+}
 
 function guideSidebar() {
   return [
@@ -77,12 +113,7 @@ export default withMermaid(defineConfig({
       { text: 'Guide', link: '/guide/' },
       { text: 'API', link: '/api/' },
       { text: 'Examples', link: '/examples/' },
-      {
-        text: 'v0.4.0',
-        items: [
-          { text: 'Changelog', link: '/changelog' },
-        ],
-      },
+      versionNav(),
     ],
 
     sidebar: {
