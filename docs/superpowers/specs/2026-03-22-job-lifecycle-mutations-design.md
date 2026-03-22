@@ -17,6 +17,50 @@ each failure. Initialized as `[]` in `createJobData()`.
 (JSON array, default `'[]'`). PG store's `columnMap` in `updateJob()` must include
 `stacktrace`, and row-to-JobData mapping must deserialize it.
 
+## Error classes
+
+New file `packages/shared/src/errors.ts`, exported from `@conveyor/shared`.
+
+### `ConveyorError` (base)
+
+Abstract base class extending `Error`. All Conveyor-specific errors inherit from it. Enables
+`catch (e) { if (e instanceof ConveyorError) }` for global error handling.
+
+```typescript
+export class ConveyorError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+```
+
+### `JobNotFoundError extends ConveyorError`
+
+Thrown when a mutation targets a job that no longer exists in the store.
+
+```typescript
+export class JobNotFoundError extends ConveyorError {
+  readonly jobId: string;
+  readonly queueName: string;
+}
+```
+
+### `InvalidJobStateError extends ConveyorError`
+
+Thrown when a mutation is called on a job in an incompatible state.
+
+```typescript
+export class InvalidJobStateError extends ConveyorError {
+  readonly jobId: string;
+  readonly currentState: JobState;
+  readonly expectedStates: JobState[];
+}
+```
+
+`RangeError` (native) is kept for range validations (`timestamp`, `delay`, `progress`) —
+consistent with existing `updateProgress()` usage.
+
 ## Job class changes
 
 ### Readonly → mutable fields
@@ -134,8 +178,8 @@ All mutation methods follow the same pattern:
 
 ```
 1. Read fresh state: store.getJob(queueName, id)
-2. If not found → throw Error('Job not found')
-3. If state invalid → throw Error('Cannot <action> a job in <state> state')
+2. If not found → throw JobNotFoundError(jobId, queueName)
+3. If state invalid → throw InvalidJobStateError(jobId, currentState, expectedStates)
 4. store.updateJob(queueName, id, changes)
 5. Update local instance state (this._state, this._data, etc.)
 6. If state transition → store.publish(event)
@@ -158,6 +202,8 @@ Only state transitions publish events:
 
 | File | Change |
 |------|--------|
+| `packages/shared/src/errors.ts` | New: `ConveyorError`, `JobNotFoundError`, `InvalidJobStateError` |
+| `packages/shared/mod.ts` | Export error classes |
 | `packages/shared/src/types.ts` | Add `stacktrace: string[]` to `JobData` |
 | `packages/shared/src/utils.ts` | Init `stacktrace: []` in `createJobData()` |
 | `packages/core/src/job.ts` | Refactor `data`/`opts` to mutable backing fields, remove `readonly` from `_delayUntil`/`_lockUntil`/`_lockedBy`, add `_stacktrace` field + getter, add 7 new methods, update `toJSON()` |
