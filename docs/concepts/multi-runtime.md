@@ -45,59 +45,68 @@ The PostgreSQL and memory stores are runtime-agnostic:
 
 ## Import Patterns
 
-### Deno
+### Install
 
-Conveyor is published on [JSR](https://jsr.io). Use `jsr:` specifiers or import maps:
+::: code-group
 
-```ts
-import { Queue, Worker } from 'jsr:@conveyor/core';
-import { MemoryStore } from 'jsr:@conveyor/store-memory';
-import { PgStore } from 'jsr:@conveyor/store-pg';
-import { SqliteDenoStore } from 'jsr:@conveyor/store-sqlite-deno';
+```bash [Deno]
+# Published on JSR — also supports jsr: specifiers or import maps in deno.json
+deno add @conveyor/core @conveyor/store-memory @conveyor/store-sqlite-deno
 ```
 
-Or with an import map in `deno.json`:
+```bash [Node.js]
+npx jsr add @conveyor/core @conveyor/store-memory @conveyor/store-sqlite-node
+```
+
+```bash [Bun]
+bunx jsr add @conveyor/core @conveyor/store-memory @conveyor/store-sqlite-bun
+```
+
+:::
+
+### Usage
+
+::: code-group
+
+```ts [Deno]
+import { Queue, Worker } from '@conveyor/core';
+import { MemoryStore } from '@conveyor/store-memory';
+import { PgStore } from '@conveyor/store-pg';
+import { SqliteDenoStore } from '@conveyor/store-sqlite-deno';
+```
+
+```ts [Node.js]
+import { Queue, Worker } from '@conveyor/core';
+import { MemoryStore } from '@conveyor/store-memory';
+import { SqliteNodeStore } from '@conveyor/store-sqlite-node';
+```
+
+```ts [Bun]
+import { Queue, Worker } from '@conveyor/core';
+import { MemoryStore } from '@conveyor/store-memory';
+import { SqliteBunStore } from '@conveyor/store-sqlite-bun';
+```
+
+:::
+
+<div class="runtime-deno-only">
+
+::: tip Deno import maps
+You can also use `jsr:` specifiers directly or configure an import map in `deno.json`:
 
 ```jsonc
 {
   "imports": {
     "@conveyor/core": "jsr:@conveyor/core@^0.4.0",
     "@conveyor/store-memory": "jsr:@conveyor/store-memory@^0.4.0",
-    "@conveyor/store-pg": "jsr:@conveyor/store-pg@^0.4.0",
     "@conveyor/store-sqlite-deno": "jsr:@conveyor/store-sqlite-deno@^0.4.0"
   }
 }
 ```
 
-### Node.js
+:::
 
-Install from JSR using your preferred package manager:
-
-```bash
-npx jsr add @conveyor/core @conveyor/store-memory
-```
-
-Then import normally:
-
-```ts
-import { Queue, Worker } from '@conveyor/core';
-import { MemoryStore } from '@conveyor/store-memory';
-import { SqliteNodeStore } from '@conveyor/store-sqlite-node';
-```
-
-### Bun
-
-Bun supports JSR packages the same way:
-
-```bash
-bunx jsr add @conveyor/core @conveyor/store-memory
-```
-
-```ts
-import { Queue, Worker } from '@conveyor/core';
-import { MemoryStore } from '@conveyor/store-memory';
-import { SqliteBunStore } from '@conveyor/store-sqlite-bun';
-```
+</div>
 
 ## Choosing the Right Store for Your Runtime
 
@@ -127,16 +136,13 @@ The project uses Vitest for all runtimes except Bun (which uses `bun test`). Con
 identical behavior.
 
 ```bash
-# Run all tests (Deno)
-deno task test
-
-# Run tests for specific stores
-deno task test:core          # Core + conformance
-deno task test:memory        # Memory store
-deno task test:pg            # PostgreSQL (needs Docker)
-deno task test:sqlite:node   # SQLite on Node.js
-deno task test:sqlite:bun    # SQLite on Bun
-deno task test:sqlite:deno   # SQLite on Deno
+deno task test              # Run all tests
+deno task test:core         # Core + conformance
+deno task test:memory       # Memory store
+deno task test:pg           # PostgreSQL (needs Docker)
+deno task test:sqlite:node  # SQLite on Node.js
+deno task test:sqlite:bun   # SQLite on Bun
+deno task test:sqlite:deno  # SQLite on Deno
 ```
 
 ## Writing Runtime-Agnostic Code

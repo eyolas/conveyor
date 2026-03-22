@@ -225,6 +225,15 @@ div[class*="language-"] code {
   border-color: #2A3344;
 }
 
+/* ─── Runtime-conditional blocks ────────────────── */
+.runtime-deno-only {
+  display: none;
+}
+
+.runtime-deno-only.visible {
+  display: block;
+}
+
 /* ─── Smooth page transitions ────────────────────── */
 .VPContent {
   transition: opacity 0.2s ease;
