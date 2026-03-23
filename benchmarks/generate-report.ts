@@ -194,6 +194,15 @@ function generateMarkdown(data: BenchOutput): string {
     '- **Flow creation** scales linearly with child count (~3µs per child)',
   );
   lines.push(
+    '- **Job mutations** (promote, updateData, changePriority, etc.) are lightweight store operations',
+  );
+  lines.push(
+    '- **Queue management** (retryJobs, promoteJobs, obliterate) scales with job count',
+  );
+  lines.push(
+    '- **waitUntilFinished** latency is dominated by worker poll interval, not observation overhead',
+  );
+  lines.push(
     '- All benchmarks run against **MemoryStore** (in-memory) for deterministic baselines',
   );
   lines.push('');
