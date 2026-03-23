@@ -1433,4 +1433,220 @@ export function runConformanceTests(
 
     await store.disconnect();
   });
+
+  // ─── Queue Convenience Methods ──────────────────────────────────────
+
+  test(`[${storeName}] getJobCounts returns all 6 states`, async () => {
+    store = factory();
+    await store.connect();
+
+    // Create jobs in various states
+    const waiting = createJobData(queueName, 'j1', {});
+    const delayed = createJobData(queueName, 'j2', {}, { delay: 999_999 });
+    const active = createJobData(queueName, 'j3', {});
+    const completed = createJobData(queueName, 'j4', {});
+    const failed = createJobData(queueName, 'j5', {});
+
+    await store.saveJob(queueName, waiting);
+    await store.saveJob(queueName, delayed);
+    await store.saveJob(queueName, active);
+    const completedId = await store.saveJob(queueName, completed);
+    const failedId = await store.saveJob(queueName, failed);
+
+    // Transition jobs
+    await store.fetchNextJob(queueName, 'w', 30_000); // j3 → active
+    await store.updateJob(queueName, completedId, { state: 'completed', completedAt: new Date() });
+    await store.updateJob(queueName, failedId, {
+      state: 'failed',
+      failedAt: new Date(),
+      failedReason: 'boom',
+    });
+
+    const counts = await store.getJobCounts(queueName);
+    expect(counts.waiting).toBe(1);
+    expect(counts.delayed).toBe(1);
+    expect(counts.active).toBe(1);
+    expect(counts.completed).toBe(1);
+    expect(counts.failed).toBe(1);
+    expect(counts['waiting-children']).toBe(0);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] getJobCounts returns zeros for empty queue`, async () => {
+    store = factory();
+    await store.connect();
+
+    const counts = await store.getJobCounts(queueName);
+    expect(counts).toEqual({
+      'waiting': 0,
+      'waiting-children': 0,
+      'delayed': 0,
+      'active': 0,
+      'completed': 0,
+      'failed': 0,
+    });
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] obliterate removes all queue data`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'j1', {}));
+    await store.saveJob(queueName, createJobData(queueName, 'j2', {}));
+    await store.pauseJobName(queueName, 'j1');
+
+    await store.obliterate(queueName);
+
+    const counts = await store.getJobCounts(queueName);
+    expect(counts.waiting).toBe(0);
+    const paused = await store.getPausedJobNames(queueName);
+    expect(paused).toEqual([]);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] obliterate throws if active jobs exist`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'j1', {}));
+    await store.fetchNextJob(queueName, 'w', 30_000); // → active
+
+    await expect(store.obliterate(queueName)).rejects.toThrow(/active jobs exist/i);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] obliterate with force removes active jobs`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'j1', {}));
+    await store.fetchNextJob(queueName, 'w', 30_000); // → active
+
+    await store.obliterate(queueName, { force: true });
+
+    const counts = await store.getJobCounts(queueName);
+    expect(counts.active).toBe(0);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] retryJobs moves failed jobs to waiting`, async () => {
+    store = factory();
+    await store.connect();
+
+    const id1 = await store.saveJob(queueName, createJobData(queueName, 'j1', {}));
+    const id2 = await store.saveJob(queueName, createJobData(queueName, 'j2', {}));
+    const id3 = await store.saveJob(queueName, createJobData(queueName, 'j3', {}));
+
+    // Fail j1 and j2
+    await store.updateJob(queueName, id1, {
+      state: 'failed',
+      attemptsMade: 3,
+      failedAt: new Date(),
+      failedReason: 'err1',
+      stacktrace: ['trace1'],
+    });
+    await store.updateJob(queueName, id2, {
+      state: 'failed',
+      attemptsMade: 2,
+      failedAt: new Date(),
+      failedReason: 'err2',
+      stacktrace: ['trace2'],
+    });
+
+    const retried = await store.retryJobs(queueName, 'failed');
+    expect(retried).toBe(2);
+
+    const job1 = await store.getJob(queueName, id1);
+    expect(job1!.state).toBe('waiting');
+    expect(job1!.attemptsMade).toBe(0);
+    expect(job1!.progress).toBe(0);
+    expect(job1!.returnvalue).toBeNull();
+    expect(job1!.failedReason).toBeNull();
+    expect(job1!.failedAt).toBeNull();
+    expect(job1!.completedAt).toBeNull();
+    expect(job1!.processedAt).toBeNull();
+    expect(job1!.stacktrace).toEqual([]);
+
+    // j3 still waiting (untouched)
+    const job3 = await store.getJob(queueName, id3);
+    expect(job3!.state).toBe('waiting');
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] retryJobs moves completed jobs to waiting`, async () => {
+    store = factory();
+    await store.connect();
+
+    const id1 = await store.saveJob(queueName, createJobData(queueName, 'j1', {}));
+    await store.updateJob(queueName, id1, { state: 'completed', completedAt: new Date() });
+
+    const retried = await store.retryJobs(queueName, 'completed');
+    expect(retried).toBe(1);
+
+    const job = await store.getJob(queueName, id1);
+    expect(job!.state).toBe('waiting');
+    expect(job!.completedAt).toBeNull();
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] retryJobs does not affect other states`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'j1', {})); // waiting
+    await store.saveJob(queueName, createJobData(queueName, 'j2', {}, { delay: 999_999 })); // delayed
+
+    const retried = await store.retryJobs(queueName, 'failed');
+    expect(retried).toBe(0);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] promoteJobs promotes all delayed jobs`, async () => {
+    store = factory();
+    await store.connect();
+
+    const id1 = await store.saveJob(
+      queueName,
+      createJobData(queueName, 'j1', {}, { delay: 999_999 }),
+    );
+    const id2 = await store.saveJob(
+      queueName,
+      createJobData(queueName, 'j2', {}, { delay: 999_999 }),
+    );
+    // j3 is waiting, should not be affected
+    await store.saveJob(queueName, createJobData(queueName, 'j3', {}));
+
+    const promoted = await store.promoteJobs(queueName);
+    expect(promoted).toBe(2);
+
+    const job1 = await store.getJob(queueName, id1);
+    expect(job1!.state).toBe('waiting');
+    expect(job1!.delayUntil).toBeNull();
+
+    const job2 = await store.getJob(queueName, id2);
+    expect(job2!.state).toBe('waiting');
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] promoteJobs returns 0 when no delayed jobs`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'j1', {}));
+
+    const promoted = await store.promoteJobs(queueName);
+    expect(promoted).toBe(0);
+
+    await store.disconnect();
+  });
 }

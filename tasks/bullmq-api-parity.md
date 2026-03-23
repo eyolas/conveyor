@@ -62,10 +62,10 @@ clearJobLogs(queueName: string, jobId: string): Promise<void>;
 
 Missing utility methods that make Queue management easier, especially for dashboards/monitoring.
 
-- [ ] `queue.getJobCounts()` — return all counts in one call (`{ waiting: N, active: N, ... }`)
-- [ ] `queue.obliterate()` — destroy a queue and all its data completely
-- [ ] `queue.retryJobs(opts?)` — retry all failed jobs in bulk
-- [ ] `queue.promoteJobs(opts?)` — promote all delayed jobs to waiting
+- [x] `queue.getJobCounts()` — return all counts in one call (`{ waiting: N, active: N, ... }`)
+- [x] `queue.obliterate()` — destroy a queue and all its data completely
+- [x] `queue.retryJobs(opts?)` — retry all failed jobs in bulk
+- [x] `queue.promoteJobs(opts?)` — promote all delayed jobs to waiting
 
 ### Store changes needed
 

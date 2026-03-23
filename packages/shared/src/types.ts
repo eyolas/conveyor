@@ -690,6 +690,44 @@ export interface StoreInterface {
    * @returns The number of waiting jobs in the group.
    */
   getWaitingGroupCount(queueName: string, groupId: string): Promise<number>;
+
+  // ─── Queue Convenience Methods ──────────────────────────────────────
+
+  /**
+   * Get job counts for all states in a single call.
+   *
+   * @param queueName - The queue to count.
+   * @returns Record mapping each {@linkcode JobState} to its count.
+   */
+  getJobCounts(queueName: string): Promise<Record<JobState, number>>;
+
+  /**
+   * Destroy a queue and all its data (jobs, paused names, group cursors).
+   * Throws if active jobs exist unless `force` is `true`.
+   *
+   * @param queueName - The queue to obliterate.
+   * @param opts - Pass `{ force: true }` to also remove active jobs.
+   */
+  obliterate(queueName: string, opts?: { force?: boolean }): Promise<void>;
+
+  /**
+   * Retry all jobs in a terminal state by moving them back to waiting.
+   * Resets attemptsMade, progress, returnvalue, failedReason, failedAt,
+   * completedAt, processedAt, and stacktrace.
+   *
+   * @param queueName - The queue to retry in.
+   * @param state - The source state: `'failed'` or `'completed'`.
+   * @returns The number of jobs retried.
+   */
+  retryJobs(queueName: string, state: 'failed' | 'completed'): Promise<number>;
+
+  /**
+   * Promote all delayed jobs to waiting immediately, regardless of delay.
+   *
+   * @param queueName - The queue to promote in.
+   * @returns The number of promoted jobs.
+   */
+  promoteJobs(queueName: string): Promise<number>;
 }
 
 /**

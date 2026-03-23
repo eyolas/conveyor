@@ -467,6 +467,79 @@ export class MemoryStore implements StoreInterface {
     return Promise.resolve();
   }
 
+  // ─── Queue Convenience Methods ──────────────────────────────────────
+
+  getJobCounts(queueName: string): Promise<Record<JobState, number>> {
+    const counts: Record<JobState, number> = {
+      'waiting': 0,
+      'waiting-children': 0,
+      'delayed': 0,
+      'active': 0,
+      'completed': 0,
+      'failed': 0,
+    };
+    const queue = this.getQueue(queueName);
+    for (const job of queue.values()) {
+      counts[job.state]++;
+    }
+    return Promise.resolve(counts);
+  }
+
+  obliterate(queueName: string, opts?: { force?: boolean }): Promise<void> {
+    const queue = this.getQueue(queueName);
+    if (!opts?.force) {
+      for (const job of queue.values()) {
+        if (job.state === 'active') {
+          return Promise.reject(
+            new Error(
+              `Cannot obliterate queue "${queueName}": active jobs exist. Use { force: true } to override.`,
+            ),
+          );
+        }
+      }
+    }
+    this.jobs.delete(queueName);
+    this.insertionOrder.delete(queueName);
+    this.pausedNames.delete(queueName);
+    this.groupCursors.delete(queueName);
+    return Promise.resolve();
+  }
+
+  retryJobs(queueName: string, state: 'failed' | 'completed'): Promise<number> {
+    const queue = this.getQueue(queueName);
+    let count = 0;
+    for (const [id, job] of queue.entries()) {
+      if (job.state === state) {
+        queue.set(id, {
+          ...job,
+          state: 'waiting',
+          attemptsMade: 0,
+          progress: 0,
+          returnvalue: null,
+          failedReason: null,
+          failedAt: null,
+          completedAt: null,
+          processedAt: null,
+          stacktrace: [],
+        });
+        count++;
+      }
+    }
+    return Promise.resolve(count);
+  }
+
+  promoteJobs(queueName: string): Promise<number> {
+    const queue = this.getQueue(queueName);
+    let count = 0;
+    for (const [id, job] of queue.entries()) {
+      if (job.state === 'delayed') {
+        queue.set(id, { ...job, state: 'waiting', delayUntil: null });
+        count++;
+      }
+    }
+    return Promise.resolve(count);
+  }
+
   // ─── Flow (Parent-Child) ─────────────────────────────────────────
 
   async saveFlow(jobs: Array<{ queueName: string; job: Omit<JobData, 'id'> }>): Promise<string[]> {
