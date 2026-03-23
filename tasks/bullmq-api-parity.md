@@ -88,7 +88,7 @@ promoteJobs(queueName: string): Promise<number>;
 
 The request/response pattern: enqueue a job and wait for its result.
 
-- [ ] `job.waitUntilFinished(ttl?)` — return a Promise that resolves with the job's return value
+- [x] `job.waitUntilFinished(ttl?)` — return a Promise that resolves with the job's return value
 
 ### Design considerations
 
