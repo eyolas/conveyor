@@ -18,7 +18,7 @@ test('Job.stacktrace accumulates error stacks across retries', async () => {
   const queue = new Queue(queueName, { store });
   let attempt = 0;
 
-  const worker = new Worker(queueName, async () => {
+  const worker = new Worker(queueName, () => {
     attempt++;
     throw new Error(`fail attempt ${attempt}`);
   }, { store, concurrency: 1 });

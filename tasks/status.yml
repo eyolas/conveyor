@@ -51,7 +51,7 @@ tasks:
 
   bullmq-api-parity:
     description: Close API gap with BullMQ — job mutations, queue utilities, schedulers API, waitUntilFinished
-    status: planned
+    status: in-progress
     file: tasks/bullmq-api-parity.md
 
 # ─── PRD Roadmap ──────────────────────────────────────────────────────────────

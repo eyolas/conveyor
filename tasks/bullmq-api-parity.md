@@ -25,14 +25,14 @@ mutations**, **Queue convenience methods**, and the **Job Schedulers API**.
 
 These methods let users control jobs dynamically during processing or from external processes.
 
-- [ ] `job.promote()` — promote a delayed job to waiting immediately
-- [ ] `job.moveToDelayed(timestamp)` — move an active job back to delayed (throttling in processor)
-- [ ] `job.discard()` — prevent retries for current job (signal "don't retry" from processor)
-- [ ] `job.updateData(data)` — update job payload after creation
-- [ ] `job.changeDelay(delay)` — modify delay of a delayed job
-- [ ] `job.changePriority(priority)` — change priority dynamically
-- [ ] `job.clearLogs()` — clear job logs
-- [ ] `job.stacktrace` property — store full stack trace on failure (not just `failedReason`)
+- [x] `job.promote()` — promote a delayed job to waiting immediately
+- [x] `job.moveToDelayed(timestamp)` — move an active job back to delayed (throttling in processor)
+- [x] `job.discard()` — prevent retries for current job (signal "don't retry" from processor)
+- [x] `job.updateData(data)` — update job payload after creation
+- [x] `job.changeDelay(delay)` — modify delay of a delayed job
+- [x] `job.changePriority(priority)` — change priority dynamically
+- [x] `job.clearLogs()` — clear job logs
+- [x] `job.stacktrace` property — store full stack trace on failure (not just `failedReason`)
 
 ### Store changes needed
 
