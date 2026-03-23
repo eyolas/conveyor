@@ -190,6 +190,8 @@ queue.
   - `planned`: task file created with detailed plan, ready for dev
   - `in-progress`: actively being worked on
   - `done`: completed and verified
+  - `next-release-candidate`: deferred feature, to be evaluated for inclusion in the next major
+    release
 - Thinking lifecycle (ideas not yet in roadmap): `thinking` → `accepted` | `abandoned`
   - `thinking`: idea under consideration, needs discussion or analysis
   - `accepted`: validated → move to roadmap as `todo` (add to the relevant phase)

@@ -7,7 +7,6 @@ Planned — post v1.0
 ## Target versions
 
 - **v1.x** (non-breaking): Phases 1, 2, 3 — new methods only, no API changes
-- **v2.0** (breaking): Phase 4 — Job Schedulers API replaces `repeat` options
 
 ## Goal
 
@@ -103,28 +102,6 @@ The request/response pattern: enqueue a job and wait for its result.
 
 ---
 
-## Phase 4 — Job Schedulers API (high impact, v2.0 breaking)
-
-BullMQ replaced `addRepeatable` / `removeRepeatable` with a first-class Job Schedulers API. Conveyor
-currently uses `repeat` in job options, which makes it hard to manage crons in production.
-
-- [ ] `queue.upsertJobScheduler(id, repeatOpts, jobTemplate?)` — create or update a scheduler
-- [ ] `queue.removeJobScheduler(id)` — remove a scheduler
-- [ ] `queue.getJobScheduler(id)` — get a scheduler by ID
-- [ ] `queue.getJobSchedulers(start?, end?)` — list all schedulers with pagination
-- [ ] `queue.getJobSchedulersCount()` — count schedulers
-
-### Design considerations
-
-- Schedulers need their own storage (separate from jobs): `scheduler_id`, `repeat_opts`,
-  `job_template`, `next_run_at`, `last_run_at`
-- Each store needs a `schedulers` table/map
-- The Scheduler loop in Worker should read from this table instead of relying on job-level repeat
-  opts
-- This is a bigger refactor — may warrant its own task file if scope grows
-
----
-
 ## Out of scope (intentionally not pursuing)
 
 - `QueueEvents` as separate class — Conveyor's architecture couples events to Worker/Queue, which is
@@ -135,6 +112,7 @@ currently uses `repeat` in job options, which makes it hard to manage crons in p
 - Dynamic concurrency setter — nice-to-have but not blocking
 - Distributed rate limiting — architectural difference (would need store-level counters), tracked
   separately
+- Job Schedulers API — see "Future (v2.0)" section below
 
 ---
 
@@ -143,4 +121,5 @@ currently uses `repeat` in job options, which makes it hard to manage crons in p
 1. **Phase 1** (Job mutations) — most visible gap for BullMQ users ✅
 2. **Phase 2** (Queue methods) — needed for any dashboard/monitoring ✅
 3. **Phase 3** (`waitUntilFinished`) — very common request/response pattern (v1.x)
-4. **Phase 4** (Job Schedulers) — bigger refactor, production cron management (v2.0 breaking)
+
+See also: `tasks/job-schedulers-api.md` — deferred to v2.0
