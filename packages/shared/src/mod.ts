@@ -46,3 +46,5 @@ export {
   parseDelay,
   validateQueueName,
 } from './utils.ts';
+
+export { ConveyorError, InvalidJobStateError, JobNotFoundError } from './errors.ts';

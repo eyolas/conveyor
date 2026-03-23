@@ -60,6 +60,8 @@ export {
   parseDelay,
 } from '@conveyor/shared';
 
+export { ConveyorError, InvalidJobStateError, JobNotFoundError } from '@conveyor/shared';
+
 // Core classes
 export { EventBus } from './events.ts';
 export { FlowProducer } from './flow-producer.ts';
