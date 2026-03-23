@@ -7,6 +7,7 @@
  */
 
 import type { JobData, JobOptions, JobState, StoreInterface } from '@conveyor/shared';
+import { InvalidJobStateError, JobNotFoundError } from '@conveyor/shared';
 import { JobObservable } from './job-observable.ts';
 
 /**
@@ -227,6 +228,73 @@ export class Job<T = unknown> {
       failedAt: null,
       lockUntil: null,
       lockedBy: null,
+    });
+  }
+
+  /**
+   * Promote a delayed job to waiting immediately.
+   *
+   * @throws {JobNotFoundError} If the job no longer exists.
+   * @throws {InvalidJobStateError} If the job is not in `delayed` state.
+   */
+  async promote(): Promise<void> {
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+    if (fresh.state !== 'delayed') {
+      throw new InvalidJobStateError(this.id, fresh.state, ['delayed']);
+    }
+
+    await this.store.updateJob(this.queueName, this.id, {
+      state: 'waiting',
+      delayUntil: null,
+    });
+    this._state = 'waiting';
+    this._delayUntil = null;
+
+    await this.store.publish({
+      type: 'job:waiting',
+      queueName: this.queueName,
+      jobId: this.id,
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * Move an active job back to delayed (e.g., for throttling in a processor).
+   *
+   * @param timestamp - Absolute ms timestamp for when the job should be promoted.
+   * @throws {RangeError} If timestamp is in the past.
+   * @throws {JobNotFoundError} If the job no longer exists.
+   * @throws {InvalidJobStateError} If the job is not in `active` state.
+   */
+  async moveToDelayed(timestamp: number): Promise<void> {
+    if (timestamp <= Date.now()) {
+      throw new RangeError('Timestamp must be in the future');
+    }
+
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+    if (fresh.state !== 'active') {
+      throw new InvalidJobStateError(this.id, fresh.state, ['active']);
+    }
+
+    const delayUntil = new Date(timestamp);
+    await this.store.updateJob(this.queueName, this.id, {
+      state: 'delayed',
+      delayUntil,
+      lockUntil: null,
+      lockedBy: null,
+    });
+    this._state = 'delayed';
+    this._delayUntil = delayUntil;
+    this._lockUntil = null;
+    this._lockedBy = null;
+
+    await this.store.publish({
+      type: 'job:delayed',
+      queueName: this.queueName,
+      jobId: this.id,
+      timestamp: new Date(),
     });
   }
 

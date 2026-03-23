@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
-import { Queue, Worker } from '@conveyor/core';
+import { Job, Queue, Worker } from '@conveyor/core';
 import { MemoryStore } from '@conveyor/store-memory';
+import { InvalidJobStateError, JobNotFoundError } from '@conveyor/shared';
 
 const queueName = 'test-mutations';
 
@@ -50,6 +51,119 @@ test('Job.stacktrace is empty array by default', async () => {
   const job = await queue.add('test', { value: 1 });
 
   expect(job.stacktrace).toEqual([]);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+// ─── promote() ────────────────────────────────────────────────────
+
+test('Job.promote moves a delayed job to waiting', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 }, { delay: 60_000 });
+
+  expect(job.state).toBe('delayed');
+  await job.promote();
+  expect(job.state).toBe('waiting');
+
+  const fresh = await store.getJob(queueName, job.id);
+  expect(fresh!.state).toBe('waiting');
+  expect(fresh!.delayUntil).toBeNull();
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Job.promote throws InvalidJobStateError if not delayed', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 });
+
+  expect(job.state).toBe('waiting');
+  await expect(job.promote()).rejects.toThrow(InvalidJobStateError);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+// ─── JobNotFoundError ─────────────────────────────────────────────
+
+test('Job.promote throws JobNotFoundError on removed job', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 }, { delay: 60_000 });
+
+  await job.remove();
+  await expect(job.promote()).rejects.toThrow(JobNotFoundError);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+// ─── moveToDelayed() ──────────────────────────────────────────────
+
+test('Job.moveToDelayed moves an active job to delayed', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 });
+
+  // Simulate active state by fetching with lock
+  await store.fetchNextJob(queueName, 'worker-1', 30_000);
+
+  const timestamp = Date.now() + 60_000;
+  const jobInstance = new Job(
+    (await store.getJob(queueName, job.id))!,
+    store,
+  );
+  await jobInstance.moveToDelayed(timestamp);
+
+  const fresh = await store.getJob(queueName, job.id);
+  expect(fresh!.state).toBe('delayed');
+  expect(fresh!.delayUntil!.getTime()).toBe(timestamp);
+  expect(fresh!.lockUntil).toBeNull();
+  expect(fresh!.lockedBy).toBeNull();
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Job.moveToDelayed throws InvalidJobStateError if not active', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 });
+
+  await expect(job.moveToDelayed(Date.now() + 60_000)).rejects.toThrow(InvalidJobStateError);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Job.moveToDelayed throws RangeError if timestamp is in the past', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 });
+
+  // Simulate active state
+  await store.fetchNextJob(queueName, 'worker-1', 30_000);
+
+  const jobInstance = new Job(
+    (await store.getJob(queueName, job.id))!,
+    store,
+  );
+  await expect(jobInstance.moveToDelayed(Date.now() - 1000)).rejects.toThrow(RangeError);
 
   await queue.close();
   await store.disconnect();
