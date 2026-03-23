@@ -478,6 +478,55 @@ export class Job<T = unknown> {
     return new JobObservable<T>(this.id, this.queueName, this.store);
   }
 
+  /**
+   * Wait for this job to reach a terminal state (completed, failed, or cancelled).
+   *
+   * @param ttl - Optional timeout in milliseconds. Rejects with a timeout error if exceeded.
+   * @returns The job's return value on completion.
+   * @throws If the job fails, is cancelled, or the TTL expires.
+   */
+  waitUntilFinished(ttl?: number): Promise<unknown> {
+    // Fast path: job already terminal
+    if (this._state === 'completed') return Promise.resolve(this._returnvalue);
+    if (this._state === 'failed') {
+      return Promise.reject(new Error(this._failedReason ?? 'Job failed'));
+    }
+    if (this._cancelledAt) return Promise.reject(new Error('Job was cancelled'));
+
+    const observable = new JobObservable<T>(this.id, this.queueName, this.store);
+
+    return new Promise<unknown>((resolve, reject) => {
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+      const cleanup = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        observable.dispose();
+      };
+
+      observable.subscribe({
+        onCompleted: (_job, result) => {
+          cleanup();
+          resolve(result);
+        },
+        onFailed: (_job, error) => {
+          cleanup();
+          reject(new Error(error));
+        },
+        onCancelled: () => {
+          cleanup();
+          reject(new Error('Job was cancelled'));
+        },
+      });
+
+      if (ttl !== undefined && ttl > 0) {
+        timeoutId = setTimeout(() => {
+          cleanup();
+          reject(new Error(`waitUntilFinished timed out after ${ttl}ms`));
+        }, ttl);
+      }
+    });
+  }
+
   // ─── Serialization ────────────────────────────────────────────────
 
   /**

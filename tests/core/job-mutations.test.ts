@@ -400,3 +400,100 @@ test('Job.changePriority throws RangeError on invalid values', async () => {
     await queue.close();
   });
 });
+
+// ─── waitUntilFinished ────────────────────────────────────────────
+
+test('Job.waitUntilFinished resolves with return value on completion', async () => {
+  await withStore(async (store) => {
+    const queue = new Queue(queueName, { store });
+    const worker = new Worker(queueName, () => {
+      return { success: true };
+    }, { store, concurrency: 1 });
+
+    const job = await queue.add('test', { value: 1 });
+    const result = await job.waitUntilFinished();
+
+    expect(result).toEqual({ success: true });
+
+    await worker.close();
+    await queue.close();
+  });
+});
+
+test('Job.waitUntilFinished rejects on failure', async () => {
+  await withStore(async (store) => {
+    const queue = new Queue(queueName, { store });
+    const worker = new Worker(queueName, () => {
+      throw new Error('processing failed');
+    }, { store, concurrency: 1 });
+
+    const job = await queue.add('test', { value: 1 });
+
+    await expect(job.waitUntilFinished()).rejects.toThrow('processing failed');
+
+    await worker.close();
+    await queue.close();
+  });
+});
+
+test('Job.waitUntilFinished resolves immediately if already completed', async () => {
+  await withStore(async (store) => {
+    const queue = new Queue(queueName, { store });
+    const worker = new Worker(queueName, () => {
+      return 42;
+    }, { store, concurrency: 1 });
+
+    const job = await queue.add('test', { value: 1 });
+
+    // Wait for worker to finish via events
+    await new Promise<void>((resolve) => {
+      worker.events.on('completed', ({ job: completedJob }) => {
+        if (completedJob.id === job.id) resolve();
+      });
+    });
+
+    // Job is already completed — should resolve immediately
+    const result = await job.waitUntilFinished();
+    expect(result).toBe(42);
+
+    await worker.close();
+    await queue.close();
+  });
+});
+
+test('Job.waitUntilFinished rejects immediately if already failed', async () => {
+  await withStore(async (store) => {
+    const queue = new Queue(queueName, { store });
+    const worker = new Worker(queueName, () => {
+      throw new Error('boom');
+    }, { store, concurrency: 1 });
+
+    const job = await queue.add('test', { value: 1 });
+
+    // Wait for worker to finish via events
+    await new Promise<void>((resolve) => {
+      worker.events.on('failed', ({ job: failedJob }) => {
+        if (failedJob.id === job.id) resolve();
+      });
+    });
+
+    // Job is already failed — should reject immediately
+    await expect(job.waitUntilFinished()).rejects.toThrow('boom');
+
+    await worker.close();
+    await queue.close();
+  });
+});
+
+test('Job.waitUntilFinished rejects on TTL timeout', async () => {
+  await withStore(async (store) => {
+    const queue = new Queue(queueName, { store });
+    // No worker — job will never complete
+
+    const job = await queue.add('test', { value: 1 });
+
+    await expect(job.waitUntilFinished(100)).rejects.toThrow(/timed out after 100ms/);
+
+    await queue.close();
+  });
+});
