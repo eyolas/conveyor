@@ -485,7 +485,7 @@ export class MemoryStore implements StoreInterface {
     return Promise.resolve(counts);
   }
 
-  obliterate(queueName: string, opts?: { force?: boolean }): Promise<void> {
+  async obliterate(queueName: string, opts?: { force?: boolean }): Promise<void> {
     const queue = this.getQueue(queueName);
     if (!opts?.force) {
       for (const job of queue.values()) {
@@ -500,7 +500,6 @@ export class MemoryStore implements StoreInterface {
     this.insertionOrder.delete(queueName);
     this.pausedNames.delete(queueName);
     this.groupCursors.delete(queueName);
-    return Promise.resolve();
   }
 
   retryJobs(queueName: string, state: 'failed' | 'completed'): Promise<number> {
