@@ -168,10 +168,17 @@ add() → [waiting] ──fetch──→ [active] ──success──→ [comple
 - **Per-store tests**: store-specific integration tests
 - **Core tests** (`tests/core/`): unit tests with mock store
 
-### Out of Scope (V1) — Planned for V2
+### Next Release Candidates (v1.x)
 
-Groups, OpenTelemetry, web dashboard, Redis store, Cloudflare D1, sandboxed workers, dead letter
-queue.
+OpenTelemetry, web dashboard, sandboxed workers, decoupled notifications.
+
+### Out of Scope — Planned for V2
+
+Job Schedulers API (replaces `repeat` opts — breaking change). See `tasks/job-schedulers-api.md`.
+
+### Ideas (under consideration)
+
+Redis store, Cloudflare D1, dead letter queue.
 
 ## Workflow
 
@@ -190,8 +197,10 @@ queue.
   - `planned`: task file created with detailed plan, ready for dev
   - `in-progress`: actively being worked on
   - `done`: completed and verified
-  - `next-release-candidate`: deferred feature, to be evaluated for inclusion in the next major
-    release
+  - `next-release-candidate`: deferred feature, to be evaluated for the next minor/patch release
+    (v1.x, non-breaking)
+  - `next-major-candidate`: deferred feature, to be evaluated for the next major release (v2.0,
+    breaking changes)
 - Thinking lifecycle (ideas not yet in roadmap): `thinking` → `accepted` | `abandoned`
   - `thinking`: idea under consideration, needs discussion or analysis
   - `accepted`: validated → move to roadmap as `todo` (add to the relevant phase)

@@ -56,7 +56,7 @@ tasks:
 
   job-schedulers-api:
     description: First-class Job Schedulers CRUD API (replaces repeat opts) — deferred to v2.0
-    status: next-release-candidate
+    status: next-major-candidate
     file: tasks/job-schedulers-api.md
 
 # ─── PRD Roadmap ──────────────────────────────────────────────────────────────
@@ -108,13 +108,13 @@ roadmap:
 
   phase-6-tooling-ecosystem:
     description: 'Web dashboard, decoupled notifications, sandboxed workers, OpenTelemetry'
-    status: todo
+    status: next-release-candidate
     items:
       web-dashboard:
-        status: todo
+        status: next-release-candidate
       decoupled-notifications:
-        status: todo
+        status: next-release-candidate
       sandboxed-workers:
-        status: todo
+        status: next-release-candidate
       opentelemetry:
-        status: todo
+        status: next-release-candidate
