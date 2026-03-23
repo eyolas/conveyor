@@ -680,6 +680,67 @@ export class BaseSqliteStore implements StoreInterface {
     return Promise.resolve();
   }
 
+  // ─── Queue Convenience Methods ──────────────────────────────────────
+
+  getJobCounts(queueName: string): Promise<Record<JobState, number>> {
+    const rows = this.db.prepare(`
+      SELECT state, COUNT(*) AS count FROM conveyor_jobs
+      WHERE queue_name = ? GROUP BY state
+    `).all(queueName) as Array<{ state: string; count: number | bigint }>;
+
+    const counts: Record<JobState, number> = {
+      'waiting': 0,
+      'waiting-children': 0,
+      'delayed': 0,
+      'active': 0,
+      'completed': 0,
+      'failed': 0,
+    };
+    for (const row of rows) {
+      counts[row.state as JobState] = Number(row.count);
+    }
+    return Promise.resolve(counts);
+  }
+
+  obliterate(queueName: string, opts?: { force?: boolean }): Promise<void> {
+    this.runTransaction(() => {
+      if (!opts?.force) {
+        const row = this.db.prepare(`
+          SELECT COUNT(*) AS count FROM conveyor_jobs
+          WHERE queue_name = ? AND state = 'active'
+        `).get(queueName) as { count: number | bigint };
+        if (Number(row.count) > 0) {
+          throw new Error(
+            `Cannot obliterate queue "${queueName}": active jobs exist. Use { force: true } to override.`,
+          );
+        }
+      }
+      this.db.prepare('DELETE FROM conveyor_jobs WHERE queue_name = ?').run(queueName);
+      this.db.prepare('DELETE FROM conveyor_paused_names WHERE queue_name = ?').run(queueName);
+      this.db.prepare('DELETE FROM conveyor_group_cursors WHERE queue_name = ?').run(queueName);
+    });
+    return Promise.resolve();
+  }
+
+  retryJobs(queueName: string, state: 'failed' | 'completed'): Promise<number> {
+    const result = this.db.prepare(`
+      UPDATE conveyor_jobs
+      SET state = 'waiting', attempts_made = 0, failed_reason = NULL,
+          failed_at = NULL, completed_at = NULL, stacktrace = '[]'
+      WHERE queue_name = ? AND state = ?
+    `).run(queueName, state);
+    return Promise.resolve(Number(result.changes));
+  }
+
+  promoteJobs(queueName: string): Promise<number> {
+    const result = this.db.prepare(`
+      UPDATE conveyor_jobs
+      SET state = 'waiting', delay_until = NULL
+      WHERE queue_name = ? AND state = 'delayed'
+    `).run(queueName);
+    return Promise.resolve(Number(result.changes));
+  }
+
   // ─── Flow (Parent-Child) ─────────────────────────────────────────
 
   saveFlow(jobs: Array<{ queueName: string; job: Omit<JobData, 'id'> }>): Promise<string[]> {

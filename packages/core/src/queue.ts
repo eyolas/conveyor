@@ -347,6 +347,48 @@ export class Queue<T = unknown> {
     return this.store.clean(this.name, state, grace);
   }
 
+  /**
+   * Get job counts for all states in a single call.
+   *
+   * @returns Record mapping each {@linkcode JobState} to its count.
+   */
+  getJobCounts(): Promise<Record<JobState, number>> {
+    this.assertNotClosed();
+    return this.store.getJobCounts(this.name);
+  }
+
+  /**
+   * Destroy this queue and all its data (jobs, paused names, group cursors).
+   * Throws if active jobs exist unless `force` is `true`.
+   *
+   * @param opts - Pass `{ force: true }` to also remove active jobs.
+   */
+  async obliterate(opts?: { force?: boolean }): Promise<void> {
+    this.assertNotClosed();
+    await this.store.obliterate(this.name, opts);
+  }
+
+  /**
+   * Retry all jobs in a terminal state by moving them back to waiting.
+   *
+   * @param opts - Options. `state` defaults to `'failed'`.
+   * @returns The number of retried jobs.
+   */
+  retryJobs(opts?: { state?: 'failed' | 'completed' }): Promise<number> {
+    this.assertNotClosed();
+    return this.store.retryJobs(this.name, opts?.state ?? 'failed');
+  }
+
+  /**
+   * Promote all delayed jobs to waiting immediately.
+   *
+   * @returns The number of promoted jobs.
+   */
+  promoteJobs(): Promise<number> {
+    this.assertNotClosed();
+    return this.store.promoteJobs(this.name);
+  }
+
   // ─── Observation ───────────────────────────────────────────────────────
 
   /**

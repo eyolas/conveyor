@@ -515,3 +515,103 @@ test('Queue.getJobs returns jobs by state', async () => {
   await queue.close();
   await store.disconnect();
 });
+
+// ─── Queue Convenience Methods ──────────────────────────────────────
+
+test('Queue.getJobCounts returns counts for all states', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  await queue.add('j1', {});
+  await queue.add('j2', {});
+
+  const counts = await queue.getJobCounts();
+  expect(counts.waiting).toBe(2);
+  expect(counts.active).toBe(0);
+  expect(counts.failed).toBe(0);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue.obliterate removes all queue data', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  await queue.add('j1', {});
+  await queue.add('j2', {});
+
+  await queue.obliterate();
+
+  const counts = await queue.getJobCounts();
+  expect(counts.waiting).toBe(0);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue.retryJobs defaults to failed state', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  const job = await queue.add('j1', {});
+  await store.updateJob(queueName, job.id, {
+    state: 'failed',
+    failedAt: new Date(),
+    failedReason: 'err',
+  });
+
+  const retried = await queue.retryJobs();
+  expect(retried).toBe(1);
+
+  const updated = await queue.getJob(job.id);
+  expect(updated!.state).toBe('waiting');
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue.retryJobs accepts completed state', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  const job = await queue.add('j1', {});
+  await store.updateJob(queueName, job.id, { state: 'completed', completedAt: new Date() });
+
+  const retried = await queue.retryJobs({ state: 'completed' });
+  expect(retried).toBe(1);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue.promoteJobs promotes all delayed jobs', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+
+  await queue.add('j1', {}, { delay: 999_999 });
+  await queue.add('j2', {}, { delay: 999_999 });
+
+  const promoted = await queue.promoteJobs();
+  expect(promoted).toBe(2);
+
+  const counts = await queue.getJobCounts();
+  expect(counts.delayed).toBe(0);
+  expect(counts.waiting).toBe(2);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue convenience methods throw when closed', async () => {
+  const { queue, store } = createQueue();
+  await store.connect();
+  await queue.close();
+
+  expect(() => queue.getJobCounts()).toThrow(/closed/);
+  await expect(queue.obliterate()).rejects.toThrow(/closed/);
+  expect(() => queue.retryJobs()).toThrow(/closed/);
+  expect(() => queue.promoteJobs()).toThrow(/closed/);
+
+  await store.disconnect();
+});

@@ -129,15 +129,18 @@ export function validateQueueName(name: string): void {
   }
 }
 
-/** Valid job state values. */
-const VALID_JOB_STATES = new Set([
+/** All valid job states as a readonly array. */
+export const JOB_STATES: readonly JobState[] = [
   'waiting',
   'waiting-children',
   'delayed',
   'active',
   'completed',
   'failed',
-]);
+] as const;
+
+/** Valid job state values. */
+const VALID_JOB_STATES = new Set<string>(JOB_STATES);
 
 /**
  * Assert that a string is a valid {@linkcode JobState}, throwing if not.

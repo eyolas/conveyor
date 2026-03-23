@@ -588,6 +588,69 @@ export class PgStore implements StoreInterface {
     `;
   }
 
+  // ─── Queue Convenience Methods ──────────────────────────────────────
+
+  async getJobCounts(queueName: string): Promise<Record<JobState, number>> {
+    const rows = await this.sql<{ state: string; count: number }[]>`
+      SELECT state, COUNT(*)::int AS count FROM conveyor_jobs
+      WHERE queue_name = ${queueName}
+      GROUP BY state
+    `;
+    const counts: Record<JobState, number> = {
+      'waiting': 0,
+      'waiting-children': 0,
+      'delayed': 0,
+      'active': 0,
+      'completed': 0,
+      'failed': 0,
+    };
+    for (const row of rows) {
+      counts[row.state as JobState] = row.count;
+    }
+    return counts;
+  }
+
+  async obliterate(queueName: string, opts?: { force?: boolean }): Promise<void> {
+    await this.sql.begin(async (_tx) => {
+      const tx = sql(_tx);
+      if (!opts?.force) {
+        const rows = await tx<{ count: number }[]>`
+          SELECT COUNT(*)::int AS count FROM conveyor_jobs
+          WHERE queue_name = ${queueName} AND state = 'active'
+        `;
+        if ((rows[0]?.count ?? 0) > 0) {
+          throw new Error(
+            `Cannot obliterate queue "${queueName}": active jobs exist. Use { force: true } to override.`,
+          );
+        }
+      }
+      await tx`DELETE FROM conveyor_jobs WHERE queue_name = ${queueName}`;
+      await tx`DELETE FROM conveyor_paused_names WHERE queue_name = ${queueName}`;
+      await tx`DELETE FROM conveyor_group_cursors WHERE queue_name = ${queueName}`;
+    });
+  }
+
+  async retryJobs(queueName: string, state: 'failed' | 'completed'): Promise<number> {
+    const rows = await this.sql`
+      UPDATE conveyor_jobs
+      SET state = 'waiting', attempts_made = 0, failed_reason = NULL,
+          failed_at = NULL, completed_at = NULL, stacktrace = '[]'::jsonb
+      WHERE queue_name = ${queueName} AND state = ${state}
+      RETURNING id
+    `;
+    return rows.length;
+  }
+
+  async promoteJobs(queueName: string): Promise<number> {
+    const rows = await this.sql`
+      UPDATE conveyor_jobs
+      SET state = 'waiting', delay_until = NULL
+      WHERE queue_name = ${queueName} AND state = 'delayed'
+      RETURNING id
+    `;
+    return rows.length;
+  }
+
   // ─── Flow (Parent-Child) ─────────────────────────────────────────
 
   async saveFlow(jobs: Array<{ queueName: string; job: Omit<JobData, 'id'> }>): Promise<string[]> {
