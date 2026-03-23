@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-03-23
+
+### Features
+
+- **core**: Add Job.waitUntilFinished(ttl?) — Phase 3
+  (#29)([7be0470](https://github.com/eyolas/conveyor/commit/7be04707d266bd179c21e50ced1a88d88b971b70))
+- **core**: Add Queue convenience methods (Phase 2)
+  (#28)([f522246](https://github.com/eyolas/conveyor/commit/f5222468f2d7999e3779f2e59feaede458135da4))
+- **core**: Add job lifecycle mutations (Phase 1)
+  (#27)([5e78bb1](https://github.com/eyolas/conveyor/commit/5e78bb1eeefd0f414e51105220de765a3370ddb4))
+
+### Bug Fixes
+
+- **ci**: Deploy docs before git push to avoid race
+  condition([c97c1ef](https://github.com/eyolas/conveyor/commit/c97c1efc21fcd3c3bbe27b042fc87dcf02814670))
+
+### Documentation
+
+- **features**: Add feature pages for job mutations, queue management, and waitUntilFinished
+  (#32)([c00774c](https://github.com/eyolas/conveyor/commit/c00774c7592c838e76d453d4a26a6a23dac95a9e))
+- **api**: Update Job and Queue API reference for Phase 1-3
+  (#30)([3816898](https://github.com/eyolas/conveyor/commit/38168987a04ab75cf9f9435fbf777ad058e90c01))
+- Distinguish next-release-candidate (v1.x) from next-major-candidate
+  (v2.0)([f565b4c](https://github.com/eyolas/conveyor/commit/f565b4c1c1aaf1559556a59d311f8a235660b5e7))
+- Defer Job Schedulers API to v2.0 as
+  next-release-candidate([259e00d](https://github.com/eyolas/conveyor/commit/259e00d2854b1efb942f78b2599a9fb5a587648b))
+- Reorder phases — waitUntilFinished before Job
+  Schedulers([9423681](https://github.com/eyolas/conveyor/commit/94236819108188591f720034286281be2419d053))
+- Update CHANGELOG.md for
+  v1.0.0([5f24d07](https://github.com/eyolas/conveyor/commit/5f24d07e0b273aef8c3774b5e810b607beb5b563))
+
+### Bench
+
+- Add benchmarks for job mutations and queue management
+  (#31)([a4155ce](https://github.com/eyolas/conveyor/commit/a4155ceb7773c6c52103a5c41c532c7aceba27bc))
+
 ## [1.0.0] - 2026-03-22
 
 ### Bug Fixes
