@@ -413,6 +413,20 @@ export class PgStore implements StoreInterface {
     const result = await this.sql.begin(async (_tx) => {
       const tx = sql(_tx);
 
+      // Global rate limit check (inside transaction for atomicity)
+      if (opts.rateLimit) {
+        const windowStart = new Date(now.getTime() - opts.rateLimit.duration);
+        await tx`
+          DELETE FROM conveyor_rate_limits
+          WHERE queue_name = ${queueName} AND fetched_at < ${windowStart}
+        `;
+        const countRows = await tx<{ count: number }[]>`
+          SELECT COUNT(*)::int AS count FROM conveyor_rate_limits
+          WHERE queue_name = ${queueName} AND fetched_at >= ${windowStart}
+        `;
+        if ((countRows[0]?.count ?? 0) >= opts.rateLimit.max) return null;
+      }
+
       // Build the concurrency filter as a subquery condition
       const concurrencyFrag = groupConcurrency !== undefined
         ? tx`
@@ -470,6 +484,14 @@ export class PgStore implements StoreInterface {
 
       const fetched = rowToJobData(rows[0]!);
       const effectiveGroupId = fetched.groupId ?? '__ungrouped__';
+
+      // Record rate limit entry
+      if (opts.rateLimit) {
+        await tx`
+          INSERT INTO conveyor_rate_limits (queue_name, fetched_at)
+          VALUES (${queueName}, ${now})
+        `;
+      }
 
       // Upsert cursor
       await tx`

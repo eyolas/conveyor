@@ -447,6 +447,18 @@ export class BaseSqliteStore implements StoreInterface {
     const groupConcurrency = opts.groupConcurrency;
 
     const result = this.runTransaction(() => {
+      // Global rate limit check
+      if (opts.rateLimit) {
+        const windowStart = now - opts.rateLimit.duration;
+        this.db.prepare(
+          'DELETE FROM conveyor_rate_limits WHERE queue_name = ? AND fetched_at < ?',
+        ).run(queueName, windowStart);
+        const countRow = this.db.prepare(
+          'SELECT COUNT(*) AS count FROM conveyor_rate_limits WHERE queue_name = ? AND fetched_at >= ?',
+        ).get(queueName, windowStart) as { count: number | bigint };
+        if (Number(countRow.count) >= opts.rateLimit.max) return null;
+      }
+
       // Build the waiting jobs query with filters
       const nameFilter = opts.jobName ? 'AND j.name = ?' : '';
       let excludeFilter = '';
@@ -521,6 +533,13 @@ export class BaseSqliteStore implements StoreInterface {
           SET state = 'active', processed_at = ?, lock_until = ?, locked_by = ?
           WHERE queue_name = ? AND id = ?
         `).run(now, lockUntil, workerId, queueName, candidate.id);
+
+        // Record rate limit entry
+        if (opts.rateLimit) {
+          this.db.prepare(
+            'INSERT INTO conveyor_rate_limits (queue_name, fetched_at) VALUES (?, ?)',
+          ).run(queueName, now);
+        }
 
         // Upsert cursor
         this.db.prepare(`
