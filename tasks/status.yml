@@ -54,6 +54,11 @@ tasks:
     status: done
     file: tasks/bullmq-api-parity.md
 
+  global-rate-limiting:
+    description: Store-level global rate limiting across all workers (replaces worker-local limiter)
+    status: planned
+    file: tasks/global-rate-limiting.md
+
   job-schedulers-api:
     description: First-class Job Schedulers CRUD API (replaces repeat opts) — deferred to v2.0
     status: next-major-candidate
