@@ -375,6 +375,14 @@ export interface FetchOptions {
 
   /** Group IDs to exclude from fetching (e.g. rate-limited groups). */
   excludeGroups?: string[];
+
+  /** Global rate limit enforced at the store level across all workers. */
+  rateLimit?: {
+    /** Max jobs allowed in the duration window. */
+    max: number;
+    /** Duration window in milliseconds. */
+    duration: number;
+  };
 }
 
 /** Options for {@linkcode Queue.pause} and {@linkcode Queue.resume}. */

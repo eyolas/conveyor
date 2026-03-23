@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned — v1.2.0
+In Progress — v1.2.0
 
 ## Goal
 
@@ -13,13 +13,15 @@ limit budget.
 ## Current behavior
 
 `WorkerOptions.limiter` (`{ max, duration }`) is enforced per-worker instance. Each worker tracks
-its own sliding window independently. With N workers, the effective rate is `max * N` per `duration`.
+its own sliding window independently. With N workers, the effective rate is `max * N` per
+`duration`.
 
 ## Target behavior
 
-A single global rate limit per queue, enforced atomically in the store. With `{ max: 10, duration:
-60_000 }`, the queue processes at most 10 jobs per 60s across **all** workers, regardless of how many
-are running.
+A single global rate limit per queue, enforced atomically in the store. With
+`{ max: 10, duration:
+60_000 }`, the queue processes at most 10 jobs per 60s across **all** workers,
+regardless of how many are running.
 
 ## Design
 

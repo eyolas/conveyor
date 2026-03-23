@@ -56,7 +56,7 @@ tasks:
 
   global-rate-limiting:
     description: Store-level global rate limiting across all workers (replaces worker-local limiter)
-    status: planned
+    status: in-progress
     file: tasks/global-rate-limiting.md
 
   job-schedulers-api:

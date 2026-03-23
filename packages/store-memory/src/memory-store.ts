@@ -43,6 +43,8 @@ export class MemoryStore implements StoreInterface {
   private subscribers = new Map<string, Set<EventCallback>>();
   /** Round-robin cursor: queueName → groupId → lastServedTimestamp */
   private groupCursors = new Map<string, Map<string, number>>();
+  /** Global rate limit tracking: queueName → fetch timestamps */
+  private rateLimitTimestamps = new Map<string, number[]>();
   private readonly onEventHandlerError: (error: unknown) => void;
 
   constructor(options?: StoreOptions) {
@@ -157,6 +159,16 @@ export class MemoryStore implements StoreInterface {
     const isGloballyPaused = pausedNames?.has('__all__') ?? false;
     if (isGloballyPaused) return Promise.resolve(null);
 
+    // Global rate limit check
+    if (opts?.rateLimit) {
+      const { max, duration } = opts.rateLimit;
+      const windowStart = now - duration;
+      const timestamps = this.rateLimitTimestamps.get(queueName) ?? [];
+      const recent = timestamps.filter((t) => t >= windowStart);
+      this.rateLimitTimestamps.set(queueName, recent);
+      if (recent.length >= max) return Promise.resolve(null);
+    }
+
     // Get waiting jobs, sorted by priority then by insertion order
     const waitingJobs = Array.from(queue.values())
       .filter((job) => {
@@ -198,6 +210,14 @@ export class MemoryStore implements StoreInterface {
     };
 
     queue.set(job.id, locked);
+
+    // Record rate limit timestamp
+    if (opts?.rateLimit) {
+      const timestamps = this.rateLimitTimestamps.get(queueName) ?? [];
+      timestamps.push(now);
+      this.rateLimitTimestamps.set(queueName, timestamps);
+    }
+
     return Promise.resolve(structuredClone(locked));
   }
 
@@ -502,6 +522,7 @@ export class MemoryStore implements StoreInterface {
     this.insertionOrder.delete(queueName);
     this.pausedNames.delete(queueName);
     this.groupCursors.delete(queueName);
+    this.rateLimitTimestamps.delete(queueName);
     return Promise.resolve();
   }
 

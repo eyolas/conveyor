@@ -377,6 +377,18 @@ export class BaseSqliteStore implements StoreInterface {
     const lifo = opts?.lifo ?? false;
 
     const result = this.runTransaction(() => {
+      // Global rate limit check
+      if (opts?.rateLimit) {
+        const windowStart = now - opts.rateLimit.duration;
+        this.db.prepare(
+          'DELETE FROM conveyor_rate_limits WHERE queue_name = ? AND fetched_at < ?',
+        ).run(queueName, windowStart);
+        const countRow = this.db.prepare(
+          'SELECT COUNT(*) AS count FROM conveyor_rate_limits WHERE queue_name = ? AND fetched_at >= ?',
+        ).get(queueName, windowStart) as { count: number | bigint };
+        if (Number(countRow.count) >= opts.rateLimit.max) return null;
+      }
+
       const nameFilter = opts?.jobName ? 'AND name = ?' : '';
       const order = lifo ? 'seq DESC' : 'seq ASC';
       const query = `
@@ -402,6 +414,13 @@ export class BaseSqliteStore implements StoreInterface {
         SET state = 'active', processed_at = ?, lock_until = ?, locked_by = ?
         WHERE queue_name = ? AND id = ?
       `).run(now, lockUntil, workerId, queueName, candidate.id);
+
+      // Record rate limit entry
+      if (opts?.rateLimit) {
+        this.db.prepare(
+          'INSERT INTO conveyor_rate_limits (queue_name, fetched_at) VALUES (?, ?)',
+        ).run(queueName, now);
+      }
 
       return this.stmts.getJob.get(queueName, candidate.id) as JobRow | undefined;
     });
@@ -719,6 +738,7 @@ export class BaseSqliteStore implements StoreInterface {
         this.db.prepare('DELETE FROM conveyor_jobs WHERE queue_name = ?').run(queueName);
         this.db.prepare('DELETE FROM conveyor_paused_names WHERE queue_name = ?').run(queueName);
         this.db.prepare('DELETE FROM conveyor_group_cursors WHERE queue_name = ?').run(queueName);
+        this.db.prepare('DELETE FROM conveyor_rate_limits WHERE queue_name = ?').run(queueName);
       });
       return Promise.resolve();
     } catch (err) {
