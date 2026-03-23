@@ -53,6 +53,9 @@ flowchart LR
     active -- "success" --> completed
     active -. "throws" .-> failed
     active -. "stalled" .-> waiting
+    active -. "moveToDelayed()" .-> delayed
+
+    delayed -. "promote()" .-> waiting
 
     failed -. "retry" .-> waiting
 
@@ -82,6 +85,23 @@ await queue.add('daily-report', {}, {
   repeat: { cron: '0 9 * * *', tz: 'America/New_York' },
 });
 ```
+
+## Job Mutations
+
+Jobs can be modified after creation using mutation methods on the `Job` class. These introduce
+additional state transitions beyond the standard lifecycle:
+
+| Mutation                      | Transition                          | Description                         |
+| ----------------------------- | ----------------------------------- | ----------------------------------- |
+| `job.promote()`               | `delayed` -> `waiting`              | Skip remaining delay                |
+| `job.moveToDelayed(timestamp)`| `active` -> `delayed`               | Reschedule an active job            |
+| `job.discard()`               | (no transition)                     | Prevent retries on failure          |
+| `job.updateData(data)`        | (no transition)                     | Replace the job payload             |
+| `job.changeDelay(delay)`      | `delayed` -> `delayed` (new delay)  | Modify the delay timestamp          |
+| `job.changePriority(priority)`| (no transition)                     | Change priority of waiting/delayed  |
+| `job.clearLogs()`             | (no transition)                     | Remove all log entries              |
+
+See [Job Mutations](/features/job-mutations) for full documentation and examples.
 
 ## Delayed Job Promotion
 
