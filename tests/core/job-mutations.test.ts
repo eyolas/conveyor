@@ -497,3 +497,21 @@ test('Job.waitUntilFinished rejects on TTL timeout', async () => {
     await queue.close();
   });
 });
+
+test('Job.waitUntilFinished rejects on cancellation', async () => {
+  await withStore(async (store) => {
+    const queue = new Queue(queueName, { store });
+    // No worker — job stays in waiting
+
+    const job = await queue.add('test', { value: 1 });
+
+    // Cancel the job after a short delay
+    setTimeout(() => {
+      queue.observe(job.id).cancel();
+    }, 50);
+
+    await expect(job.waitUntilFinished()).rejects.toThrow(/cancelled/i);
+
+    await queue.close();
+  });
+});
