@@ -39,113 +39,91 @@ These properties reflect the current in-memory state and are updated by mutation
 | `failedAt`     | `Date \| null`   | When the job failed                                                                      |
 | `cancelledAt`  | `Date \| null`   | When the job was cancelled                                                               |
 | `logs`         | `string[]`       | Copy of the job's log messages                                                           |
+| `stacktrace`   | `string[]`       | Stack traces accumulated across retry attempts                                           |
+| `discarded`    | `boolean`        | Whether retries have been disabled for this job                                          |
 | `groupId`      | `string \| null` | Group ID this job belongs to (`null` if ungrouped)                                       |
 
 ## Methods
 
-### updateProgress
+### changeDelay
 
-Update the job's progress and persist it to the store. Emits a `progress` event.
-
-```typescript
-async updateProgress(progress: number): Promise<void>
-```
-
-| Parameter  | Type     | Description                |
-| ---------- | -------- | -------------------------- |
-| `progress` | `number` | A number between 0 and 100 |
-
-Throws `RangeError` if progress is outside the 0--100 range.
+Change when a delayed job will be promoted to waiting.
 
 ```typescript
-await job.updateProgress(50);
-// ... do more work ...
-await job.updateProgress(100);
+async changeDelay(delay: number): Promise<void>
 ```
 
-### log
+| Parameter | Type     | Description                      |
+| --------- | -------- | -------------------------------- |
+| `delay`   | `number` | New delay in milliseconds from now |
 
-Append a log message to the job and persist it.
-
-```typescript
-async log(message: string): Promise<void>
-```
-
-```typescript
-await job.log('Starting image resize');
-await job.log(`Resized to ${width}x${height}`);
-```
-
-### moveToFailed
-
-Manually move the job to the `failed` state.
-
-```typescript
-async moveToFailed(error: Error): Promise<void>
-```
-
-```typescript
-if (validationFailed) {
-  await job.moveToFailed(new Error('Invalid payload'));
-}
-```
-
-### retry
-
-Move a failed job back to `waiting` for reprocessing.
-
-```typescript
-async retry(): Promise<void>
-```
+Throws `RangeError` if delay is <= 0. Throws `JobNotFoundError` if the job no longer exists. Throws
+`InvalidJobStateError` if the job is not in `delayed` state.
 
 ```typescript
 const job = await queue.getJob(jobId);
-if (job?.state === 'failed') {
-  await job.retry();
+if (job?.state === 'delayed') {
+  await job.changeDelay(60_000); // delay by 1 minute from now
 }
 ```
 
-### remove
+### changePriority
 
-Remove the job from the store entirely.
-
-```typescript
-async remove(): Promise<void>
-```
-
-### isCompleted
-
-Check if the job is completed (reads fresh state from the store).
+Change the priority of a queued job dynamically.
 
 ```typescript
-async isCompleted(): Promise<boolean>
+async changePriority(priority: number): Promise<void>
 ```
 
-### isFailed
+| Parameter  | Type     | Description                              |
+| ---------- | -------- | ---------------------------------------- |
+| `priority` | `number` | New priority (non-negative integer) |
 
-Check if the job has failed (reads fresh state from the store).
+Throws `RangeError` if priority is negative or not an integer. Throws `JobNotFoundError` if the job
+no longer exists. Throws `InvalidJobStateError` if the job is not in `waiting` or `delayed` state.
 
 ```typescript
-async isFailed(): Promise<boolean>
+const job = await queue.getJob(jobId);
+if (job?.state === 'waiting') {
+  await job.changePriority(10); // boost priority
+}
 ```
 
-### isActive
+### clearLogs
 
-Check if the job is currently active (reads fresh state from the store).
+Clear all log messages from the job.
 
 ```typescript
-async isActive(): Promise<boolean>
+async clearLogs(): Promise<void>
 ```
 
-### getParent
-
-Get the parent job, if this job is a child in a flow.
+Throws `JobNotFoundError` if the job no longer exists.
 
 ```typescript
-async getParent(): Promise<Job | null>
+await job.clearLogs();
+console.log(job.logs); // []
 ```
 
-Returns the parent `Job`, or `null` if the job is standalone.
+### discard
+
+Mark the job as discarded so the worker will skip retries on the next failure. Must be called while
+the job is active (e.g., from within a processor).
+
+```typescript
+async discard(): Promise<void>
+```
+
+Throws `JobNotFoundError` if the job no longer exists. Throws `InvalidJobStateError` if the job is
+not in `active` state.
+
+```typescript
+const worker = new Worker('tasks', async (job) => {
+  if (shouldAbandon(job.data)) {
+    await job.discard();
+    throw new Error('Unrecoverable — no retry');
+  }
+}, { store });
+```
 
 ### getDependencies
 
@@ -177,6 +155,93 @@ const values = await parentJob.getChildrenValues();
 // { "child-1": { data: "sales" }, "child-2": { data: "inventory" } }
 ```
 
+### getParent
+
+Get the parent job, if this job is a child in a flow.
+
+```typescript
+async getParent(): Promise<Job | null>
+```
+
+Returns the parent `Job`, or `null` if the job is standalone.
+
+### isActive
+
+Check if the job is currently active (reads fresh state from the store).
+
+```typescript
+async isActive(): Promise<boolean>
+```
+
+### isCompleted
+
+Check if the job is completed (reads fresh state from the store).
+
+```typescript
+async isCompleted(): Promise<boolean>
+```
+
+### isFailed
+
+Check if the job has failed (reads fresh state from the store).
+
+```typescript
+async isFailed(): Promise<boolean>
+```
+
+### log
+
+Append a log message to the job and persist it.
+
+```typescript
+async log(message: string): Promise<void>
+```
+
+```typescript
+await job.log('Starting image resize');
+await job.log(`Resized to ${width}x${height}`);
+```
+
+### moveToDelayed
+
+Move an active job back to the delayed state (e.g., for throttling inside a processor).
+
+```typescript
+async moveToDelayed(timestamp: number): Promise<void>
+```
+
+| Parameter   | Type     | Description                                           |
+| ----------- | -------- | ----------------------------------------------------- |
+| `timestamp` | `number` | Absolute ms timestamp for when the job should resume |
+
+Throws `RangeError` if timestamp is before the current time. Throws `JobNotFoundError` if the job no
+longer exists. Throws `InvalidJobStateError` if the job is not in `active` state.
+
+```typescript
+const worker = new Worker('tasks', async (job) => {
+  if (rateLimited) {
+    // Re-delay for 30 seconds from now
+    await job.moveToDelayed(Date.now() + 30_000);
+    return;
+  }
+  // ... process normally
+}, { store });
+```
+
+### moveToFailed
+
+Manually move the job to the `failed` state.
+
+```typescript
+async moveToFailed(error: Error): Promise<void>
+```
+
+```typescript
+if (validationFailed) {
+  await job.moveToFailed(new Error('Invalid payload'));
+}
+```
+
 ### observe
 
 Create a [JobObservable](./job-observable) for this job.
@@ -192,12 +257,119 @@ observable.subscribe({
 });
 ```
 
+### promote
+
+Promote a delayed job to waiting immediately, bypassing its scheduled delay.
+
+```typescript
+async promote(): Promise<void>
+```
+
+Throws `JobNotFoundError` if the job no longer exists. Throws `InvalidJobStateError` if the job is
+not in `delayed` state.
+
+```typescript
+const job = await queue.getJob(jobId);
+if (job?.state === 'delayed') {
+  await job.promote();
+  // job.state is now 'waiting'
+}
+```
+
+### remove
+
+Remove the job from the store entirely.
+
+```typescript
+async remove(): Promise<void>
+```
+
+### retry
+
+Move a failed job back to `waiting` for reprocessing.
+
+```typescript
+async retry(): Promise<void>
+```
+
+```typescript
+const job = await queue.getJob(jobId);
+if (job?.state === 'failed') {
+  await job.retry();
+}
+```
+
 ### toJSON
 
 Convert back to raw `JobData` for serialization.
 
 ```typescript
 toJSON(): JobData<T>
+```
+
+### updateData
+
+Update the job payload after creation. The job must be in a non-terminal state.
+
+```typescript
+async updateData(data: T): Promise<void>
+```
+
+| Parameter | Type | Description          |
+| --------- | ---- | -------------------- |
+| `data`    | `T`  | The new job payload |
+
+Throws `JobNotFoundError` if the job no longer exists. Throws `InvalidJobStateError` if the job is
+in a terminal state (`completed` or `failed`).
+
+```typescript
+const job = await queue.getJob(jobId);
+if (job) {
+  await job.updateData({ to: 'new-address@example.com' });
+}
+```
+
+### updateProgress
+
+Update the job's progress and persist it to the store. Emits a `progress` event.
+
+```typescript
+async updateProgress(progress: number): Promise<void>
+```
+
+| Parameter  | Type     | Description                |
+| ---------- | -------- | -------------------------- |
+| `progress` | `number` | A number between 0 and 100 |
+
+Throws `RangeError` if progress is outside the 0--100 range.
+
+```typescript
+await job.updateProgress(50);
+// ... do more work ...
+await job.updateProgress(100);
+```
+
+### waitUntilFinished
+
+Wait for the job to reach a terminal state (completed, failed, or cancelled). Uses a
+[JobObservable](./job-observable) internally.
+
+```typescript
+waitUntilFinished(ttl?: number): Promise<unknown>
+```
+
+| Parameter | Type     | Description                                                         |
+| --------- | -------- | ------------------------------------------------------------------- |
+| `ttl`     | `number` | Optional timeout in milliseconds. Rejects if exceeded. |
+
+Returns the job's return value on completion. Rejects if the job fails, is cancelled, or the TTL
+expires. If the job is already in a terminal state, resolves or rejects immediately without
+subscribing to events.
+
+```typescript
+const job = await queue.add('process-report', { type: 'monthly' });
+const result = await job.waitUntilFinished(30_000); // 30s timeout
+console.log('Report result:', result);
 ```
 
 ## Job Lifecycle
