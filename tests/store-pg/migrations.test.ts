@@ -65,11 +65,13 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version, name FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBeGreaterThanOrEqual(4);
+    expect(rows.length).toBeGreaterThanOrEqual(6);
     expect(rows[0]).toMatchObject({ version: 1, name: 'initial_schema' });
     expect(rows[1]).toMatchObject({ version: 2, name: 'add_parent_child_fields' });
     expect(rows[2]).toMatchObject({ version: 3, name: 'add_cancelled_at' });
     expect(rows[3]).toMatchObject({ version: 4, name: 'add_groups' });
+    expect(rows[4]).toMatchObject({ version: 5, name: 'add_stacktrace' });
+    expect(rows[5]).toMatchObject({ version: 6, name: 'add_discarded' });
   });
 
   it('is idempotent — running twice has no effect', async () => {
@@ -79,19 +81,21 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    // Should still have exactly four migration entries
-    expect(rows.length).toBe(4);
+    // Should still have exactly six migration entries
+    expect(rows.length).toBe(6);
     expect(rows[0]!.version).toBe(1);
     expect(rows[1]!.version).toBe(2);
     expect(rows[2]!.version).toBe(3);
     expect(rows[3]!.version).toBe(4);
+    expect(rows[4]!.version).toBe(5);
+    expect(rows[5]!.version).toBe(6);
   });
 
   it('skips already applied migrations', async () => {
     await runMigrations(sql);
 
     // Manually set max version higher to simulate future state
-    await sql`UPDATE conveyor_migrations SET version = 999 WHERE version = 4`;
+    await sql`UPDATE conveyor_migrations SET version = 999 WHERE version = 6`;
 
     // Running again should not error (nothing to apply)
     await runMigrations(sql);
@@ -99,11 +103,13 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBe(4);
+    expect(rows.length).toBe(6);
     expect(rows[0]!.version).toBe(1);
     expect(rows[1]!.version).toBe(2);
     expect(rows[2]!.version).toBe(3);
-    expect(rows[3]!.version).toBe(999);
+    expect(rows[3]!.version).toBe(4);
+    expect(rows[4]!.version).toBe(5);
+    expect(rows[5]!.version).toBe(999);
   });
 
   it('concurrent calls do not conflict (advisory lock)', async () => {
@@ -117,10 +123,12 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBe(4);
+    expect(rows.length).toBe(6);
     expect(rows[0]!.version).toBe(1);
     expect(rows[1]!.version).toBe(2);
     expect(rows[2]!.version).toBe(3);
     expect(rows[3]!.version).toBe(4);
+    expect(rows[4]!.version).toBe(5);
+    expect(rows[5]!.version).toBe(6);
   });
 });
