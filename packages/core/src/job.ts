@@ -298,6 +298,63 @@ export class Job<T = unknown> {
     });
   }
 
+  /**
+   * Prevent retries for this job. Must be called while the job is active.
+   * The worker will treat the next failure as terminal.
+   *
+   * @throws {JobNotFoundError} If the job no longer exists.
+   * @throws {InvalidJobStateError} If the job is not in `active` state.
+   */
+  async discard(): Promise<void> {
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+    if (fresh.state !== 'active') {
+      throw new InvalidJobStateError(this.id, fresh.state, ['active']);
+    }
+
+    const maxAttempts = fresh.opts.attempts ?? 1;
+    await this.store.updateJob(this.queueName, this.id, {
+      attemptsMade: maxAttempts,
+    });
+    this._attemptsMade = maxAttempts;
+  }
+
+  /**
+   * Update the job payload after creation.
+   *
+   * @param data - The new job payload.
+   * @throws {JobNotFoundError} If the job no longer exists.
+   * @throws {InvalidJobStateError} If the job is in a terminal state.
+   */
+  async updateData(data: T): Promise<void> {
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+    if (fresh.state === 'completed' || fresh.state === 'failed') {
+      throw new InvalidJobStateError(this.id, fresh.state, [
+        'waiting',
+        'waiting-children',
+        'active',
+        'delayed',
+      ]);
+    }
+
+    await this.store.updateJob(this.queueName, this.id, { data });
+    this._data = data;
+  }
+
+  /**
+   * Clear all logs from the job.
+   *
+   * @throws {JobNotFoundError} If the job no longer exists.
+   */
+  async clearLogs(): Promise<void> {
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+
+    await this.store.updateJob(this.queueName, this.id, { logs: [] });
+    this._logs = [];
+  }
+
   /** Remove the job from the store. */
   async remove(): Promise<void> {
     await this.store.removeJob(this.queueName, this.id);

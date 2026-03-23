@@ -168,3 +168,121 @@ test('Job.moveToDelayed throws RangeError if timestamp is in the past', async ()
   await queue.close();
   await store.disconnect();
 });
+
+// ─── discard() ────────────────────────────────────────────────────
+
+test('Job.discard sets attemptsMade to prevent retries', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 }, { attempts: 5 });
+
+  // Simulate active state
+  await store.fetchNextJob(queueName, 'worker-1', 30_000);
+
+  const jobInstance = new Job(
+    (await store.getJob(queueName, job.id))!,
+    store,
+  );
+  await jobInstance.discard();
+
+  const fresh = await store.getJob(queueName, job.id);
+  expect(fresh!.attemptsMade).toBe(5);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Job.discard throws InvalidJobStateError if not active', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 });
+
+  await expect(job.discard()).rejects.toThrow(InvalidJobStateError);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+// ─── updateData() ─────────────────────────────────────────────────
+
+test('Job.updateData updates the payload', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 });
+
+  await job.updateData({ value: 42 });
+
+  expect(job.data).toEqual({ value: 42 });
+  const fresh = await store.getJob(queueName, job.id);
+  expect(fresh!.data).toEqual({ value: 42 });
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Job.updateData throws on completed job', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 });
+
+  // Force completed state
+  await store.updateJob(queueName, job.id, {
+    state: 'completed',
+    completedAt: new Date(),
+  });
+
+  await expect(job.updateData({ value: 2 })).rejects.toThrow(InvalidJobStateError);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Job.updateData throws on failed job', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 });
+
+  await store.updateJob(queueName, job.id, {
+    state: 'failed',
+    failedAt: new Date(),
+    failedReason: 'test',
+  });
+
+  await expect(job.updateData({ value: 2 })).rejects.toThrow(InvalidJobStateError);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+// ─── clearLogs() ──────────────────────────────────────────────────
+
+test('Job.clearLogs empties the logs array', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 });
+
+  await job.log('message 1');
+  await job.log('message 2');
+  expect(job.logs).toHaveLength(2);
+
+  await job.clearLogs();
+
+  expect(job.logs).toEqual([]);
+  const fresh = await store.getJob(queueName, job.id);
+  expect(fresh!.logs).toEqual([]);
+
+  await queue.close();
+  await store.disconnect();
+});
