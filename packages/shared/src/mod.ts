@@ -33,6 +33,7 @@ export type {
   StoreInterface,
   StoreOptions,
   TimeUnit,
+  UpdateJobOptions,
   WorkerOptions,
 } from './types.ts';
 
@@ -46,3 +47,5 @@ export {
   parseDelay,
   validateQueueName,
 } from './utils.ts';
+
+export { ConveyorError, InvalidJobStateError, JobNotFoundError } from './errors.ts';

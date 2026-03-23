@@ -48,15 +48,19 @@ export type {
   StoreEventType,
   StoreInterface,
   TimeUnit,
+  UpdateJobOptions,
   WorkerOptions,
 } from '@conveyor/shared';
 
-// Re-export shared utilities
+// Re-export shared utilities and errors
 export {
   calculateBackoff,
+  ConveyorError,
   createJobData,
   generateId,
   hashPayload,
+  InvalidJobStateError,
+  JobNotFoundError,
   parseDelay,
 } from '@conveyor/shared';
 

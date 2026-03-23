@@ -7,6 +7,7 @@
  */
 
 import type { JobData, JobOptions, JobState, StoreInterface } from '@conveyor/shared';
+import { JobNotFoundError } from '@conveyor/shared';
 import { JobObservable } from './job-observable.ts';
 
 /**
@@ -25,11 +26,9 @@ export class Job<T = unknown> {
   /** Queue this job belongs to. */
   readonly queueName: string;
 
-  /** The job payload. */
-  readonly data: T;
+  private _data: T;
 
-  /** The job options used when creating this job. */
-  readonly opts: JobOptions;
+  private _opts: JobOptions;
 
   /** When this job was created. */
   readonly createdAt: Date;
@@ -51,10 +50,12 @@ export class Job<T = unknown> {
   private _logs: string[];
   private _cancelledAt: Date | null;
   private readonly _deduplicationKey: string | null;
-  private readonly _delayUntil: Date | null;
-  private readonly _lockUntil: Date | null;
-  private readonly _lockedBy: string | null;
+  private _delayUntil: Date | null;
+  private _lockUntil: Date | null;
+  private _lockedBy: string | null;
   private readonly _groupId: string | null;
+  private _stacktrace: string[];
+  private _discarded: boolean;
 
   private readonly store: StoreInterface;
 
@@ -68,8 +69,8 @@ export class Job<T = unknown> {
     this.id = jobData.id;
     this.name = jobData.name;
     this.queueName = jobData.queueName;
-    this.data = jobData.data;
-    this.opts = jobData.opts;
+    this._data = jobData.data;
+    this._opts = jobData.opts;
     this.createdAt = jobData.createdAt;
     this.parentId = jobData.parentId;
     this.parentQueueName = jobData.parentQueueName;
@@ -89,6 +90,8 @@ export class Job<T = unknown> {
     this._lockUntil = jobData.lockUntil;
     this._lockedBy = jobData.lockedBy;
     this._groupId = jobData.groupId;
+    this._stacktrace = [...(jobData.stacktrace ?? [])];
+    this._discarded = jobData.discarded ?? false;
 
     this.store = store;
   }
@@ -145,9 +148,29 @@ export class Job<T = unknown> {
     return [...this._logs];
   }
 
+  /** The job payload. */
+  get data(): T {
+    return this._data;
+  }
+
+  /** The job options used when creating this job. */
+  get opts(): JobOptions {
+    return { ...this._opts };
+  }
+
   /** Group ID this job belongs to (`null` if ungrouped). */
   get groupId(): string | null {
     return this._groupId;
+  }
+
+  /** Stack traces accumulated across retry attempts. */
+  get stacktrace(): string[] {
+    return [...this._stacktrace];
+  }
+
+  /** Whether this job has been discarded (no more retries). */
+  get discarded(): boolean {
+    return this._discarded;
   }
 
   // ─── Mutations ────────────────────────────────────────────────────
@@ -213,6 +236,160 @@ export class Job<T = unknown> {
       lockUntil: null,
       lockedBy: null,
     });
+  }
+
+  /**
+   * Promote a delayed job to waiting immediately.
+   *
+   * @throws {JobNotFoundError} If the job no longer exists.
+   * @throws {InvalidJobStateError} If the job is not in `delayed` state.
+   */
+  async promote(): Promise<void> {
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+
+    await this.store.updateJob(this.queueName, this.id, {
+      state: 'waiting',
+      delayUntil: null,
+    }, { expectedState: 'delayed' });
+    this._state = 'waiting';
+    this._delayUntil = null;
+
+    await this.store.publish({
+      type: 'job:waiting',
+      queueName: this.queueName,
+      jobId: this.id,
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * Move an active job back to delayed (e.g., for throttling in a processor).
+   *
+   * @param timestamp - Absolute ms timestamp for when the job should be promoted.
+   * @throws {RangeError} If timestamp is before the current time.
+   * @throws {JobNotFoundError} If the job no longer exists.
+   * @throws {InvalidJobStateError} If the job is not in `active` state.
+   */
+  async moveToDelayed(timestamp: number): Promise<void> {
+    if (timestamp < Date.now()) {
+      throw new RangeError('Timestamp must be in the future');
+    }
+
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+
+    const delayUntil = new Date(timestamp);
+    await this.store.updateJob(this.queueName, this.id, {
+      state: 'delayed',
+      delayUntil,
+      lockUntil: null,
+      lockedBy: null,
+    }, { expectedState: 'active' });
+    this._state = 'delayed';
+    this._delayUntil = delayUntil;
+    this._lockUntil = null;
+    this._lockedBy = null;
+
+    await this.store.publish({
+      type: 'job:delayed',
+      queueName: this.queueName,
+      jobId: this.id,
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * Mark this job as discarded — the worker will skip retries on the next failure.
+   * Must be called while the job is active (e.g., from within a processor).
+   *
+   * @throws {JobNotFoundError} If the job no longer exists.
+   * @throws {InvalidJobStateError} If the job is not in `active` state.
+   */
+  async discard(): Promise<void> {
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+
+    await this.store.updateJob(this.queueName, this.id, {
+      discarded: true,
+    }, { expectedState: 'active' });
+    this._discarded = true;
+  }
+
+  /**
+   * Update the job payload after creation.
+   *
+   * @param data - The new job payload.
+   * @throws {JobNotFoundError} If the job no longer exists.
+   * @throws {InvalidJobStateError} If the job is in a terminal state.
+   */
+  async updateData(data: T): Promise<void> {
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+
+    await this.store.updateJob(this.queueName, this.id, { data }, {
+      expectedState: ['waiting', 'waiting-children', 'active', 'delayed'],
+    });
+    this._data = data;
+  }
+
+  /**
+   * Clear all logs from the job.
+   *
+   * @throws {JobNotFoundError} If the job no longer exists.
+   */
+  async clearLogs(): Promise<void> {
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+
+    await this.store.updateJob(this.queueName, this.id, { logs: [] });
+    this._logs = [];
+  }
+
+  /**
+   * Change when a delayed job will be promoted to waiting.
+   *
+   * @param delay - New delay in milliseconds from now.
+   * @throws {RangeError} If delay is <= 0.
+   * @throws {JobNotFoundError} If the job no longer exists.
+   * @throws {InvalidJobStateError} If the job is not in `delayed` state.
+   */
+  async changeDelay(delay: number): Promise<void> {
+    if (delay <= 0) {
+      throw new RangeError('Delay must be greater than 0');
+    }
+
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+
+    const delayUntil = new Date(Date.now() + delay);
+    await this.store.updateJob(this.queueName, this.id, { delayUntil }, {
+      expectedState: 'delayed',
+    });
+    this._delayUntil = delayUntil;
+  }
+
+  /**
+   * Change the priority of a queued job.
+   *
+   * @param priority - The new priority value (non-negative integer).
+   * @throws {RangeError} If priority is negative or not an integer.
+   * @throws {JobNotFoundError} If the job no longer exists.
+   * @throws {InvalidJobStateError} If the job is not in `waiting` or `delayed` state.
+   */
+  async changePriority(priority: number): Promise<void> {
+    if (!Number.isInteger(priority) || priority < 0) {
+      throw new RangeError('Priority must be a non-negative integer');
+    }
+
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+
+    const updatedOpts = { ...fresh.opts, priority };
+    await this.store.updateJob(this.queueName, this.id, { opts: updatedOpts }, {
+      expectedState: ['waiting', 'delayed'],
+    });
+    this._opts = updatedOpts;
   }
 
   /** Remove the job from the store. */
@@ -313,13 +490,13 @@ export class Job<T = unknown> {
       id: this.id,
       name: this.name,
       queueName: this.queueName,
-      data: this.data,
+      data: this._data,
       state: this._state,
       attemptsMade: this._attemptsMade,
       progress: this._progress,
       returnvalue: this._returnvalue,
       failedReason: this._failedReason,
-      opts: this.opts,
+      opts: this._opts,
       deduplicationKey: this._deduplicationKey,
       logs: this._logs,
       createdAt: this.createdAt,
@@ -334,6 +511,8 @@ export class Job<T = unknown> {
       pendingChildrenCount: 0,
       cancelledAt: this._cancelledAt,
       groupId: this._groupId,
+      stacktrace: this._stacktrace,
+      discarded: this._discarded,
     };
   }
 }

@@ -43,3 +43,16 @@ other.
 `package.json`, then regenerate all three lockfiles (`deno.lock`, `package-lock.json`, `bun.lockb`)
 and verify they resolve the same version. Use clean temp directories to generate npm/bun lockfiles
 since Deno's `node_modules/.deno` structure conflicts with `npm install`.
+
+## [2026-03-23] Update PG migration tests when adding new migrations
+
+**What happened:** Migrations v5 (`add_stacktrace`) and v6 (`add_discarded`) were added to
+`packages/store-pg/src/migrations.ts` but `tests/store-pg/migrations.test.ts` still expected exactly
+4 migrations. CI failed with `expected 6 to be 4` on three tests (idempotent, skip applied,
+concurrent advisory lock).
+
+**Root cause:** The migration test file hardcodes the expected count and version numbers. Adding new
+migrations without updating the test breaks CI.
+
+**Rule:** When adding a new PG migration, always update `tests/store-pg/migrations.test.ts` to
+reflect the new total count and verify the new migration's version/name.

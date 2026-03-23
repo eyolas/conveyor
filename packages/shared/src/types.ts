@@ -95,6 +95,9 @@ export interface JobData<T = unknown> {
   /** Logs appended during processing. */
   logs: string[];
 
+  /** Stack traces accumulated across retry attempts. */
+  stacktrace: string[];
+
   /** When the job was created. */
   createdAt: Date;
 
@@ -130,6 +133,9 @@ export interface JobData<T = unknown> {
 
   /** Group ID this job belongs to (`null` if ungrouped). */
   groupId: string | null;
+
+  /** Whether this job has been discarded (no more retries). */
+  discarded: boolean;
 }
 
 /** Configuration for retry backoff strategies. */
@@ -377,6 +383,12 @@ export interface PauseOptions {
   jobName?: string;
 }
 
+/** Options for conditional {@linkcode StoreInterface.updateJob} calls. */
+export interface UpdateJobOptions {
+  /** Only apply the update if the job is currently in one of these states. */
+  expectedState?: JobState | JobState[];
+}
+
 /** Base options shared by all store implementations. */
 export interface StoreOptions {
   /** Run migrations automatically on connect() (default: true). */
@@ -428,11 +440,21 @@ export interface StoreInterface {
   /**
    * Update specific fields of a job.
    *
+   * When `options.expectedState` is provided, the update is applied only if
+   * the job's current state matches. Throws {@linkcode InvalidJobStateError}
+   * if the state does not match.
+   *
    * @param queueName - The queue the job belongs to.
    * @param jobId - The job ID.
    * @param updates - Partial job data to merge.
+   * @param options - Optional update constraints.
    */
-  updateJob(queueName: string, jobId: string, updates: Partial<JobData>): Promise<void>;
+  updateJob(
+    queueName: string,
+    jobId: string,
+    updates: Partial<JobData>,
+    options?: UpdateJobOptions,
+  ): Promise<void>;
 
   /**
    * Remove a job from the store.

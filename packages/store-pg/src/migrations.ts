@@ -119,6 +119,26 @@ export const migrations: Migration[] = [
       `;
     },
   },
+  {
+    version: 5,
+    name: 'add_stacktrace',
+    async up(sql) {
+      await sql`
+        ALTER TABLE conveyor_jobs
+        ADD COLUMN stacktrace JSONB NOT NULL DEFAULT '[]'::jsonb
+      `;
+    },
+  },
+  {
+    version: 6,
+    name: 'add_discarded',
+    async up(sql) {
+      await sql`
+        ALTER TABLE conveyor_jobs
+        ADD COLUMN discarded BOOLEAN NOT NULL DEFAULT false
+      `;
+    },
+  },
 ];
 
 /**
