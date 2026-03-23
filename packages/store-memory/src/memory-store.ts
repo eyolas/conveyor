@@ -485,13 +485,15 @@ export class MemoryStore implements StoreInterface {
     return Promise.resolve(counts);
   }
 
-  async obliterate(queueName: string, opts?: { force?: boolean }): Promise<void> {
+  obliterate(queueName: string, opts?: { force?: boolean }): Promise<void> {
     const queue = this.getQueue(queueName);
     if (!opts?.force) {
       for (const job of queue.values()) {
         if (job.state === 'active') {
-          throw new Error(
-            `Cannot obliterate queue "${queueName}": active jobs exist. Use { force: true } to override.`,
+          return Promise.reject(
+            new Error(
+              `Cannot obliterate queue "${queueName}": active jobs exist. Use { force: true } to override.`,
+            ),
           );
         }
       }
@@ -500,6 +502,7 @@ export class MemoryStore implements StoreInterface {
     this.insertionOrder.delete(queueName);
     this.pausedNames.delete(queueName);
     this.groupCursors.delete(queueName);
+    return Promise.resolve();
   }
 
   retryJobs(queueName: string, state: 'failed' | 'completed'): Promise<number> {
