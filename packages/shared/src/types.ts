@@ -95,6 +95,9 @@ export interface JobData<T = unknown> {
   /** Logs appended during processing. */
   logs: string[];
 
+  /** Stack traces accumulated across retry attempts. */
+  stacktrace: string[];
+
   /** When the job was created. */
   createdAt: Date;
 

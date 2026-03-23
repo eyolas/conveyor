@@ -25,11 +25,9 @@ export class Job<T = unknown> {
   /** Queue this job belongs to. */
   readonly queueName: string;
 
-  /** The job payload. */
-  readonly data: T;
+  private _data: T;
 
-  /** The job options used when creating this job. */
-  readonly opts: JobOptions;
+  private _opts: JobOptions;
 
   /** When this job was created. */
   readonly createdAt: Date;
@@ -51,10 +49,11 @@ export class Job<T = unknown> {
   private _logs: string[];
   private _cancelledAt: Date | null;
   private readonly _deduplicationKey: string | null;
-  private readonly _delayUntil: Date | null;
-  private readonly _lockUntil: Date | null;
-  private readonly _lockedBy: string | null;
+  private _delayUntil: Date | null;
+  private _lockUntil: Date | null;
+  private _lockedBy: string | null;
   private readonly _groupId: string | null;
+  private _stacktrace: string[];
 
   private readonly store: StoreInterface;
 
@@ -68,8 +67,8 @@ export class Job<T = unknown> {
     this.id = jobData.id;
     this.name = jobData.name;
     this.queueName = jobData.queueName;
-    this.data = jobData.data;
-    this.opts = jobData.opts;
+    this._data = jobData.data;
+    this._opts = jobData.opts;
     this.createdAt = jobData.createdAt;
     this.parentId = jobData.parentId;
     this.parentQueueName = jobData.parentQueueName;
@@ -89,6 +88,7 @@ export class Job<T = unknown> {
     this._lockUntil = jobData.lockUntil;
     this._lockedBy = jobData.lockedBy;
     this._groupId = jobData.groupId;
+    this._stacktrace = [...(jobData.stacktrace ?? [])];
 
     this.store = store;
   }
@@ -145,9 +145,24 @@ export class Job<T = unknown> {
     return [...this._logs];
   }
 
+  /** The job payload. */
+  get data(): T {
+    return this._data;
+  }
+
+  /** The job options used when creating this job. */
+  get opts(): JobOptions {
+    return this._opts;
+  }
+
   /** Group ID this job belongs to (`null` if ungrouped). */
   get groupId(): string | null {
     return this._groupId;
+  }
+
+  /** Stack traces accumulated across retry attempts. */
+  get stacktrace(): string[] {
+    return [...this._stacktrace];
   }
 
   // ─── Mutations ────────────────────────────────────────────────────
@@ -313,13 +328,13 @@ export class Job<T = unknown> {
       id: this.id,
       name: this.name,
       queueName: this.queueName,
-      data: this.data,
+      data: this._data,
       state: this._state,
       attemptsMade: this._attemptsMade,
       progress: this._progress,
       returnvalue: this._returnvalue,
       failedReason: this._failedReason,
-      opts: this.opts,
+      opts: this._opts,
       deduplicationKey: this._deduplicationKey,
       logs: this._logs,
       createdAt: this.createdAt,
@@ -334,6 +349,7 @@ export class Job<T = unknown> {
       pendingChildrenCount: 0,
       cancelledAt: this._cancelledAt,
       groupId: this._groupId,
+      stacktrace: this._stacktrace,
     };
   }
 }

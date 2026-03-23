@@ -231,6 +231,7 @@ export function createJobData<T>(
     opts,
     deduplicationKey: null, // set later if dedup is configured
     logs: [],
+    stacktrace: [],
     createdAt: now,
     processedAt: null,
     completedAt: null,

@@ -196,6 +196,7 @@ export class PgStore implements StoreInterface {
       pendingChildrenCount: 'pending_children_count',
       cancelledAt: 'cancelled_at',
       groupId: 'group_id',
+      stacktrace: 'stacktrace',
     };
 
     const row: Record<string, unknown> = {};

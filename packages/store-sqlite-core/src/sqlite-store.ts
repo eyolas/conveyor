@@ -115,14 +115,14 @@ export class BaseSqliteStore implements StoreInterface {
           priority, seq, created_at, processed_at, completed_at, failed_at,
           delay_until, lock_until, locked_by,
           parent_id, parent_queue_name, pending_children_count, cancelled_at,
-          group_id
+          group_id, stacktrace
         ) VALUES (
           :id, :queue_name, :name, :data, :state, :attempts_made, :progress,
           :returnvalue, :failed_reason, :opts, :deduplication_key, :logs,
           :priority, :seq, :created_at, :processed_at, :completed_at, :failed_at,
           :delay_until, :lock_until, :locked_by,
           :parent_id, :parent_queue_name, :pending_children_count, :cancelled_at,
-          :group_id
+          :group_id, :stacktrace
         )
       `),
       getJob: this.db.prepare(
@@ -273,12 +273,13 @@ export class BaseSqliteStore implements StoreInterface {
       pendingChildrenCount: 'pending_children_count',
       cancelledAt: 'cancelled_at',
       groupId: 'group_id',
+      stacktrace: 'stacktrace',
     };
 
     for (const [key, col] of Object.entries(columnMap)) {
       if (key in updates) {
         const val = (updates as Record<string, unknown>)[key];
-        if (['returnvalue', 'opts', 'logs', 'data'].includes(key)) {
+        if (['returnvalue', 'opts', 'logs', 'data', 'stacktrace'].includes(key)) {
           sets.push(`${col} = ?`);
           values.push(val !== null && val !== undefined ? JSON.stringify(val) : null);
         } else if (
