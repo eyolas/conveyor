@@ -120,6 +120,6 @@ The request/response pattern: enqueue a job and wait for its result.
 
 1. **Phase 1** (Job mutations) — most visible gap for BullMQ users ✅
 2. **Phase 2** (Queue methods) — needed for any dashboard/monitoring ✅
-3. **Phase 3** (`waitUntilFinished`) — very common request/response pattern (v1.x)
+3. **Phase 3** (`waitUntilFinished`) — very common request/response pattern (v1.x) ✅
 
 See also: `tasks/job-schedulers-api.md` — deferred to v2.0
