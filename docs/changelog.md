@@ -3,7 +3,16 @@
 For the full changelog, see
 [CHANGELOG.md on GitHub](https://github.com/eyolas/conveyor/blob/main/CHANGELOG.md).
 
-## Latest: v1.0.0 (2026-03-22)
+## Latest: v1.1.0 (2026-03-23)
+
+- **Job Mutations**: `promote()`, `moveToDelayed()`, `discard()`, `updateData()`, `changeDelay()`,
+  `changePriority()`, `clearLogs()`, `stacktrace` property
+- **Queue Management**: `getJobCounts()`, `obliterate()`, `retryJobs()`, `promoteJobs()`
+- **Wait Until Finished**: `job.waitUntilFinished(ttl?)` — request/response pattern
+- New documentation pages for all Phase 1-3 features
+- Benchmark suite for job mutations and queue management
+
+## v1.0.0 (2026-03-22)
 
 - **v1.0 stable release**
 - Dynamic version selector in docs
