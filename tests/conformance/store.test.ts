@@ -1565,8 +1565,12 @@ export function runConformanceTests(
     const job1 = await store.getJob(queueName, id1);
     expect(job1!.state).toBe('waiting');
     expect(job1!.attemptsMade).toBe(0);
+    expect(job1!.progress).toBe(0);
+    expect(job1!.returnvalue).toBeNull();
     expect(job1!.failedReason).toBeNull();
     expect(job1!.failedAt).toBeNull();
+    expect(job1!.completedAt).toBeNull();
+    expect(job1!.processedAt).toBeNull();
     expect(job1!.stacktrace).toEqual([]);
 
     // j3 still waiting (untouched)

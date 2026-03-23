@@ -605,7 +605,7 @@ export class PgStore implements StoreInterface {
       'failed': 0,
     };
     for (const row of rows) {
-      counts[row.state as JobState] = row.count;
+      counts[assertJobState(row.state)] = row.count;
     }
     return counts;
   }
@@ -633,8 +633,9 @@ export class PgStore implements StoreInterface {
   async retryJobs(queueName: string, state: 'failed' | 'completed'): Promise<number> {
     const rows = await this.sql`
       UPDATE conveyor_jobs
-      SET state = 'waiting', attempts_made = 0, failed_reason = NULL,
-          failed_at = NULL, completed_at = NULL, stacktrace = '[]'::jsonb
+      SET state = 'waiting', attempts_made = 0, progress = 0,
+          returnvalue = NULL, failed_reason = NULL, failed_at = NULL,
+          completed_at = NULL, processed_at = NULL, stacktrace = '[]'::jsonb
       WHERE queue_name = ${queueName} AND state = ${state}
       RETURNING id
     `;

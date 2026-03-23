@@ -512,9 +512,12 @@ export class MemoryStore implements StoreInterface {
           ...job,
           state: 'waiting',
           attemptsMade: 0,
+          progress: 0,
+          returnvalue: null,
           failedReason: null,
           failedAt: null,
           completedAt: null,
+          processedAt: null,
           stacktrace: [],
         });
         count++;

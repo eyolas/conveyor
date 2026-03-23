@@ -723,22 +723,29 @@ export class BaseSqliteStore implements StoreInterface {
   }
 
   retryJobs(queueName: string, state: 'failed' | 'completed'): Promise<number> {
-    const result = this.db.prepare(`
-      UPDATE conveyor_jobs
-      SET state = 'waiting', attempts_made = 0, failed_reason = NULL,
-          failed_at = NULL, completed_at = NULL, stacktrace = '[]'
-      WHERE queue_name = ? AND state = ?
-    `).run(queueName, state);
-    return Promise.resolve(Number(result.changes));
+    const changes = this.runTransaction(() => {
+      const result = this.db.prepare(`
+        UPDATE conveyor_jobs
+        SET state = 'waiting', attempts_made = 0, progress = 0,
+            returnvalue = NULL, failed_reason = NULL, failed_at = NULL,
+            completed_at = NULL, processed_at = NULL, stacktrace = '[]'
+        WHERE queue_name = ? AND state = ?
+      `).run(queueName, state);
+      return result.changes;
+    });
+    return Promise.resolve(Number(changes));
   }
 
   promoteJobs(queueName: string): Promise<number> {
-    const result = this.db.prepare(`
-      UPDATE conveyor_jobs
-      SET state = 'waiting', delay_until = NULL
-      WHERE queue_name = ? AND state = 'delayed'
-    `).run(queueName);
-    return Promise.resolve(Number(result.changes));
+    const changes = this.runTransaction(() => {
+      const result = this.db.prepare(`
+        UPDATE conveyor_jobs
+        SET state = 'waiting', delay_until = NULL
+        WHERE queue_name = ? AND state = 'delayed'
+      `).run(queueName);
+      return result.changes;
+    });
+    return Promise.resolve(Number(changes));
   }
 
   // ─── Flow (Parent-Child) ─────────────────────────────────────────
