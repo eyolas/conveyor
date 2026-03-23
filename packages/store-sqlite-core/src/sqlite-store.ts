@@ -703,23 +703,27 @@ export class BaseSqliteStore implements StoreInterface {
   }
 
   obliterate(queueName: string, opts?: { force?: boolean }): Promise<void> {
-    this.runTransaction(() => {
-      if (!opts?.force) {
-        const row = this.db.prepare(`
-          SELECT COUNT(*) AS count FROM conveyor_jobs
-          WHERE queue_name = ? AND state = 'active'
-        `).get(queueName) as { count: number | bigint };
-        if (Number(row.count) > 0) {
-          throw new Error(
-            `Cannot obliterate queue "${queueName}": active jobs exist. Use { force: true } to override.`,
-          );
+    try {
+      this.runTransaction(() => {
+        if (!opts?.force) {
+          const row = this.db.prepare(`
+            SELECT COUNT(*) AS count FROM conveyor_jobs
+            WHERE queue_name = ? AND state = 'active'
+          `).get(queueName) as { count: number | bigint };
+          if (Number(row.count) > 0) {
+            throw new Error(
+              `Cannot obliterate queue "${queueName}": active jobs exist. Use { force: true } to override.`,
+            );
+          }
         }
-      }
-      this.db.prepare('DELETE FROM conveyor_jobs WHERE queue_name = ?').run(queueName);
-      this.db.prepare('DELETE FROM conveyor_paused_names WHERE queue_name = ?').run(queueName);
-      this.db.prepare('DELETE FROM conveyor_group_cursors WHERE queue_name = ?').run(queueName);
-    });
-    return Promise.resolve();
+        this.db.prepare('DELETE FROM conveyor_jobs WHERE queue_name = ?').run(queueName);
+        this.db.prepare('DELETE FROM conveyor_paused_names WHERE queue_name = ?').run(queueName);
+        this.db.prepare('DELETE FROM conveyor_group_cursors WHERE queue_name = ?').run(queueName);
+      });
+      return Promise.resolve();
+    } catch (err) {
+      return Promise.reject(err);
+    }
   }
 
   retryJobs(queueName: string, state: 'failed' | 'completed'): Promise<number> {
