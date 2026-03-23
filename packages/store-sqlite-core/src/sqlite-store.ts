@@ -14,7 +14,7 @@ import type {
   StoreOptions,
   UpdateJobOptions,
 } from '@conveyor/shared';
-import { generateId, InvalidJobStateError } from '@conveyor/shared';
+import { assertJobState, generateId, InvalidJobStateError } from '@conveyor/shared';
 import type { DatabaseOpener, SqliteDatabase, SqliteStatement } from './types.ts';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
@@ -697,7 +697,7 @@ export class BaseSqliteStore implements StoreInterface {
       'failed': 0,
     };
     for (const row of rows) {
-      counts[row.state as JobState] = Number(row.count);
+      counts[assertJobState(row.state)] = Number(row.count);
     }
     return Promise.resolve(counts);
   }

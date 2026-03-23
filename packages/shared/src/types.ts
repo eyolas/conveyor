@@ -712,7 +712,8 @@ export interface StoreInterface {
 
   /**
    * Retry all jobs in a terminal state by moving them back to waiting.
-   * Resets attemptsMade, failedReason, failedAt, completedAt, and stacktrace.
+   * Resets attemptsMade, progress, returnvalue, failedReason, failedAt,
+   * completedAt, processedAt, and stacktrace.
    *
    * @param queueName - The queue to retry in.
    * @param state - The source state: `'failed'` or `'completed'`.
