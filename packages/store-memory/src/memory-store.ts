@@ -16,8 +16,9 @@ import type {
   StoreEvent,
   StoreInterface,
   StoreOptions,
+  UpdateJobOptions,
 } from '@conveyor/shared';
-import { generateId } from '@conveyor/shared';
+import { generateId, InvalidJobStateError } from '@conveyor/shared';
 
 /** @internal */
 type EventCallback = (event: StoreEvent) => void;
@@ -106,10 +107,19 @@ export class MemoryStore implements StoreInterface {
     queueName: string,
     jobId: string,
     updates: Partial<JobData>,
+    options?: UpdateJobOptions,
   ): Promise<void> {
     const queue = this.getQueue(queueName);
     const job = queue.get(jobId);
     if (job) {
+      if (options?.expectedState) {
+        const expected = Array.isArray(options.expectedState)
+          ? options.expectedState
+          : [options.expectedState];
+        if (!expected.includes(job.state)) {
+          throw new InvalidJobStateError(jobId, job.state, expected);
+        }
+      }
       queue.set(jobId, structuredClone({ ...job, ...updates }));
     }
     return Promise.resolve();

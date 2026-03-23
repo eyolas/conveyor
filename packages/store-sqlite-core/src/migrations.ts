@@ -110,6 +110,11 @@ export const migrations: Migration[] = [
     name: 'add_stacktrace',
     up: `ALTER TABLE conveyor_jobs ADD COLUMN stacktrace TEXT NOT NULL DEFAULT '[]'`,
   },
+  {
+    version: 6,
+    name: 'add_discarded',
+    up: `ALTER TABLE conveyor_jobs ADD COLUMN discarded INTEGER NOT NULL DEFAULT 0`,
+  },
 ];
 
 /**

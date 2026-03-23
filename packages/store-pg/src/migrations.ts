@@ -129,6 +129,16 @@ export const migrations: Migration[] = [
       `;
     },
   },
+  {
+    version: 6,
+    name: 'add_discarded',
+    async up(sql) {
+      await sql`
+        ALTER TABLE conveyor_jobs
+        ADD COLUMN discarded BOOLEAN NOT NULL DEFAULT false
+      `;
+    },
+  },
 ];
 
 /**

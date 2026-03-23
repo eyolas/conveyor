@@ -532,12 +532,13 @@ export class Worker<T = unknown> {
 
   private async handleFailure(job: Job<T>, error: Error): Promise<void> {
     const maxAttempts = job.opts.attempts ?? 1;
-    // Read fresh attemptsMade from store to avoid stale snapshot
+    // Read fresh state from store to avoid stale snapshot
     const freshJob = await this.store.getJob(this.queueName, job.id);
     const attemptsMade = ((freshJob?.attemptsMade ?? job.attemptsMade) ?? 0) + 1;
     const stacktrace = [...(freshJob?.stacktrace ?? []), error.stack ?? error.message];
+    const discarded = freshJob?.discarded ?? false;
 
-    if (attemptsMade < maxAttempts) {
+    if (!discarded && attemptsMade < maxAttempts) {
       if (job.opts.backoff) {
         // Retry with backoff delay
         const delay = calculateBackoff(attemptsMade, job.opts.backoff);

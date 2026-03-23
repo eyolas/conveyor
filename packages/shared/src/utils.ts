@@ -244,6 +244,7 @@ export function createJobData<T>(
     pendingChildrenCount: 0,
     cancelledAt: null,
     groupId: opts.group?.id ?? null,
+    discarded: false,
   };
 
   // If a custom jobId is provided, include it so the store can use it

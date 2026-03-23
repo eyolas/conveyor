@@ -33,6 +33,7 @@ export type {
   StoreInterface,
   StoreOptions,
   TimeUnit,
+  UpdateJobOptions,
   WorkerOptions,
 } from './types.ts';
 

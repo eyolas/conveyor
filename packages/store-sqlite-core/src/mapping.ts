@@ -41,6 +41,7 @@ export interface JobRow {
   cancelled_at: number | null;
   group_id: string | null;
   stacktrace: string;
+  discarded: number;
 }
 
 /** @internal Parse a JSON string, throwing on parse failure. */
@@ -99,6 +100,7 @@ export function rowToJobData(row: JobRow): JobData {
     cancelledAt: tsToDate(row.cancelled_at),
     groupId: row.group_id ?? null,
     stacktrace: (parseJson(row.stacktrace) ?? []) as string[],
+    discarded: Boolean(row.discarded),
   };
 }
 
@@ -141,5 +143,6 @@ export function jobDataToRow(
     cancelled_at: dateToTs(job.cancelledAt),
     group_id: job.groupId ?? null,
     stacktrace: JSON.stringify(job.stacktrace ?? []),
+    discarded: job.discarded ? 1 : 0,
   };
 }

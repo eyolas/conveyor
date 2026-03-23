@@ -7,7 +7,7 @@
  */
 
 import type { JobData, JobOptions, JobState, StoreInterface } from '@conveyor/shared';
-import { InvalidJobStateError, JobNotFoundError } from '@conveyor/shared';
+import { JobNotFoundError } from '@conveyor/shared';
 import { JobObservable } from './job-observable.ts';
 
 /**
@@ -55,6 +55,7 @@ export class Job<T = unknown> {
   private _lockedBy: string | null;
   private readonly _groupId: string | null;
   private _stacktrace: string[];
+  private _discarded: boolean;
 
   private readonly store: StoreInterface;
 
@@ -90,6 +91,7 @@ export class Job<T = unknown> {
     this._lockedBy = jobData.lockedBy;
     this._groupId = jobData.groupId;
     this._stacktrace = [...(jobData.stacktrace ?? [])];
+    this._discarded = jobData.discarded ?? false;
 
     this.store = store;
   }
@@ -153,7 +155,7 @@ export class Job<T = unknown> {
 
   /** The job options used when creating this job. */
   get opts(): JobOptions {
-    return this._opts;
+    return { ...this._opts };
   }
 
   /** Group ID this job belongs to (`null` if ungrouped). */
@@ -164,6 +166,11 @@ export class Job<T = unknown> {
   /** Stack traces accumulated across retry attempts. */
   get stacktrace(): string[] {
     return [...this._stacktrace];
+  }
+
+  /** Whether this job has been discarded (no more retries). */
+  get discarded(): boolean {
+    return this._discarded;
   }
 
   // ─── Mutations ────────────────────────────────────────────────────
@@ -240,14 +247,11 @@ export class Job<T = unknown> {
   async promote(): Promise<void> {
     const fresh = await this.store.getJob(this.queueName, this.id);
     if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
-    if (fresh.state !== 'delayed') {
-      throw new InvalidJobStateError(this.id, fresh.state, ['delayed']);
-    }
 
     await this.store.updateJob(this.queueName, this.id, {
       state: 'waiting',
       delayUntil: null,
-    });
+    }, { expectedState: 'delayed' });
     this._state = 'waiting';
     this._delayUntil = null;
 
@@ -263,20 +267,17 @@ export class Job<T = unknown> {
    * Move an active job back to delayed (e.g., for throttling in a processor).
    *
    * @param timestamp - Absolute ms timestamp for when the job should be promoted.
-   * @throws {RangeError} If timestamp is in the past.
+   * @throws {RangeError} If timestamp is before the current time.
    * @throws {JobNotFoundError} If the job no longer exists.
    * @throws {InvalidJobStateError} If the job is not in `active` state.
    */
   async moveToDelayed(timestamp: number): Promise<void> {
-    if (timestamp <= Date.now()) {
+    if (timestamp < Date.now()) {
       throw new RangeError('Timestamp must be in the future');
     }
 
     const fresh = await this.store.getJob(this.queueName, this.id);
     if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
-    if (fresh.state !== 'active') {
-      throw new InvalidJobStateError(this.id, fresh.state, ['active']);
-    }
 
     const delayUntil = new Date(timestamp);
     await this.store.updateJob(this.queueName, this.id, {
@@ -284,7 +285,7 @@ export class Job<T = unknown> {
       delayUntil,
       lockUntil: null,
       lockedBy: null,
-    });
+    }, { expectedState: 'active' });
     this._state = 'delayed';
     this._delayUntil = delayUntil;
     this._lockUntil = null;
@@ -299,8 +300,8 @@ export class Job<T = unknown> {
   }
 
   /**
-   * Prevent retries for this job. Must be called while the job is active.
-   * The worker will treat the next failure as terminal.
+   * Mark this job as discarded — the worker will skip retries on the next failure.
+   * Must be called while the job is active (e.g., from within a processor).
    *
    * @throws {JobNotFoundError} If the job no longer exists.
    * @throws {InvalidJobStateError} If the job is not in `active` state.
@@ -308,15 +309,11 @@ export class Job<T = unknown> {
   async discard(): Promise<void> {
     const fresh = await this.store.getJob(this.queueName, this.id);
     if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
-    if (fresh.state !== 'active') {
-      throw new InvalidJobStateError(this.id, fresh.state, ['active']);
-    }
 
-    const maxAttempts = fresh.opts.attempts ?? 1;
     await this.store.updateJob(this.queueName, this.id, {
-      attemptsMade: maxAttempts,
-    });
-    this._attemptsMade = maxAttempts;
+      discarded: true,
+    }, { expectedState: 'active' });
+    this._discarded = true;
   }
 
   /**
@@ -329,16 +326,10 @@ export class Job<T = unknown> {
   async updateData(data: T): Promise<void> {
     const fresh = await this.store.getJob(this.queueName, this.id);
     if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
-    if (fresh.state === 'completed' || fresh.state === 'failed') {
-      throw new InvalidJobStateError(this.id, fresh.state, [
-        'waiting',
-        'waiting-children',
-        'active',
-        'delayed',
-      ]);
-    }
 
-    await this.store.updateJob(this.queueName, this.id, { data });
+    await this.store.updateJob(this.queueName, this.id, { data }, {
+      expectedState: ['waiting', 'waiting-children', 'active', 'delayed'],
+    });
     this._data = data;
   }
 
@@ -370,31 +361,34 @@ export class Job<T = unknown> {
 
     const fresh = await this.store.getJob(this.queueName, this.id);
     if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
-    if (fresh.state !== 'delayed') {
-      throw new InvalidJobStateError(this.id, fresh.state, ['delayed']);
-    }
 
     const delayUntil = new Date(Date.now() + delay);
-    await this.store.updateJob(this.queueName, this.id, { delayUntil });
+    await this.store.updateJob(this.queueName, this.id, { delayUntil }, {
+      expectedState: 'delayed',
+    });
     this._delayUntil = delayUntil;
   }
 
   /**
    * Change the priority of a queued job.
    *
-   * @param priority - The new priority value.
+   * @param priority - The new priority value (non-negative integer).
+   * @throws {RangeError} If priority is negative or not an integer.
    * @throws {JobNotFoundError} If the job no longer exists.
    * @throws {InvalidJobStateError} If the job is not in `waiting` or `delayed` state.
    */
   async changePriority(priority: number): Promise<void> {
-    const fresh = await this.store.getJob(this.queueName, this.id);
-    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
-    if (fresh.state !== 'waiting' && fresh.state !== 'delayed') {
-      throw new InvalidJobStateError(this.id, fresh.state, ['waiting', 'delayed']);
+    if (!Number.isInteger(priority) || priority < 0) {
+      throw new RangeError('Priority must be a non-negative integer');
     }
 
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+
     const updatedOpts = { ...fresh.opts, priority };
-    await this.store.updateJob(this.queueName, this.id, { opts: updatedOpts });
+    await this.store.updateJob(this.queueName, this.id, { opts: updatedOpts }, {
+      expectedState: ['waiting', 'delayed'],
+    });
     this._opts = updatedOpts;
   }
 
@@ -518,6 +512,7 @@ export class Job<T = unknown> {
       cancelledAt: this._cancelledAt,
       groupId: this._groupId,
       stacktrace: this._stacktrace,
+      discarded: this._discarded,
     };
   }
 }

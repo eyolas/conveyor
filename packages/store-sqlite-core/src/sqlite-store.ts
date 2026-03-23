@@ -12,8 +12,9 @@ import type {
   StoreEvent,
   StoreInterface,
   StoreOptions,
+  UpdateJobOptions,
 } from '@conveyor/shared';
-import { generateId } from '@conveyor/shared';
+import { generateId, InvalidJobStateError } from '@conveyor/shared';
 import type { DatabaseOpener, SqliteDatabase, SqliteStatement } from './types.ts';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
@@ -115,14 +116,14 @@ export class BaseSqliteStore implements StoreInterface {
           priority, seq, created_at, processed_at, completed_at, failed_at,
           delay_until, lock_until, locked_by,
           parent_id, parent_queue_name, pending_children_count, cancelled_at,
-          group_id, stacktrace
+          group_id, stacktrace, discarded
         ) VALUES (
           :id, :queue_name, :name, :data, :state, :attempts_made, :progress,
           :returnvalue, :failed_reason, :opts, :deduplication_key, :logs,
           :priority, :seq, :created_at, :processed_at, :completed_at, :failed_at,
           :delay_until, :lock_until, :locked_by,
           :parent_id, :parent_queue_name, :pending_children_count, :cancelled_at,
-          :group_id, :stacktrace
+          :group_id, :stacktrace, :discarded
         )
       `),
       getJob: this.db.prepare(
@@ -248,6 +249,7 @@ export class BaseSqliteStore implements StoreInterface {
     queueName: string,
     jobId: string,
     updates: Partial<JobData>,
+    options?: UpdateJobOptions,
   ): Promise<void> {
     const sets: string[] = [];
     const values: unknown[] = [];
@@ -274,6 +276,7 @@ export class BaseSqliteStore implements StoreInterface {
       cancelledAt: 'cancelled_at',
       groupId: 'group_id',
       stacktrace: 'stacktrace',
+      discarded: 'discarded',
     };
 
     for (const [key, col] of Object.entries(columnMap)) {
@@ -304,8 +307,26 @@ export class BaseSqliteStore implements StoreInterface {
     if (sets.length === 0) return Promise.resolve();
 
     values.push(queueName, jobId);
-    const query = `UPDATE conveyor_jobs SET ${sets.join(', ')} WHERE queue_name = ? AND id = ?`;
-    this.db.prepare(query).run(...values as unknown[]);
+
+    if (options?.expectedState) {
+      const expected = Array.isArray(options.expectedState)
+        ? options.expectedState
+        : [options.expectedState];
+      const placeholders = expected.map(() => '?').join(', ');
+      const query = `UPDATE conveyor_jobs SET ${
+        sets.join(', ')
+      } WHERE queue_name = ? AND id = ? AND state IN (${placeholders})`;
+      values.push(...expected);
+      const result = this.db.prepare(query).run(...values as unknown[]);
+      if ((result as { changes: number }).changes === 0) {
+        const row = this.stmts.getJob.get(queueName, jobId) as JobRow | undefined;
+        const currentState = (row?.state ?? 'unknown') as JobState;
+        throw new InvalidJobStateError(jobId, currentState, expected);
+      }
+    } else {
+      const query = `UPDATE conveyor_jobs SET ${sets.join(', ')} WHERE queue_name = ? AND id = ?`;
+      this.db.prepare(query).run(...values as unknown[]);
+    }
     return Promise.resolve();
   }
 

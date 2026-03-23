@@ -5,8 +5,9 @@ import type {
   StoreEvent,
   StoreInterface,
   StoreOptions,
+  UpdateJobOptions,
 } from '@conveyor/shared';
-import { assertJobState, generateId } from '@conveyor/shared';
+import { assertJobState, generateId, InvalidJobStateError } from '@conveyor/shared';
 import postgres from 'postgres';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
@@ -174,6 +175,7 @@ export class PgStore implements StoreInterface {
     queueName: string,
     jobId: string,
     updates: Partial<JobData>,
+    options?: UpdateJobOptions,
   ): Promise<void> {
     const columnMap: Record<string, string> = {
       state: 'state',
@@ -197,6 +199,7 @@ export class PgStore implements StoreInterface {
       cancelledAt: 'cancelled_at',
       groupId: 'group_id',
       stacktrace: 'stacktrace',
+      discarded: 'discarded',
     };
 
     const row: Record<string, unknown> = {};
@@ -214,10 +217,28 @@ export class PgStore implements StoreInterface {
     const keys = Object.keys(row);
     if (keys.length === 0) return;
 
-    await this.sql`
-      UPDATE conveyor_jobs SET ${this.sql(row, ...keys)}
-      WHERE queue_name = ${queueName} AND id = ${jobId}
-    `;
+    if (options?.expectedState) {
+      const expected = Array.isArray(options.expectedState)
+        ? options.expectedState
+        : [options.expectedState];
+      const result = await this.sql`
+        UPDATE conveyor_jobs SET ${this.sql(row, ...keys)}
+        WHERE queue_name = ${queueName} AND id = ${jobId}
+          AND state = ANY(${expected})
+      `;
+      if (result.count === 0) {
+        const current = await this.sql<
+          { state: string }[]
+        >`SELECT state FROM conveyor_jobs WHERE queue_name = ${queueName} AND id = ${jobId}`;
+        const currentState = (current[0]?.state ?? 'unknown') as JobState;
+        throw new InvalidJobStateError(jobId, currentState, expected);
+      }
+    } else {
+      await this.sql`
+        UPDATE conveyor_jobs SET ${this.sql(row, ...keys)}
+        WHERE queue_name = ${queueName} AND id = ${jobId}
+      `;
+    }
   }
 
   async removeJob(queueName: string, jobId: string): Promise<void> {
