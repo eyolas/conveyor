@@ -6,8 +6,8 @@ Planned — post v1.0
 
 ## Target versions
 
-- **v1.x** (non-breaking): Phases 1, 2, 4 — new methods only, no API changes
-- **v2.0** (breaking): Phase 3 — Job Schedulers API replaces `repeat` options
+- **v1.x** (non-breaking): Phases 1, 2, 3 — new methods only, no API changes
+- **v2.0** (breaking): Phase 4 — Job Schedulers API replaces `repeat` options
 
 ## Goal
 
@@ -85,7 +85,25 @@ promoteJobs(queueName: string): Promise<number>;
 
 ---
 
-## Phase 3 — Job Schedulers API (high impact)
+## Phase 3 — waitUntilFinished (high impact, v1.x)
+
+The request/response pattern: enqueue a job and wait for its result.
+
+- [ ] `job.waitUntilFinished(ttl?)` — return a Promise that resolves with the job's return value
+
+### Design considerations
+
+- BullMQ uses QueueEvents (Redis pub/sub) for this
+- Conveyor options:
+  - **PG**: `LISTEN/NOTIFY` on job completion
+  - **SQLite**: polling (check job state periodically)
+  - **Memory**: EventEmitter
+- Needs a timeout/TTL to avoid hanging forever
+- Could leverage the existing `observe()` / `JobObservable` internally
+
+---
+
+## Phase 4 — Job Schedulers API (high impact, v2.0 breaking)
 
 BullMQ replaced `addRepeatable` / `removeRepeatable` with a first-class Job Schedulers API. Conveyor
 currently uses `repeat` in job options, which makes it hard to manage crons in production.
@@ -107,24 +125,6 @@ currently uses `repeat` in job options, which makes it hard to manage crons in p
 
 ---
 
-## Phase 4 — waitUntilFinished (high impact)
-
-The request/response pattern: enqueue a job and wait for its result.
-
-- [ ] `job.waitUntilFinished(ttl?)` — return a Promise that resolves with the job's return value
-
-### Design considerations
-
-- BullMQ uses QueueEvents (Redis pub/sub) for this
-- Conveyor options:
-  - **PG**: `LISTEN/NOTIFY` on job completion
-  - **SQLite**: polling (check job state periodically)
-  - **Memory**: EventEmitter
-- Needs a timeout/TTL to avoid hanging forever
-- Could leverage the existing `observe()` / `JobObservable` internally
-
----
-
 ## Out of scope (intentionally not pursuing)
 
 - `QueueEvents` as separate class — Conveyor's architecture couples events to Worker/Queue, which is
@@ -140,7 +140,7 @@ The request/response pattern: enqueue a job and wait for its result.
 
 ## Priority order
 
-1. **Phase 1** (Job mutations) — most visible gap for BullMQ users
-2. **Phase 4** (`waitUntilFinished`) — very common pattern
-3. **Phase 2** (Queue methods) — needed for any dashboard/monitoring
-4. **Phase 3** (Job Schedulers) — bigger refactor, production cron management
+1. **Phase 1** (Job mutations) — most visible gap for BullMQ users ✅
+2. **Phase 2** (Queue methods) — needed for any dashboard/monitoring ✅
+3. **Phase 3** (`waitUntilFinished`) — very common request/response pattern (v1.x)
+4. **Phase 4** (Job Schedulers) — bigger refactor, production cron management (v2.0 breaking)
