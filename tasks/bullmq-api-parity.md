@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned — post v1.0
+Done — shipped in v1.1.0 (2026-03-23)
 
 ## Target versions
 
