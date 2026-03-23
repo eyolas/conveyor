@@ -355,6 +355,49 @@ export class Job<T = unknown> {
     this._logs = [];
   }
 
+  /**
+   * Change when a delayed job will be promoted to waiting.
+   *
+   * @param delay - New delay in milliseconds from now.
+   * @throws {RangeError} If delay is <= 0.
+   * @throws {JobNotFoundError} If the job no longer exists.
+   * @throws {InvalidJobStateError} If the job is not in `delayed` state.
+   */
+  async changeDelay(delay: number): Promise<void> {
+    if (delay <= 0) {
+      throw new RangeError('Delay must be greater than 0');
+    }
+
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+    if (fresh.state !== 'delayed') {
+      throw new InvalidJobStateError(this.id, fresh.state, ['delayed']);
+    }
+
+    const delayUntil = new Date(Date.now() + delay);
+    await this.store.updateJob(this.queueName, this.id, { delayUntil });
+    this._delayUntil = delayUntil;
+  }
+
+  /**
+   * Change the priority of a queued job.
+   *
+   * @param priority - The new priority value.
+   * @throws {JobNotFoundError} If the job no longer exists.
+   * @throws {InvalidJobStateError} If the job is not in `waiting` or `delayed` state.
+   */
+  async changePriority(priority: number): Promise<void> {
+    const fresh = await this.store.getJob(this.queueName, this.id);
+    if (!fresh) throw new JobNotFoundError(this.id, this.queueName);
+    if (fresh.state !== 'waiting' && fresh.state !== 'delayed') {
+      throw new InvalidJobStateError(this.id, fresh.state, ['waiting', 'delayed']);
+    }
+
+    const updatedOpts = { ...fresh.opts, priority };
+    await this.store.updateJob(this.queueName, this.id, { opts: updatedOpts });
+    this._opts = updatedOpts;
+  }
+
   /** Remove the job from the store. */
   async remove(): Promise<void> {
     await this.store.removeJob(this.queueName, this.id);

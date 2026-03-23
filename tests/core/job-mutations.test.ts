@@ -286,3 +286,105 @@ test('Job.clearLogs empties the logs array', async () => {
   await queue.close();
   await store.disconnect();
 });
+
+// ─── changeDelay() ────────────────────────────────────────────────
+
+test('Job.changeDelay updates delayUntil on a delayed job', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 }, { delay: 60_000 });
+
+  const before = Date.now();
+  await job.changeDelay(120_000);
+  const after = Date.now();
+
+  const fresh = await store.getJob(queueName, job.id);
+  const expected = fresh!.delayUntil!.getTime();
+  expect(expected).toBeGreaterThanOrEqual(before + 120_000);
+  expect(expected).toBeLessThanOrEqual(after + 120_000);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Job.changeDelay throws InvalidJobStateError if not delayed', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 });
+
+  await expect(job.changeDelay(60_000)).rejects.toThrow(InvalidJobStateError);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Job.changeDelay throws RangeError if delay <= 0', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 }, { delay: 60_000 });
+
+  await expect(job.changeDelay(0)).rejects.toThrow(RangeError);
+  await expect(job.changeDelay(-1000)).rejects.toThrow(RangeError);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+// ─── changePriority() ─────────────────────────────────────────────
+
+test('Job.changePriority updates priority on a waiting job', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 }, { priority: 5 });
+
+  await job.changePriority(10);
+
+  const fresh = await store.getJob(queueName, job.id);
+  expect(fresh!.opts.priority).toBe(10);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Job.changePriority works on delayed jobs', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 }, { delay: 60_000, priority: 1 });
+
+  await job.changePriority(20);
+
+  const fresh = await store.getJob(queueName, job.id);
+  expect(fresh!.opts.priority).toBe(20);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Job.changePriority throws InvalidJobStateError if active', async () => {
+  const store = createStore();
+  await store.connect();
+
+  const queue = new Queue(queueName, { store });
+  const job = await queue.add('test', { value: 1 });
+
+  await store.fetchNextJob(queueName, 'worker-1', 30_000);
+
+  const jobInstance = new Job(
+    (await store.getJob(queueName, job.id))!,
+    store,
+  );
+  await expect(jobInstance.changePriority(10)).rejects.toThrow(InvalidJobStateError);
+
+  await queue.close();
+  await store.disconnect();
+});
