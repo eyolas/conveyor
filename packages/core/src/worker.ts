@@ -535,6 +535,7 @@ export class Worker<T = unknown> {
     // Read fresh attemptsMade from store to avoid stale snapshot
     const freshJob = await this.store.getJob(this.queueName, job.id);
     const attemptsMade = ((freshJob?.attemptsMade ?? job.attemptsMade) ?? 0) + 1;
+    const stacktrace = [...(freshJob?.stacktrace ?? []), error.stack ?? error.message];
 
     if (attemptsMade < maxAttempts) {
       if (job.opts.backoff) {
@@ -547,6 +548,7 @@ export class Worker<T = unknown> {
           attemptsMade,
           failedReason: error.message,
           delayUntil,
+          stacktrace,
           ...Worker.UNLOCK,
         });
       } else {
@@ -555,6 +557,7 @@ export class Worker<T = unknown> {
           state: 'waiting',
           attemptsMade,
           failedReason: error.message,
+          stacktrace,
           ...Worker.UNLOCK,
         });
       }
@@ -565,6 +568,7 @@ export class Worker<T = unknown> {
         attemptsMade,
         failedReason: error.message,
         failedAt: new Date(),
+        stacktrace,
         ...Worker.UNLOCK,
       });
 
