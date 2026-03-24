@@ -116,7 +116,8 @@ roadmap:
     status: next-release-candidate
     items:
       web-dashboard:
-        status: next-release-candidate
+        status: planned
+        file: tasks/web-dashboard.md
       decoupled-notifications:
         status: next-release-candidate
       sandboxed-workers:
