@@ -67,6 +67,7 @@ export class MemoryStore implements StoreInterface {
     this.pausedNames.clear();
     this.subscribers.clear();
     this.groupCursors.clear();
+    this.rateLimitTimestamps.clear();
     return Promise.resolve();
   }
 

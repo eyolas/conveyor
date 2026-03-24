@@ -339,6 +339,9 @@ export class PgStore implements StoreInterface {
       const tx = sql(_tx);
       const windowStart = new Date(now.getTime() - rateLimit.duration);
 
+      // Advisory lock serializes rate limit checks for the same queue
+      await tx`SELECT pg_advisory_xact_lock(hashtext(${queueName} || ':rate_limit'))`;
+
       // Cleanup old entries + count
       await tx`
         DELETE FROM conveyor_rate_limits
@@ -415,6 +418,8 @@ export class PgStore implements StoreInterface {
 
       // Global rate limit check (inside transaction for atomicity)
       if (opts.rateLimit) {
+        // Advisory lock serializes rate limit checks for the same queue
+        await tx`SELECT pg_advisory_xact_lock(hashtext(${queueName} || ':rate_limit'))`;
         const windowStart = new Date(now.getTime() - opts.rateLimit.duration);
         await tx`
           DELETE FROM conveyor_rate_limits
