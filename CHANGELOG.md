@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-03-24
+
+### Features
+
+- **core**: Global rate limiting across all workers
+  (#33)([23593b0](https://github.com/eyolas/conveyor/commit/23593b00ba8c4b4d7c7237bc2ffa63bbd564fcba))
+
+### Documentation
+
+- Update rate limiting docs for global enforcement
+  (#34)([6a89531](https://github.com/eyolas/conveyor/commit/6a89531977c4097d36679173839123a858cc651b))
+- Add global rate limiting task (planned for
+  v1.2.0)([b85996e](https://github.com/eyolas/conveyor/commit/b85996ecfa79b4821f6e7287ec369b8d1c0b7628))
+- Update CHANGELOG.md for
+  v1.1.0([a36179a](https://github.com/eyolas/conveyor/commit/a36179ac9534c252a714075948fa6a2612f06969))
+
 ## [1.1.0] - 2026-03-23
 
 ### Features
