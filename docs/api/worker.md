@@ -191,14 +191,17 @@ const worker = new Worker('tasks', processor, {
 
 ### Rate Limiting
 
-The `limiter` option applies a sliding-window rate limit (worker-local).
+The `limiter` option applies a sliding-window rate limit enforced **globally** at the store level.
+All workers sharing the same store and queue contribute to one shared budget.
 
 ```typescript
 const worker = new Worker('api-calls', processor, {
   store,
-  limiter: { max: 100, duration: 60_000 }, // 100 jobs per minute
+  limiter: { max: 100, duration: 60_000 }, // 100 jobs per minute across ALL workers
 });
 ```
+
+See [Rate Limiting](/features/rate-limiting) for details on how global enforcement works.
 
 ### Group Options
 
