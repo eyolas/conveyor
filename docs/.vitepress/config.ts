@@ -203,6 +203,12 @@ export default withMermaid(defineConfig({
     },
   },
 
+  vite: {
+    build: {
+      chunkSizeWarningLimit: 1_000, // Mermaid bundle is large (~600kB)
+    },
+  },
+
   mermaid: {
     theme: 'base',
     themeVariables: {
