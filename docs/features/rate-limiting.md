@@ -89,7 +89,7 @@ between workers:
 - **PostgreSQL** uses `pg_advisory_xact_lock` under `READ COMMITTED` isolation to serialize rate
   limit checks.
 - **SQLite** uses `BEGIN IMMEDIATE`, which already serializes writes.
-- **Memory store** uses in-memory timestamp tracking with a mutex.
+- **Memory store** uses in-memory timestamp tracking (single-threaded, no lock needed).
 
 This is a **sliding window** approach -- there is no fixed reset point. The window slides forward
 with time, ensuring a smooth throughput cap.
