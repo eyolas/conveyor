@@ -115,6 +115,18 @@ export const migrations: Migration[] = [
     name: 'add_discarded',
     up: `ALTER TABLE conveyor_jobs ADD COLUMN discarded INTEGER NOT NULL DEFAULT 0`,
   },
+  {
+    version: 7,
+    name: 'add_rate_limits',
+    up: `
+      CREATE TABLE IF NOT EXISTS conveyor_rate_limits (
+        queue_name TEXT NOT NULL,
+        fetched_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_rate_limit
+      ON conveyor_rate_limits (queue_name, fetched_at);
+    `,
+  },
 ];
 
 /**

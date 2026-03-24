@@ -98,3 +98,46 @@ test('Worker without rate limiter processes all jobs normally', async () => {
   await queue.close();
   await store.disconnect();
 });
+
+// ─── Validation ───────────────────────────────────────────────────
+
+test('Worker rejects invalid limiter.max', () => {
+  const store = new MemoryStore();
+  expect(() => {
+    new Worker(queueName, async () => {}, {
+      store,
+      limiter: { max: 0, duration: 1000 },
+    });
+  }).toThrow(RangeError);
+
+  expect(() => {
+    new Worker(queueName, async () => {}, {
+      store,
+      limiter: { max: -1, duration: 1000 },
+    });
+  }).toThrow(RangeError);
+
+  expect(() => {
+    new Worker(queueName, async () => {}, {
+      store,
+      limiter: { max: 1.5, duration: 1000 },
+    });
+  }).toThrow(RangeError);
+});
+
+test('Worker rejects invalid limiter.duration', () => {
+  const store = new MemoryStore();
+  expect(() => {
+    new Worker(queueName, async () => {}, {
+      store,
+      limiter: { max: 5, duration: 0 },
+    });
+  }).toThrow(RangeError);
+
+  expect(() => {
+    new Worker(queueName, async () => {}, {
+      store,
+      limiter: { max: 5, duration: -1000 },
+    });
+  }).toThrow(RangeError);
+});

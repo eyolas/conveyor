@@ -1649,4 +1649,102 @@ export function runConformanceTests(
 
     await store.disconnect();
   });
+
+  // ─── Global Rate Limiting ───────────────────────────────────────────
+
+  test(`[${storeName}] fetchNextJob respects global rate limit`, async () => {
+    store = factory();
+    await store.connect();
+
+    // Create 5 waiting jobs
+    for (let i = 0; i < 5; i++) {
+      await store.saveJob(queueName, createJobData(queueName, `job-${i}`, {}));
+    }
+
+    const rateLimit = { max: 2, duration: 60_000 };
+
+    // Fetch 2 jobs — should succeed
+    const job1 = await store.fetchNextJob(queueName, 'w1', 30_000, { rateLimit });
+    const job2 = await store.fetchNextJob(queueName, 'w2', 30_000, { rateLimit });
+    expect(job1).not.toBeNull();
+    expect(job2).not.toBeNull();
+
+    // 3rd fetch — should be rate limited
+    const job3 = await store.fetchNextJob(queueName, 'w3', 30_000, { rateLimit });
+    expect(job3).toBeNull();
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] fetchNextJob without rateLimit is not rate limited`, async () => {
+    store = factory();
+    await store.connect();
+
+    for (let i = 0; i < 5; i++) {
+      await store.saveJob(queueName, createJobData(queueName, `job-${i}`, {}));
+    }
+
+    // Fetch all 5 without rate limit — should all succeed
+    const results = [];
+    for (let i = 0; i < 5; i++) {
+      results.push(await store.fetchNextJob(queueName, `w${i}`, 30_000));
+    }
+    expect(results.filter(Boolean)).toHaveLength(5);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] rate limit resets after window expires`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'j1', {}));
+    await store.saveJob(queueName, createJobData(queueName, 'j2', {}));
+
+    // Very short window (50ms)
+    const rateLimit = { max: 1, duration: 50 };
+
+    const job1 = await store.fetchNextJob(queueName, 'w1', 30_000, { rateLimit });
+    expect(job1).not.toBeNull();
+
+    // Should be rate limited immediately
+    const blocked = await store.fetchNextJob(queueName, 'w2', 30_000, { rateLimit });
+    expect(blocked).toBeNull();
+
+    // Wait for window to expire
+    await new Promise((r) => setTimeout(r, 60));
+
+    // Should work again
+    const job2 = await store.fetchNextJob(queueName, 'w3', 30_000, { rateLimit });
+    expect(job2).not.toBeNull();
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] obliterate clears rate limit entries`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'j1', {}));
+    await store.saveJob(queueName, createJobData(queueName, 'j2', {}));
+
+    const rateLimit = { max: 1, duration: 60_000 };
+
+    // Consume the rate limit
+    await store.fetchNextJob(queueName, 'w1', 30_000, { rateLimit });
+
+    // Should be blocked
+    const blocked = await store.fetchNextJob(queueName, 'w2', 30_000, { rateLimit });
+    expect(blocked).toBeNull();
+
+    // Obliterate resets everything
+    await store.obliterate(queueName, { force: true });
+
+    // Re-add a job and fetch — should work (rate limit entries cleared)
+    await store.saveJob(queueName, createJobData(queueName, 'j3', {}));
+    const job = await store.fetchNextJob(queueName, 'w3', 30_000, { rateLimit });
+    expect(job).not.toBeNull();
+
+    await store.disconnect();
+  });
 }

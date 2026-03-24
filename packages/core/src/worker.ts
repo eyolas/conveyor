@@ -80,7 +80,6 @@ export class Worker<T = unknown> {
   private readonly limiter: LimiterOptions | null;
   private readonly lifo: boolean;
   private readonly groupOptions: GroupWorkerOptions | null;
-  private rateLimitTimestamps: number[] = [];
   private groupRateLimitTimestamps = new Map<string, number[]>();
 
   private activeCount = 0;
@@ -128,6 +127,14 @@ export class Worker<T = unknown> {
     this.lockDuration = options.lockDuration ?? 30_000;
     this.stalledInterval = options.stalledInterval ?? 30_000;
     this.limiter = options.limiter ?? null;
+    if (this.limiter) {
+      if (this.limiter.max <= 0 || !Number.isInteger(this.limiter.max)) {
+        throw new RangeError('limiter.max must be a positive integer');
+      }
+      if (this.limiter.duration <= 0) {
+        throw new RangeError('limiter.duration must be a positive number');
+      }
+    }
     this.lifo = options.lifo ?? false;
     this.groupOptions = options.group ?? null;
 
@@ -245,9 +252,6 @@ export class Worker<T = unknown> {
 
     // Fetch up to available concurrency slots
     while (this.activeCount < this.concurrency && !this.closed && !this.paused) {
-      // Check rate limiter
-      if (this.isRateLimited()) break;
-
       // Check global concurrency
       if (this.maxGlobalConcurrency !== null) {
         const globalActive = await this.store.getActiveCount(this.queueName);
@@ -263,9 +267,6 @@ export class Worker<T = unknown> {
       );
 
       if (!jobData) break;
-
-      // Record timestamp for rate limiting
-      this.recordRateLimitTimestamp();
 
       // Record per-group rate limit timestamp
       if (jobData.groupId && this.groupOptions?.limiter) {
@@ -372,7 +373,6 @@ export class Worker<T = unknown> {
 
       for (let i = 0; i < batchSize; i++) {
         if (this.closed || this.paused) break;
-        if (this.isRateLimited()) break;
 
         if (this.maxGlobalConcurrency !== null) {
           const globalActive = await this.store.getActiveCount(this.queueName);
@@ -387,8 +387,6 @@ export class Worker<T = unknown> {
         );
 
         if (!jobData) break;
-
-        this.recordRateLimitTimestamp();
 
         if (jobData.groupId && this.groupOptions?.limiter) {
           this.recordGroupRateLimitTimestamp(jobData.groupId);
@@ -796,22 +794,11 @@ export class Worker<T = unknown> {
 
   // ─── Rate Limiting ─────────────────────────────────────────────────
 
-  private isRateLimited(): boolean {
-    if (!this.limiter) return false;
-    const now = Date.now();
-    const windowStart = now - this.limiter.duration;
-    this.rateLimitTimestamps = this.rateLimitTimestamps.filter((t) => t > windowStart);
-    return this.rateLimitTimestamps.length >= this.limiter.max;
-  }
-
-  private recordRateLimitTimestamp(): void {
-    if (this.limiter) {
-      this.rateLimitTimestamps.push(Date.now());
-    }
-  }
-
   private buildFetchOptions(): FetchOptions {
     const opts: FetchOptions = { lifo: this.lifo };
+    if (this.limiter) {
+      opts.rateLimit = { max: this.limiter.max, duration: this.limiter.duration };
+    }
     if (this.groupOptions?.concurrency !== undefined) {
       opts.groupConcurrency = this.groupOptions.concurrency;
     }

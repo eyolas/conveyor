@@ -139,6 +139,22 @@ export const migrations: Migration[] = [
       `;
     },
   },
+  {
+    version: 7,
+    name: 'add_rate_limits',
+    async up(sql) {
+      await sql`
+        CREATE TABLE IF NOT EXISTS conveyor_rate_limits (
+          queue_name TEXT NOT NULL,
+          fetched_at TIMESTAMPTZ NOT NULL
+        )
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_rate_limit
+        ON conveyor_rate_limits (queue_name, fetched_at)
+      `;
+    },
+  },
 ];
 
 /**

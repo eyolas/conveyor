@@ -291,6 +291,19 @@ export class PgStore implements StoreInterface {
       : this.sql`priority ASC, seq ASC`;
     const nameFilter = opts?.jobName ? this.sql`AND name = ${opts.jobName}` : this.sql``;
 
+    // Wrap in transaction when rate limiting is enabled
+    if (opts?.rateLimit) {
+      return this.fetchWithRateLimit(
+        queueName,
+        workerId,
+        now,
+        lockUntil,
+        orderFrag,
+        nameFilter,
+        opts.rateLimit,
+      );
+    }
+
     const rows = await this.sql<JobRow[]>`
       WITH next_job AS (
         SELECT id FROM conveyor_jobs
@@ -311,6 +324,64 @@ export class PgStore implements StoreInterface {
 
     if (rows.length === 0) return null;
     return rowToJobData(rows[0]!);
+  }
+
+  private fetchWithRateLimit(
+    queueName: string,
+    workerId: string,
+    now: Date,
+    lockUntil: Date,
+    orderFrag: postgres.PendingQuery<postgres.Row[]>,
+    nameFilter: postgres.PendingQuery<postgres.Row[]>,
+    rateLimit: { max: number; duration: number },
+  ): Promise<JobData | null> {
+    return this.sql.begin(async (_tx) => {
+      const tx = sql(_tx);
+      const windowStart = new Date(now.getTime() - rateLimit.duration);
+
+      // Advisory lock serializes rate limit checks for the same queue
+      await tx`SELECT pg_advisory_xact_lock(hashtext(${queueName} || ':rate_limit'))`;
+
+      // Cleanup old entries + count
+      await tx`
+        DELETE FROM conveyor_rate_limits
+        WHERE queue_name = ${queueName} AND fetched_at < ${windowStart}
+      `;
+      const countRows = await tx<{ count: number }[]>`
+        SELECT COUNT(*)::int AS count FROM conveyor_rate_limits
+        WHERE queue_name = ${queueName} AND fetched_at >= ${windowStart}
+      `;
+      if ((countRows[0]?.count ?? 0) >= rateLimit.max) return null;
+
+      // Fetch job (same CTE as non-rate-limited path)
+      const rows = await tx<JobRow[]>`
+        WITH next_job AS (
+          SELECT id FROM conveyor_jobs
+          WHERE queue_name = ${queueName} AND state = 'waiting'
+            ${nameFilter}
+            AND name NOT IN (SELECT job_name FROM conveyor_paused_names WHERE queue_name = ${queueName})
+            AND NOT EXISTS (SELECT 1 FROM conveyor_paused_names WHERE queue_name = ${queueName} AND job_name = '__all__')
+          ORDER BY ${orderFrag}
+          LIMIT 1
+          FOR UPDATE SKIP LOCKED
+        )
+        UPDATE conveyor_jobs
+        SET state = 'active', processed_at = ${now}, lock_until = ${lockUntil}, locked_by = ${workerId}
+        FROM next_job
+        WHERE conveyor_jobs.queue_name = ${queueName} AND conveyor_jobs.id = next_job.id
+        RETURNING conveyor_jobs.*
+      `;
+
+      if (rows.length === 0) return null;
+
+      // Record rate limit entry
+      await tx`
+        INSERT INTO conveyor_rate_limits (queue_name, fetched_at)
+        VALUES (${queueName}, ${now})
+      `;
+
+      return rowToJobData(rows[0]!);
+    });
   }
 
   /**
@@ -344,6 +415,22 @@ export class PgStore implements StoreInterface {
     // Use a transaction for atomicity
     const result = await this.sql.begin(async (_tx) => {
       const tx = sql(_tx);
+
+      // Global rate limit check (inside transaction for atomicity)
+      if (opts.rateLimit) {
+        // Advisory lock serializes rate limit checks for the same queue
+        await tx`SELECT pg_advisory_xact_lock(hashtext(${queueName} || ':rate_limit'))`;
+        const windowStart = new Date(now.getTime() - opts.rateLimit.duration);
+        await tx`
+          DELETE FROM conveyor_rate_limits
+          WHERE queue_name = ${queueName} AND fetched_at < ${windowStart}
+        `;
+        const countRows = await tx<{ count: number }[]>`
+          SELECT COUNT(*)::int AS count FROM conveyor_rate_limits
+          WHERE queue_name = ${queueName} AND fetched_at >= ${windowStart}
+        `;
+        if ((countRows[0]?.count ?? 0) >= opts.rateLimit.max) return null;
+      }
 
       // Build the concurrency filter as a subquery condition
       const concurrencyFrag = groupConcurrency !== undefined
@@ -402,6 +489,14 @@ export class PgStore implements StoreInterface {
 
       const fetched = rowToJobData(rows[0]!);
       const effectiveGroupId = fetched.groupId ?? '__ungrouped__';
+
+      // Record rate limit entry
+      if (opts.rateLimit) {
+        await tx`
+          INSERT INTO conveyor_rate_limits (queue_name, fetched_at)
+          VALUES (${queueName}, ${now})
+        `;
+      }
 
       // Upsert cursor
       await tx`
@@ -627,6 +722,7 @@ export class PgStore implements StoreInterface {
       await tx`DELETE FROM conveyor_jobs WHERE queue_name = ${queueName}`;
       await tx`DELETE FROM conveyor_paused_names WHERE queue_name = ${queueName}`;
       await tx`DELETE FROM conveyor_group_cursors WHERE queue_name = ${queueName}`;
+      await tx`DELETE FROM conveyor_rate_limits WHERE queue_name = ${queueName}`;
     });
   }
 
@@ -835,6 +931,7 @@ export class PgStore implements StoreInterface {
 
   /** Truncate all Conveyor tables. Intended for test cleanup only. */
   async truncateAll(): Promise<void> {
-    await this.sql`TRUNCATE conveyor_jobs, conveyor_paused_names, conveyor_group_cursors`;
+    await this
+      .sql`TRUNCATE conveyor_jobs, conveyor_paused_names, conveyor_group_cursors, conveyor_rate_limits`;
   }
 }
