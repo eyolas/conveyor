@@ -3,7 +3,18 @@
 For the full changelog, see
 [CHANGELOG.md on GitHub](https://github.com/eyolas/conveyor/blob/main/CHANGELOG.md).
 
-## Latest: v1.1.0 (2026-03-23)
+## Latest: v1.2.0 (2026-03-24)
+
+- **Global Rate Limiting**: Rate limiting is now enforced at the store level across all workers.
+  Previously each worker tracked its own sliding window independently (effective rate scaled with
+  worker count). Now all workers sharing the same store share one rate limit budget, ensuring exact
+  enforcement of `{ max, duration }` regardless of how many workers are running.
+- New `conveyor_rate_limits` table (migration v7) tracks fetch timestamps per queue
+- Rate limit check is atomic inside the job fetch transaction (no race conditions)
+- Worker validates `limiter.max` is a positive integer and `limiter.duration` is positive
+- `obliterate()` clears rate limit entries
+
+## v1.1.0 (2026-03-23)
 
 - **Job Mutations**: `promote()`, `moveToDelayed()`, `discard()`, `updateData()`, `changeDelay()`,
   `changePriority()`, `clearLogs()`, `stacktrace` property
