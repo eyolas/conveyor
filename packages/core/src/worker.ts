@@ -127,6 +127,14 @@ export class Worker<T = unknown> {
     this.lockDuration = options.lockDuration ?? 30_000;
     this.stalledInterval = options.stalledInterval ?? 30_000;
     this.limiter = options.limiter ?? null;
+    if (this.limiter) {
+      if (this.limiter.max <= 0 || !Number.isInteger(this.limiter.max)) {
+        throw new RangeError('limiter.max must be a positive integer');
+      }
+      if (this.limiter.duration <= 0) {
+        throw new RangeError('limiter.duration must be a positive number');
+      }
+    }
     this.lifo = options.lifo ?? false;
     this.groupOptions = options.group ?? null;
 

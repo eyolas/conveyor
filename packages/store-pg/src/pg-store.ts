@@ -926,6 +926,7 @@ export class PgStore implements StoreInterface {
 
   /** Truncate all Conveyor tables. Intended for test cleanup only. */
   async truncateAll(): Promise<void> {
-    await this.sql`TRUNCATE conveyor_jobs, conveyor_paused_names, conveyor_group_cursors`;
+    await this
+      .sql`TRUNCATE conveyor_jobs, conveyor_paused_names, conveyor_group_cursors, conveyor_rate_limits`;
   }
 }

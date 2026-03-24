@@ -1720,4 +1720,31 @@ export function runConformanceTests(
 
     await store.disconnect();
   });
+
+  test(`[${storeName}] obliterate clears rate limit entries`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob(queueName, createJobData(queueName, 'j1', {}));
+    await store.saveJob(queueName, createJobData(queueName, 'j2', {}));
+
+    const rateLimit = { max: 1, duration: 60_000 };
+
+    // Consume the rate limit
+    await store.fetchNextJob(queueName, 'w1', 30_000, { rateLimit });
+
+    // Should be blocked
+    const blocked = await store.fetchNextJob(queueName, 'w2', 30_000, { rateLimit });
+    expect(blocked).toBeNull();
+
+    // Obliterate resets everything
+    await store.obliterate(queueName, { force: true });
+
+    // Re-add a job and fetch — should work (rate limit entries cleared)
+    await store.saveJob(queueName, createJobData(queueName, 'j3', {}));
+    const job = await store.fetchNextJob(queueName, 'w3', 30_000, { rateLimit });
+    expect(job).not.toBeNull();
+
+    await store.disconnect();
+  });
 }
