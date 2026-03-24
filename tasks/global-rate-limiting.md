@@ -2,7 +2,7 @@
 
 ## Status
 
-In Progress — v1.2.0
+Done — shipped in v1.2.0 (2026-03-24)
 
 ## Goal
 
