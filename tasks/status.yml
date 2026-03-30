@@ -31,6 +31,11 @@ thinking:
     description: Dead letter queue for permanently failed jobs
     status: thinking
 
+  queue-schema-definition:
+    description: Declarative queue schema format (like OpenAPI for queues) — typed payloads, actions, metadata to auto-generate dashboard UI
+    status: planned
+    file: tasks/queue-schema.md
+
 # ─── Tasks ────────────────────────────────────────────────────────────────────
 
 tasks:

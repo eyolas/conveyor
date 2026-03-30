@@ -21,12 +21,12 @@ Express, Hono, Fastify, AdonisJS, Koa, NestJS, Fresh, Deno.serve, Bun.serve, etc
 
 ### Decisions
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Internal router | Hono | Web Standard native, SSE helpers, battle-tested, ~14KB |
-| Adapters | `toNodeHandler()` only | All Node.js frameworks use IncomingMessage/ServerResponse underneath |
-| UI tech | Preact + Vite + Tailwind | 3KB, React-compatible, familiar ecosystem |
-| Package split | Two packages | API-only users don't download UI bundle |
+| Decision        | Choice                   | Rationale                                                            |
+| --------------- | ------------------------ | -------------------------------------------------------------------- |
+| Internal router | Hono                     | Web Standard native, SSE helpers, battle-tested, ~14KB               |
+| Adapters        | `toNodeHandler()` only   | All Node.js frameworks use IncomingMessage/ServerResponse underneath |
+| UI tech         | Preact + Vite + Tailwind | 3KB, React-compatible, familiar ecosystem                            |
+| Package split   | Two packages             | API-only users don't download UI bundle                              |
 
 ---
 
@@ -78,12 +78,12 @@ packages/
 
 ```typescript
 interface DashboardOptions {
-  store: StoreInterface;          // Same store instance used by Queue/Worker
-  basePath?: string;              // Mount point (e.g., '/admin'). Default: '/'
-  queues?: string[];              // Explicit queue names to expose
-  readOnly?: boolean;             // Disable mutations. Default: false
-  auth?: (req: Request) => boolean | Promise<boolean>;  // Optional auth
-  serveUI?: boolean;              // Serve bundled SPA. Default: true
+  store: StoreInterface; // Same store instance used by Queue/Worker
+  basePath?: string; // Mount point (e.g., '/admin'). Default: '/'
+  queues?: string[]; // Explicit queue names to expose
+  readOnly?: boolean; // Disable mutations. Default: false
+  auth?: (req: Request) => boolean | Promise<boolean>; // Optional auth
+  serveUI?: boolean; // Serve bundled SPA. Default: true
 }
 
 type DashboardHandler = (request: Request) => Response | Promise<Response>;
@@ -108,8 +108,10 @@ app.use('/admin', toNodeHandler(handler));
 fastify.all('/admin/*', (req, reply) => toNodeHandler(handler)(req.raw, reply.raw));
 
 // AdonisJS
-router.any('/admin/*', ({ request, response }) =>
-  toNodeHandler(handler)(request.request, response.response));
+router.any(
+  '/admin/*',
+  ({ request, response }) => toNodeHandler(handler)(request.request, response.response),
+);
 ```
 
 ---
@@ -120,35 +122,35 @@ All routes under `{basePath}/api/`.
 
 ### Queue Endpoints
 
-| Method | Path | Description | Mutates |
-|--------|------|-------------|---------|
-| GET | `/api/queues` | List all queues + counts per state | No |
-| GET | `/api/queues/:name` | Queue detail (counts, paused names) | No |
-| POST | `/api/queues/:name/pause` | Pause queue `{ jobName? }` | Yes |
-| POST | `/api/queues/:name/resume` | Resume queue `{ jobName? }` | Yes |
-| POST | `/api/queues/:name/drain` | Drain waiting jobs | Yes |
-| POST | `/api/queues/:name/clean` | Clean `{ state, grace }` | Yes |
-| POST | `/api/queues/:name/retry` | Retry `{ state }` | Yes |
-| POST | `/api/queues/:name/promote` | Promote delayed | Yes |
-| DELETE | `/api/queues/:name` | Obliterate `?force=true` | Yes |
+| Method | Path                        | Description                         | Mutates |
+| ------ | --------------------------- | ----------------------------------- | ------- |
+| GET    | `/api/queues`               | List all queues + counts per state  | No      |
+| GET    | `/api/queues/:name`         | Queue detail (counts, paused names) | No      |
+| POST   | `/api/queues/:name/pause`   | Pause queue `{ jobName? }`          | Yes     |
+| POST   | `/api/queues/:name/resume`  | Resume queue `{ jobName? }`         | Yes     |
+| POST   | `/api/queues/:name/drain`   | Drain waiting jobs                  | Yes     |
+| POST   | `/api/queues/:name/clean`   | Clean `{ state, grace }`            | Yes     |
+| POST   | `/api/queues/:name/retry`   | Retry `{ state }`                   | Yes     |
+| POST   | `/api/queues/:name/promote` | Promote delayed                     | Yes     |
+| DELETE | `/api/queues/:name`         | Obliterate `?force=true`            | Yes     |
 
 ### Job Endpoints
 
-| Method | Path | Description | Mutates |
-|--------|------|-------------|---------|
-| GET | `/api/queues/:name/jobs` | List `?state=&start=&end=` | No |
-| GET | `/api/queues/:name/jobs/:id` | Job detail (data, logs, stacktrace) | No |
-| GET | `/api/queues/:name/jobs/:id/children` | Flow children | No |
-| POST | `/api/queues/:name/jobs/:id/retry` | Retry single job | Yes |
-| POST | `/api/queues/:name/jobs/:id/promote` | Promote delayed job | Yes |
-| DELETE | `/api/queues/:name/jobs/:id` | Remove job | Yes |
+| Method | Path                                  | Description                         | Mutates |
+| ------ | ------------------------------------- | ----------------------------------- | ------- |
+| GET    | `/api/queues/:name/jobs`              | List `?state=&start=&end=`          | No      |
+| GET    | `/api/queues/:name/jobs/:id`          | Job detail (data, logs, stacktrace) | No      |
+| GET    | `/api/queues/:name/jobs/:id/children` | Flow children                       | No      |
+| POST   | `/api/queues/:name/jobs/:id/retry`    | Retry single job                    | Yes     |
+| POST   | `/api/queues/:name/jobs/:id/promote`  | Promote delayed job                 | Yes     |
+| DELETE | `/api/queues/:name/jobs/:id`          | Remove job                          | Yes     |
 
 ### SSE Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/events` | All queues event stream |
-| GET | `/api/queues/:name/events` | Single queue event stream |
+| Method | Path                       | Description               |
+| ------ | -------------------------- | ------------------------- |
+| GET    | `/api/events`              | All queues event stream   |
+| GET    | `/api/queues/:name/events` | Single queue event stream |
 
 ### Response Format
 
@@ -212,13 +214,13 @@ Real-time updates via SSE `EventSource` in the browser.
 
 ## Key Files to Modify
 
-| File | Change |
-|------|--------|
-| `/deno.json` | Add `./packages/dashboard-api` and `./packages/dashboard` to workspace |
-| `/tasks/status.yml` | Update web-dashboard status to `planned` with file reference |
-| New: `packages/dashboard-api/` | Entire new package |
-| New: `packages/dashboard/` | Entire new package |
-| `/packages/shared/src/types.ts` | `listQueues()` method (Phase 3 only) |
+| File                            | Change                                                                 |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| `/deno.json`                    | Add `./packages/dashboard-api` and `./packages/dashboard` to workspace |
+| `/tasks/status.yml`             | Update web-dashboard status to `planned` with file reference           |
+| New: `packages/dashboard-api/`  | Entire new package                                                     |
+| New: `packages/dashboard/`      | Entire new package                                                     |
+| `/packages/shared/src/types.ts` | `listQueues()` method (Phase 3 only)                                   |
 
 ## Verification
 
@@ -244,10 +246,10 @@ without breaking the public API.
 
 ### Queue Discovery
 
-Phase 1 requires explicit `queues: ['queue1', 'queue2']` in options. Phase 3 adds `listQueues()`
-to `StoreInterface` for auto-discovery (non-breaking addition).
+Phase 1 requires explicit `queues: ['queue1', 'queue2']` in options. Phase 3 adds `listQueues()` to
+`StoreInterface` for auto-discovery (non-breaking addition).
 
 ### Static Assets
 
-Served via `node:fs/promises` from `dist/` (resolved via `import.meta.url`). Works in Deno 2+,
-Node 18+, and Bun. All non-`/api/` routes fallback to `index.html` for SPA client-side routing.
+Served via `node:fs/promises` from `dist/` (resolved via `import.meta.url`). Works in Deno 2+, Node
+18+, and Bun. All non-`/api/` routes fallback to `index.html` for SPA client-side routing.
