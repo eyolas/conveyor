@@ -1747,4 +1747,153 @@ export function runConformanceTests(
 
     await store.disconnect();
   });
+
+  // ─── Dashboard Methods ──────────────────────────────────────────
+
+  test(`[${storeName}] listQueues returns queues with counts`, async () => {
+    store = factory();
+    await store.connect();
+
+    // Empty store
+    const empty = await store.listQueues();
+    expect(empty).toEqual([]);
+
+    // Add jobs to two queues
+    await store.saveJob('queue-a', createJobData('queue-a', 'job-1', {}));
+    await store.saveJob('queue-a', createJobData('queue-a', 'job-2', {}));
+    await store.saveJob('queue-b', createJobData('queue-b', 'job-3', {}));
+
+    const queues = await store.listQueues();
+    expect(queues.length).toEqual(2);
+
+    const queueA = queues.find((q) => q.name === 'queue-a')!;
+    expect(queueA).toBeDefined();
+    expect(queueA.counts.waiting).toEqual(2);
+    expect(queueA.isPaused).toEqual(false);
+    expect(queueA.latestActivity).toBeInstanceOf(Date);
+
+    const queueB = queues.find((q) => q.name === 'queue-b')!;
+    expect(queueB).toBeDefined();
+    expect(queueB.counts.waiting).toEqual(1);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] listQueues reflects paused state`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob('paused-q', createJobData('paused-q', 'j1', {}));
+    await store.pauseJobName('paused-q', '__all__');
+
+    const queues = await store.listQueues();
+    const q = queues.find((q) => q.name === 'paused-q')!;
+    expect(q.isPaused).toEqual(true);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] listQueues reflects multiple states`, async () => {
+    store = factory();
+    await store.connect();
+
+    const job1 = createJobData('multi-q', 'j1', {});
+    const job2 = createJobData('multi-q', 'j2', {});
+    await store.saveJob('multi-q', job1);
+    await store.saveJob('multi-q', job2);
+
+    // Fetch one job to make it active
+    await store.fetchNextJob('multi-q', 'w1', 30_000);
+
+    const queues = await store.listQueues();
+    const q = queues.find((q) => q.name === 'multi-q')!;
+    expect(q.counts.waiting).toEqual(1);
+    expect(q.counts.active).toEqual(1);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] findJobById across queues`, async () => {
+    store = factory();
+    await store.connect();
+
+    const jobData = createJobData('find-q', 'find-job', { key: 'value' });
+    const id = await store.saveJob('find-q', jobData);
+
+    // Find by ID (no queue name needed)
+    const found = await store.findJobById(id);
+    expect(found).not.toBeNull();
+    expect(found!.id).toEqual(id);
+    expect(found!.name).toEqual('find-job');
+    expect(found!.data).toEqual({ key: 'value' });
+    expect(found!.queueName).toEqual('find-q');
+
+    // Non-existent ID
+    const notFound = await store.findJobById('non-existent-id');
+    expect(notFound).toBeNull();
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] findJobById finds job in any queue`, async () => {
+    store = factory();
+    await store.connect();
+
+    await store.saveJob('q1', createJobData('q1', 'j1', {}));
+    const id2 = await store.saveJob('q2', createJobData('q2', 'j2', { target: true }));
+    await store.saveJob('q3', createJobData('q3', 'j3', {}));
+
+    const found = await store.findJobById(id2);
+    expect(found).not.toBeNull();
+    expect(found!.queueName).toEqual('q2');
+    expect(found!.data).toEqual({ target: true });
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] cancelJob cancels active job`, async () => {
+    store = factory();
+    await store.connect();
+
+    const jobData = createJobData('cancel-q', 'cancel-job', {});
+    const id = await store.saveJob('cancel-q', jobData);
+
+    // Cannot cancel waiting job
+    const cancelledWaiting = await store.cancelJob('cancel-q', id);
+    expect(cancelledWaiting).toEqual(false);
+
+    // Make it active
+    await store.fetchNextJob('cancel-q', 'w1', 30_000);
+
+    // Track events
+    const events: StoreEvent[] = [];
+    store.subscribe('cancel-q', (e) => events.push(e));
+
+    // Cancel active job
+    const cancelled = await store.cancelJob('cancel-q', id);
+    expect(cancelled).toEqual(true);
+
+    // Verify cancelledAt is set
+    const job = await store.getJob('cancel-q', id);
+    expect(job).not.toBeNull();
+    expect(job!.cancelledAt).toBeInstanceOf(Date);
+
+    // Verify event was published
+    const cancelEvent = events.find((e) => e.type === 'job:cancelled');
+    expect(cancelEvent).toBeDefined();
+    expect(cancelEvent!.jobId).toEqual(id);
+
+    store.unsubscribe('cancel-q');
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] cancelJob returns false for non-existent job`, async () => {
+    store = factory();
+    await store.connect();
+
+    const result = await store.cancelJob('cancel-q', 'non-existent');
+    expect(result).toEqual(false);
+
+    await store.disconnect();
+  });
 }

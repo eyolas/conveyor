@@ -397,6 +397,24 @@ export interface UpdateJobOptions {
   expectedState?: JobState | JobState[];
 }
 
+/**
+ * Summary information for a queue, returned by {@linkcode StoreInterface.listQueues}.
+ * Includes state counts and metadata to avoid N+1 queries from the dashboard.
+ */
+export interface QueueInfo {
+  /** Queue name. */
+  name: string;
+
+  /** Job counts per state. */
+  counts: Record<JobState, number>;
+
+  /** Whether the queue is globally paused (`__all__` is in the paused names). */
+  isPaused: boolean;
+
+  /** Timestamp of the most recent job activity, or `null` if no jobs exist. */
+  latestActivity: Date | null;
+}
+
 /** Base options shared by all store implementations. */
 export interface StoreOptions {
   /** Run migrations automatically on connect() (default: true). */
@@ -736,6 +754,36 @@ export interface StoreInterface {
    * @returns The number of promoted jobs.
    */
   promoteJobs(queueName: string): Promise<number>;
+
+  // ─── Dashboard Methods ─────────────────────────────────────────────
+
+  /**
+   * List all known queues with their current state counts and metadata.
+   * Used by the dashboard for auto-discovery (no explicit queue list needed).
+   *
+   * @returns Array of queue info objects.
+   */
+  listQueues(): Promise<QueueInfo[]>;
+
+  /**
+   * Find a job by ID across all queues.
+   * Job IDs are UUIDs and unique across the entire store.
+   *
+   * @param jobId - The job ID to search for.
+   * @returns The job data, or `null` if not found.
+   */
+  findJobById(jobId: string): Promise<JobData | null>;
+
+  /**
+   * Cancel an active job by setting its `cancelledAt` timestamp
+   * and publishing a `job:cancelled` event. The worker detects the
+   * cancellation and aborts the job's processing.
+   *
+   * @param queueName - The queue the job belongs to.
+   * @param jobId - The job ID to cancel.
+   * @returns `true` if the job was found and cancelled, `false` otherwise.
+   */
+  cancelJob(queueName: string, jobId: string): Promise<boolean>;
 }
 
 /**

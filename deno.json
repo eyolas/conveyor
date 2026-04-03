@@ -8,9 +8,11 @@
     "./packages/store-sqlite-core",
     "./packages/store-sqlite-node",
     "./packages/store-sqlite-bun",
-    "./packages/store-sqlite-deno"
+    "./packages/store-sqlite-deno",
+    "./packages/dashboard-api"
   ],
   "imports": {
+    "@conveyor/dashboard-api": "./packages/dashboard-api/src/mod.ts",
     "@conveyor/core": "./packages/core/src/mod.ts",
     "@conveyor/shared": "./packages/shared/src/mod.ts",
     "@conveyor/store-memory": "./packages/store-memory/src/mod.ts",
