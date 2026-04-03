@@ -225,7 +225,7 @@ Redis store, Cloudflare D1, dead letter queue.
 ### Verification Before Done
 
 - Never mark a task complete without proving it works
-- Run tests, check logs, demonstrate correctness
+- Run tests, `deno task check` (type-check), and `deno task lint` before marking complete
 - Ask: "Would a staff engineer approve this?"
 
 ### Demand Elegance (Balanced)
@@ -251,3 +251,10 @@ Redis store, Cloudflare D1, dead letter queue.
 - Offload research, exploration, and parallel analysis to subagents
 - For complex problems, throw more compute at it via subagents
 - One task per subagent for focused execution
+
+## MCP Tools
+
+- **Claudette** (code graph): use `get_impact_radius` before refactors, `query_graph` for
+  callers/importers, `get_review_context` for PR reviews. Run `build_or_update_graph` first.
+- **context7**: use `resolve-library-id` + `query-docs` to fetch current docs for any dependency
+  (croner, postgres, vitest, etc.) instead of relying on training data
