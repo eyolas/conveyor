@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "claudette": {
+      "args": [
+        "serve"
+      ],
+      "command": "claudette"
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@latest"
+      ]
+    }
+  }
+}
