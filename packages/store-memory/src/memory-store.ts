@@ -569,8 +569,6 @@ export class MemoryStore implements StoreInterface {
     const result: QueueInfo[] = [];
 
     for (const [queueName, queue] of this.jobs) {
-      if (queue.size === 0) continue;
-
       const counts: Record<JobState, number> = {
         'waiting': 0,
         'waiting-children': 0,

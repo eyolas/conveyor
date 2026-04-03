@@ -35,7 +35,7 @@ export function registerEventRoutes(
         if (knownQueues.has(queueName)) return;
         knownQueues.add(queueName);
         const cb = (event: StoreEvent) => {
-          sendEvent(event);
+          sendEvent(event).catch(() => {});
         };
         callbacks.set(queueName, cb);
         store.subscribe(queueName, cb);
@@ -86,14 +86,10 @@ export function registerEventRoutes(
 
     return streamSSE(c, async (stream) => {
       const cb = (event: StoreEvent) => {
-        try {
-          stream.writeSSE({
-            event: event.type,
-            data: JSON.stringify(event),
-          });
-        } catch {
-          // Client disconnected
-        }
+        stream.writeSSE({
+          event: event.type,
+          data: JSON.stringify(event),
+        }).catch(() => {});
       };
 
       store.subscribe(queueName, cb);

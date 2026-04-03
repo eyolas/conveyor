@@ -5,6 +5,7 @@
  */
 
 import type { MiddlewareHandler } from 'hono';
+import { jsonError } from '../helpers.ts';
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -12,10 +13,7 @@ const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 export function createReadOnlyMiddleware(): MiddlewareHandler {
   return async (c, next) => {
     if (MUTATION_METHODS.has(c.req.method)) {
-      return c.json(
-        { error: { code: 'READ_ONLY', message: 'Dashboard is in read-only mode' } },
-        403,
-      );
+      return jsonError(c, 'READ_ONLY', 'Dashboard is in read-only mode', 403);
     }
     await next();
   };

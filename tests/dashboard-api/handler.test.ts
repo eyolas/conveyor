@@ -448,3 +448,180 @@ test('GET /api/queues/:name/events returns SSE stream', async () => {
   reader.cancel();
   await store.disconnect();
 });
+
+// ─── Error Handling ─────────────────────────────────────────────────
+
+test('POST /api/queues/:name/jobs returns 400 on invalid JSON', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const res = await handler(
+    new Request('http://localhost/api/queues/q1/jobs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: 'not json',
+    }),
+  );
+  expect(res.status).toBe(400);
+
+  await store.disconnect();
+});
+
+test('PATCH /api/queues/:name/jobs/:id returns 400 on invalid JSON', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const id = await store.saveJob('q1', createJobData('q1', 'j1', {}));
+
+  const res = await handler(
+    new Request(`http://localhost/api/queues/q1/jobs/${id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: '{invalid',
+    }),
+  );
+  expect(res.status).toBe(400);
+
+  await store.disconnect();
+});
+
+test('POST /api/queues/:name/retry returns 400 on invalid JSON', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const res = await handler(
+    new Request('http://localhost/api/queues/q1/retry', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: 'not json',
+    }),
+  );
+  expect(res.status).toBe(400);
+
+  await store.disconnect();
+});
+
+test('POST /api/queues/:name/clean validates grace >= 0', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const res = await handler(
+    new Request('http://localhost/api/queues/q1/clean', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state: 'completed', grace: -1 }),
+    }),
+  );
+  expect(res.status).toBe(400);
+  const body = await json(res);
+  expect(body.error.code).toBe('BAD_REQUEST');
+
+  await store.disconnect();
+});
+
+test('GET /api/queues/:name/jobs rejects oversized page', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const res = await handler(
+    new Request('http://localhost/api/queues/q1/jobs?state=waiting&start=0&end=5000'),
+  );
+  expect(res.status).toBe(400);
+
+  await store.disconnect();
+});
+
+test('GET /api/queues/:name/jobs handles NaN pagination gracefully', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const res = await handler(
+    new Request('http://localhost/api/queues/q1/jobs?state=waiting&start=abc&end=xyz'),
+  );
+  expect(res.status).toBe(200);
+  const body = await json(res);
+  expect(body.meta.start).toBe(0);
+  expect(body.meta.end).toBe(100);
+
+  await store.disconnect();
+});
+
+// ─── Additional Job Actions ──────────────────────────────────────────
+
+test('POST /api/queues/:name/jobs/:id/promote promotes delayed job', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const jobData = createJobData('q1', 'delayed-job', {}, { delay: 60_000 });
+  const id = await store.saveJob('q1', jobData);
+
+  const res = await handler(
+    new Request(`http://localhost/api/queues/q1/jobs/${id}/promote`, { method: 'POST' }),
+  );
+  expect(res.status).toBe(200);
+
+  const job = await store.getJob('q1', id);
+  expect(job!.state).toBe('waiting');
+
+  await store.disconnect();
+});
+
+test('POST /api/queues/:name/jobs/:id/cancel returns 404 for missing job', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const res = await handler(
+    new Request('http://localhost/api/queues/q1/jobs/nonexistent/cancel', { method: 'POST' }),
+  );
+  expect(res.status).toBe(404);
+
+  await store.disconnect();
+});
+
+test('POST /api/queues/:name/jobs/:id/cancel returns 400 for non-active job', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const id = await store.saveJob('q1', createJobData('q1', 'j1', {}));
+
+  const res = await handler(
+    new Request(`http://localhost/api/queues/q1/jobs/${id}/cancel`, { method: 'POST' }),
+  );
+  expect(res.status).toBe(400);
+  const body = await json(res);
+  expect(body.error.message).toContain('waiting');
+
+  await store.disconnect();
+});
+
+// ─── Queue Filter on Search ──────────────────────────────────────────
+
+test('GET /api/search respects queue filter for job search', async () => {
+  const { store, handler } = createHandler({ queues: ['allowed'] });
+  await store.connect();
+
+  const id = await store.saveJob('hidden', createJobData('hidden', 'secret', {}));
+
+  const res = await handler(new Request(`http://localhost/api/search?type=job&q=${id}`));
+  const body = await json(res);
+  expect(body.data).toBeNull();
+
+  await store.disconnect();
+});
+
+test('GET /api/search respects queue filter for queue search', async () => {
+  const { store, handler } = createHandler({ queues: ['allowed'] });
+  await store.connect();
+
+  await store.saveJob('allowed', createJobData('allowed', 'j1', {}));
+  await store.saveJob('hidden', createJobData('hidden', 'j1', {}));
+
+  const res = await handler(
+    new Request('http://localhost/api/search?type=queue&q=allowed'),
+  );
+  const body = await json(res);
+  expect(body.data.length).toBe(1);
+  expect(body.data[0].name).toBe('allowed');
+
+  await store.disconnect();
+});

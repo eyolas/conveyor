@@ -34,11 +34,10 @@ export function registerSearchRoutes(
 
     if (type === 'queue') {
       const queues = await store.listQueues();
-      const lowerQuery = query.toLowerCase();
       const filtered = queues
         .filter((q) => {
           if (filterQueues && !filterQueues.includes(q.name)) return false;
-          return q.name.toLowerCase().includes(lowerQuery);
+          return q.name.includes(query);
         });
       return jsonData(c, filtered);
     }

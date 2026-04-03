@@ -9,6 +9,8 @@ import type { StoreInterface } from '@conveyor/shared';
 import { assertJobState, createJobData } from '@conveyor/shared';
 import { jsonData, jsonError, jsonPaginated } from '../helpers.ts';
 
+const MAX_PAGE_SIZE = 1000;
+
 export function registerJobRoutes(app: Hono, apiBase: string, store: StoreInterface): void {
   const base = `${apiBase}/queues/:name/jobs`;
 
@@ -16,8 +18,11 @@ export function registerJobRoutes(app: Hono, apiBase: string, store: StoreInterf
   app.get(base, async (c) => {
     const queueName = c.req.param('name')!;
     const stateParam = c.req.query('state') ?? 'waiting';
-    const start = parseInt(c.req.query('start') ?? '0', 10);
-    const end = parseInt(c.req.query('end') ?? '100', 10);
+    const start = Math.max(0, parseInt(c.req.query('start') ?? '0', 10) || 0);
+    const end = Math.max(start, parseInt(c.req.query('end') ?? '100', 10) || 100);
+    if (end - start > MAX_PAGE_SIZE) {
+      return jsonError(c, 'BAD_REQUEST', `Page size too large (max ${MAX_PAGE_SIZE})`);
+    }
     const state = assertJobState(stateParam);
     const total = await store.countJobs(queueName, state);
     const jobs = await store.listJobs(queueName, state, start, end);
@@ -27,13 +32,13 @@ export function registerJobRoutes(app: Hono, apiBase: string, store: StoreInterf
   // POST /api/queues/:name/jobs — add a new job
   app.post(base, async (c) => {
     const queueName = c.req.param('name')!;
-    const body = await c.req.json() as {
+    const body = await c.req.json().catch(() => null) as {
       name: string;
       data?: unknown;
       opts?: Record<string, unknown>;
-    };
-    if (!body.name) {
-      return jsonError(c, 'BAD_REQUEST', 'name is required');
+    } | null;
+    if (!body || !body.name) {
+      return jsonError(c, 'BAD_REQUEST', 'Valid JSON with "name" field is required');
     }
     const jobData = createJobData(queueName, body.name, body.data ?? {}, body.opts);
     const id = await store.saveJob(queueName, jobData);
@@ -116,10 +121,12 @@ export function registerJobRoutes(app: Hono, apiBase: string, store: StoreInterf
   app.post(`${base}/:id/cancel`, async (c) => {
     const queueName = c.req.param('name')!;
     const jobId = c.req.param('id')!;
-    const cancelled = await store.cancelJob(queueName, jobId);
-    if (!cancelled) {
-      return jsonError(c, 'BAD_REQUEST', 'Job is not active or does not exist');
+    const job = await store.getJob(queueName, jobId);
+    if (!job) return jsonError(c, 'NOT_FOUND', `Job ${jobId} not found`, 404);
+    if (job.state !== 'active') {
+      return jsonError(c, 'BAD_REQUEST', `Cannot cancel job in state "${job.state}"`);
     }
+    await store.cancelJob(queueName, jobId);
     return jsonData(c, { cancelled: true });
   });
 
@@ -132,7 +139,13 @@ export function registerJobRoutes(app: Hono, apiBase: string, store: StoreInterf
     if (job.state === 'active') {
       return jsonError(c, 'BAD_REQUEST', 'Cannot edit an active job');
     }
-    const body = await c.req.json() as { data?: unknown; opts?: { priority?: number } };
+    const body = await c.req.json().catch(() => null) as {
+      data?: unknown;
+      opts?: { priority?: number };
+    } | null;
+    if (!body) {
+      return jsonError(c, 'BAD_REQUEST', 'Valid JSON body is required');
+    }
     const updates: Record<string, unknown> = {};
     if (body.data !== undefined) updates.data = body.data;
     if (body.opts?.priority !== undefined) {

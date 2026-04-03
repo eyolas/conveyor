@@ -71,9 +71,15 @@ export function registerQueueRoutes(
   // POST /api/queues/:name/clean
   app.post(`${apiBase}/queues/:name/clean`, async (c) => {
     const name = c.req.param('name')!;
-    const body = await c.req.json() as { state: string; grace: number };
-    if (!body.state || body.grace === undefined) {
-      return jsonError(c, 'BAD_REQUEST', 'state and grace are required');
+    const body = await c.req.json().catch(() => null) as {
+      state: string;
+      grace: number;
+    } | null;
+    if (!body || !body.state || body.grace === undefined) {
+      return jsonError(c, 'BAD_REQUEST', 'Valid JSON with "state" and "grace" fields is required');
+    }
+    if (typeof body.grace !== 'number' || body.grace < 0) {
+      return jsonError(c, 'BAD_REQUEST', 'grace must be a non-negative number (ms)');
     }
     const state = assertJobState(body.state);
     const removed = await store.clean(name, state, body.grace);
@@ -83,8 +89,8 @@ export function registerQueueRoutes(
   // POST /api/queues/:name/retry
   app.post(`${apiBase}/queues/:name/retry`, async (c) => {
     const name = c.req.param('name')!;
-    const body = await c.req.json() as { state: string };
-    if (body.state !== 'failed' && body.state !== 'completed') {
+    const body = await c.req.json().catch(() => null) as { state: string } | null;
+    if (!body || (body.state !== 'failed' && body.state !== 'completed')) {
       return jsonError(c, 'BAD_REQUEST', 'state must be "failed" or "completed"');
     }
     const retried = await store.retryJobs(name, body.state);

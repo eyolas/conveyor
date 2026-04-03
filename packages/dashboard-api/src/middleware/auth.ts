@@ -5,6 +5,7 @@
  */
 
 import type { MiddlewareHandler } from 'hono';
+import { jsonError } from '../helpers.ts';
 
 /**
  * Creates an auth middleware from a user-provided callback.
@@ -16,7 +17,7 @@ export function createAuthMiddleware(
   return async (c, next) => {
     const allowed = await authFn(c.req.raw);
     if (!allowed) {
-      return c.json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, 401);
+      return jsonError(c, 'UNAUTHORIZED', 'Authentication required', 401);
     }
     await next();
   };
