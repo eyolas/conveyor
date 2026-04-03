@@ -612,10 +612,13 @@ export class MemoryStore implements StoreInterface {
     const job = queue.get(jobId);
     if (!job || job.state !== 'active') return false;
 
-    queue.set(jobId, structuredClone({
-      ...job,
-      cancelledAt: new Date(),
-    }));
+    queue.set(
+      jobId,
+      structuredClone({
+        ...job,
+        cancelledAt: new Date(),
+      }),
+    );
 
     await this.publish({
       type: 'job:cancelled',

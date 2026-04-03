@@ -99,7 +99,9 @@ export function toNodeHandler(
       res.end();
     } catch {
       res.writeHead(500, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } }));
+      res.end(
+        JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } }),
+      );
     }
   };
 }

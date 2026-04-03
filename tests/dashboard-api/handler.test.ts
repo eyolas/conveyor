@@ -77,11 +77,13 @@ test('POST /api/queues/:name/pause pauses queue', async () => {
   const { store, handler } = createHandler();
   await store.connect();
 
-  const res = await handler(new Request('http://localhost/api/queues/q1/pause', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: '{}',
-  }));
+  const res = await handler(
+    new Request('http://localhost/api/queues/q1/pause', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    }),
+  );
   expect(res.status).toBe(200);
 
   const paused = await store.getPausedJobNames('q1');
@@ -95,11 +97,13 @@ test('POST /api/queues/:name/resume resumes queue', async () => {
   await store.connect();
 
   await store.pauseJobName('q1', '__all__');
-  await handler(new Request('http://localhost/api/queues/q1/resume', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: '{}',
-  }));
+  await handler(
+    new Request('http://localhost/api/queues/q1/resume', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    }),
+  );
 
   const paused = await store.getPausedJobNames('q1');
   expect(paused).not.toContain('__all__');
@@ -129,11 +133,13 @@ test('POST /api/queues/:name/retry retries failed jobs', async () => {
   const id = await store.saveJob('q1', createJobData('q1', 'j1', {}));
   await store.updateJob('q1', id, { state: 'failed', failedReason: 'oops' });
 
-  await handler(new Request('http://localhost/api/queues/q1/retry', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ state: 'failed' }),
-  }));
+  await handler(
+    new Request('http://localhost/api/queues/q1/retry', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state: 'failed' }),
+    }),
+  );
 
   const job = await store.getJob('q1', id);
   expect(job!.state).toBe('waiting');
@@ -176,11 +182,13 @@ test('POST /api/queues/:name/jobs adds a job', async () => {
   const { store, handler } = createHandler();
   await store.connect();
 
-  const res = await handler(new Request('http://localhost/api/queues/q1/jobs', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: 'new-job', data: { foo: 'bar' } }),
-  }));
+  const res = await handler(
+    new Request('http://localhost/api/queues/q1/jobs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'new-job', data: { foo: 'bar' } }),
+    }),
+  );
   expect(res.status).toBe(201);
 
   const body = await json(res);
@@ -222,9 +230,11 @@ test('POST /api/queues/:name/jobs/:id/retry retries a failed job', async () => {
   const id = await store.saveJob('q1', createJobData('q1', 'j1', {}));
   await store.updateJob('q1', id, { state: 'failed', failedReason: 'err' });
 
-  const res = await handler(new Request(`http://localhost/api/queues/q1/jobs/${id}/retry`, {
-    method: 'POST',
-  }));
+  const res = await handler(
+    new Request(`http://localhost/api/queues/q1/jobs/${id}/retry`, {
+      method: 'POST',
+    }),
+  );
   expect(res.status).toBe(200);
 
   const job = await store.getJob('q1', id);
@@ -240,9 +250,11 @@ test('POST /api/queues/:name/jobs/:id/cancel cancels active job', async () => {
   const id = await store.saveJob('q1', createJobData('q1', 'j1', {}));
   await store.fetchNextJob('q1', 'w1', 30_000);
 
-  const res = await handler(new Request(`http://localhost/api/queues/q1/jobs/${id}/cancel`, {
-    method: 'POST',
-  }));
+  const res = await handler(
+    new Request(`http://localhost/api/queues/q1/jobs/${id}/cancel`, {
+      method: 'POST',
+    }),
+  );
   expect(res.status).toBe(200);
 
   const job = await store.getJob('q1', id);
@@ -257,11 +269,13 @@ test('PATCH /api/queues/:name/jobs/:id edits job payload', async () => {
 
   const id = await store.saveJob('q1', createJobData('q1', 'j1', { old: true }));
 
-  const res = await handler(new Request(`http://localhost/api/queues/q1/jobs/${id}`, {
-    method: 'PATCH',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ data: { new: true } }),
-  }));
+  const res = await handler(
+    new Request(`http://localhost/api/queues/q1/jobs/${id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ data: { new: true } }),
+    }),
+  );
   expect(res.status).toBe(200);
 
   const body = await json(res);
@@ -276,9 +290,11 @@ test('DELETE /api/queues/:name/jobs/:id removes job', async () => {
 
   const id = await store.saveJob('q1', createJobData('q1', 'j1', {}));
 
-  await handler(new Request(`http://localhost/api/queues/q1/jobs/${id}`, {
-    method: 'DELETE',
-  }));
+  await handler(
+    new Request(`http://localhost/api/queues/q1/jobs/${id}`, {
+      method: 'DELETE',
+    }),
+  );
 
   const job = await store.getJob('q1', id);
   expect(job).toBeNull();
@@ -339,9 +355,11 @@ test('auth middleware rejects unauthenticated requests', async () => {
   const res = await handler(new Request('http://localhost/api/queues'));
   expect(res.status).toBe(401);
 
-  const authed = await handler(new Request('http://localhost/api/queues', {
-    headers: { Authorization: 'Bearer secret' },
-  }));
+  const authed = await handler(
+    new Request('http://localhost/api/queues', {
+      headers: { Authorization: 'Bearer secret' },
+    }),
+  );
   expect(authed.status).toBe(200);
 
   await store.disconnect();
@@ -358,15 +376,19 @@ test('read-only mode blocks mutations', async () => {
   expect(getRes.status).toBe(200);
 
   // POST should be blocked
-  const postRes = await handler(new Request('http://localhost/api/queues/q1/pause', {
-    method: 'POST',
-  }));
+  const postRes = await handler(
+    new Request('http://localhost/api/queues/q1/pause', {
+      method: 'POST',
+    }),
+  );
   expect(postRes.status).toBe(403);
 
   // DELETE should be blocked
-  const deleteRes = await handler(new Request('http://localhost/api/queues/q1', {
-    method: 'DELETE',
-  }));
+  const deleteRes = await handler(
+    new Request('http://localhost/api/queues/q1', {
+      method: 'DELETE',
+    }),
+  );
   expect(deleteRes.status).toBe(403);
 
   await store.disconnect();

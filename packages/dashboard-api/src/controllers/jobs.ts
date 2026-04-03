@@ -27,7 +27,11 @@ export function registerJobRoutes(app: Hono, apiBase: string, store: StoreInterf
   // POST /api/queues/:name/jobs — add a new job
   app.post(base, async (c) => {
     const queueName = c.req.param('name')!;
-    const body = await c.req.json() as { name: string; data?: unknown; opts?: Record<string, unknown> };
+    const body = await c.req.json() as {
+      name: string;
+      data?: unknown;
+      opts?: Record<string, unknown>;
+    };
     if (!body.name) {
       return jsonError(c, 'BAD_REQUEST', 'name is required');
     }

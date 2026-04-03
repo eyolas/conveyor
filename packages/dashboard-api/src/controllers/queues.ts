@@ -18,9 +18,7 @@ export function registerQueueRoutes(
   // GET /api/queues — list all queues
   app.get(`${apiBase}/queues`, async (c) => {
     const queues = await store.listQueues();
-    const filtered = filterQueues
-      ? queues.filter((q) => filterQueues.includes(q.name))
-      : queues;
+    const filtered = filterQueues ? queues.filter((q) => filterQueues.includes(q.name)) : queues;
     return jsonData(c, filtered);
   });
 
