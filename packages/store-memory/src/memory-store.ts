@@ -13,6 +13,7 @@ import type {
   FetchOptions,
   JobData,
   JobState,
+  QueueInfo,
   StoreEvent,
   StoreInterface,
   StoreOptions,
@@ -560,6 +561,71 @@ export class MemoryStore implements StoreInterface {
       }
     }
     return Promise.resolve(count);
+  }
+
+  // ─── Dashboard Methods ──────────────────────────────────────────
+
+  listQueues(): Promise<QueueInfo[]> {
+    const result: QueueInfo[] = [];
+
+    for (const [queueName, queue] of this.jobs) {
+      const counts: Record<JobState, number> = {
+        'waiting': 0,
+        'waiting-children': 0,
+        'delayed': 0,
+        'active': 0,
+        'completed': 0,
+        'failed': 0,
+      };
+
+      let latestActivity: Date | null = null;
+
+      for (const job of queue.values()) {
+        counts[job.state]++;
+        const ts = job.completedAt ?? job.failedAt ?? job.processedAt ?? job.createdAt;
+        if (ts && (latestActivity === null || ts.getTime() > latestActivity.getTime())) {
+          latestActivity = ts;
+        }
+      }
+
+      const pausedSet = this.pausedNames.get(queueName);
+      const isPaused = pausedSet?.has('__all__') ?? false;
+
+      result.push({ name: queueName, counts, isPaused, latestActivity });
+    }
+
+    return Promise.resolve(result);
+  }
+
+  findJobById(jobId: string): Promise<JobData | null> {
+    for (const queue of this.jobs.values()) {
+      const job = queue.get(jobId);
+      if (job) return Promise.resolve(structuredClone(job));
+    }
+    return Promise.resolve(null);
+  }
+
+  async cancelJob(queueName: string, jobId: string): Promise<boolean> {
+    const queue = this.getQueue(queueName);
+    const job = queue.get(jobId);
+    if (!job || job.state !== 'active') return false;
+
+    queue.set(
+      jobId,
+      structuredClone({
+        ...job,
+        cancelledAt: new Date(),
+      }),
+    );
+
+    await this.publish({
+      type: 'job:cancelled',
+      queueName,
+      jobId,
+      timestamp: new Date(),
+    });
+
+    return true;
   }
 
   // ─── Flow (Parent-Child) ─────────────────────────────────────────

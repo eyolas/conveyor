@@ -177,10 +177,10 @@ findJobById(jobId: string): Promise<JobData | null>;
 cancelJob(queueName: string, jobId: string): Promise<boolean>;
 ```
 
-- **`listQueues()`**: returns rich metadata to avoid N+1 queries from dashboard.
-  PG/SQLite: `GROUP BY queue_name, state` + paused check. Memory: iterate Map keys.
-- **`findJobById()`**: cross-queue job lookup by UUID. Needed for Cmd+K job search.
-  PG/SQLite: `SELECT * WHERE id = ? LIMIT 1`. Memory: iterate all maps.
+- **`listQueues()`**: returns rich metadata to avoid N+1 queries from dashboard. PG/SQLite:
+  `GROUP BY queue_name, state` + paused check. Memory: iterate Map keys.
+- **`findJobById()`**: cross-queue job lookup by UUID. Needed for Cmd+K job search. PG/SQLite:
+  `SELECT * WHERE id = ? LIMIT 1`. Memory: iterate all maps.
 - **`cancelJob()`**: set `cancelledAt` + publish `job:cancelled`. Worker detects and aborts.
 
 ### Phase 3 (optional — stores without metrics still work)
@@ -212,7 +212,7 @@ All routes under `{basePath}/api/`.
 
 | Method | Path                        | Description                         | Mutates |
 | ------ | --------------------------- | ----------------------------------- | ------- |
-| GET    | `/api/queues`               | List all queues (via `listQueues`) | No      |
+| GET    | `/api/queues`               | List all queues (via `listQueues`)  | No      |
 | GET    | `/api/queues/:name`         | Queue detail (counts, paused names) | No      |
 | POST   | `/api/queues/:name/pause`   | Pause queue `{ jobName? }`          | Yes     |
 | POST   | `/api/queues/:name/resume`  | Resume queue `{ jobName? }`         | Yes     |
@@ -224,29 +224,29 @@ All routes under `{basePath}/api/`.
 
 ### Job Endpoints
 
-| Method | Path                                  | Description                         | Mutates |
-| ------ | ------------------------------------- | ----------------------------------- | ------- |
-| GET    | `/api/queues/:name/jobs`              | List `?state=&start=&end=&name=`    | No      |
-| GET    | `/api/queues/:name/jobs/:id`          | Job detail (data, logs, stacktrace) | No      |
-| GET    | `/api/queues/:name/jobs/:id/children` | Flow children                       | No      |
-| POST   | `/api/queues/:name/jobs`              | Add job `{ name, data, opts? }`     | Yes     |
-| POST   | `/api/queues/:name/jobs/:id/retry`    | Retry single job                    | Yes     |
-| POST   | `/api/queues/:name/jobs/:id/promote`  | Promote delayed job                 | Yes     |
-| POST   | `/api/queues/:name/jobs/:id/cancel`   | Cancel active job                   | Yes     |
-| PATCH  | `/api/queues/:name/jobs/:id`          | Edit `{ data?, opts?: { priority? } }` | Yes  |
-| DELETE | `/api/queues/:name/jobs/:id`          | Remove job                          | Yes     |
+| Method | Path                                  | Description                            | Mutates |
+| ------ | ------------------------------------- | -------------------------------------- | ------- |
+| GET    | `/api/queues/:name/jobs`              | List `?state=&start=&end=&name=`       | No      |
+| GET    | `/api/queues/:name/jobs/:id`          | Job detail (data, logs, stacktrace)    | No      |
+| GET    | `/api/queues/:name/jobs/:id/children` | Flow children                          | No      |
+| POST   | `/api/queues/:name/jobs`              | Add job `{ name, data, opts? }`        | Yes     |
+| POST   | `/api/queues/:name/jobs/:id/retry`    | Retry single job                       | Yes     |
+| POST   | `/api/queues/:name/jobs/:id/promote`  | Promote delayed job                    | Yes     |
+| POST   | `/api/queues/:name/jobs/:id/cancel`   | Cancel active job                      | Yes     |
+| PATCH  | `/api/queues/:name/jobs/:id`          | Edit `{ data?, opts?: { priority? } }` | Yes     |
+| DELETE | `/api/queues/:name/jobs/:id`          | Remove job                             | Yes     |
 
 ### Search Endpoint
 
-| Method | Path                       | Description                                  |
-| ------ | -------------------------- | -------------------------------------------- |
-| GET    | `/api/search`              | Cross-queue search `?q=&type=job\|queue`     |
+| Method | Path          | Description                              |
+| ------ | ------------- | ---------------------------------------- |
+| GET    | `/api/search` | Cross-queue search `?q=&type=job\|queue` |
 
 ### Metrics Endpoints (Phase 3)
 
-| Method | Path                           | Description                                       |
-| ------ | ------------------------------ | ------------------------------------------------- |
-| GET    | `/api/queues/:name/metrics`    | Metrics `?granularity=minute\|hour&from=&to=`     |
+| Method | Path                        | Description                                   |
+| ------ | --------------------------- | --------------------------------------------- |
+| GET    | `/api/queues/:name/metrics` | Metrics `?granularity=minute\|hour&from=&to=` |
 
 ### SSE Endpoints
 
@@ -292,8 +292,8 @@ Metrics recorded **inside the store**, in `updateJob()`, when a job transitions 
 
 - **Minute granularity**: 24 hours (1440 buckets max per queue)
 - **Hour granularity**: 30 days
-- **Aggregation**: `aggregateMetrics()` called every 5 minutes by dashboard API (setInterval).
-  Rolls up minute → hour, purges expired data.
+- **Aggregation**: `aggregateMetrics()` called every 5 minutes by dashboard API (setInterval). Rolls
+  up minute → hour, purges expired data.
 
 ### Table
 
@@ -330,6 +330,7 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 ## Phase 1: `@conveyor/dashboard-api` + StoreInterface (Foundation)
 
 **StoreInterface additions (in `@conveyor/shared`):**
+
 - [ ] Add `QueueInfo` type to `types.ts`
 - [ ] Add `listQueues(): Promise<QueueInfo[]>` to `StoreInterface`
 - [ ] Add `findJobById(jobId: string): Promise<JobData | null>` to `StoreInterface`
@@ -338,6 +339,7 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 - [ ] Add conformance tests for `listQueues()`, `findJobById()`, `cancelJob()`
 
 **dashboard-api package:**
+
 - [ ] Package setup (`deno.json`, workspace config, `mod.ts`)
 - [ ] `createDashboardHandler()` with Hono internal router
 - [ ] Queue controllers (list, detail, pause/resume/drain/clean/retry/promote/obliterate)
@@ -357,11 +359,13 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 ## Phase 2: `@conveyor/dashboard` (UI)
 
 **Package setup:**
+
 - [ ] `packages/dashboard/deno.json`, add to workspace
 - [ ] `src/mod.ts`: re-exports dashboard-api + serves UI assets
 - [ ] `src/assets.ts`: static file serving + SPA fallback routing
 
 **UI application:**
+
 - [ ] Preact + Vite + Tailwind CSS setup
 - [ ] API client fetch wrapper with base path support
 - [ ] SSE hook (`useSSE`) with auto-reconnection
@@ -382,6 +386,7 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 ## Phase 3: Metrics
 
 **StoreInterface:**
+
 - [ ] Add `MetricsBucket`, `MetricsQueryOptions` types
 - [ ] Add optional `getMetrics()` and `aggregateMetrics()` to `StoreInterface`
 - [ ] Migration v8: create `conveyor_metrics` table (PG + SQLite)
@@ -390,10 +395,12 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 - [ ] Conformance tests for metrics
 
 **dashboard-api:**
+
 - [ ] Metrics controller: `GET /api/queues/:name/metrics`
 - [ ] Aggregation timer in `createDashboardHandler()` (5min interval)
 
 **UI:**
+
 - [ ] Sparkline component (inline on queue cards)
 - [ ] Queue detail metrics tab: throughput + processing time charts
 - [ ] Time range selector (1h, 6h, 24h, 7d, 30d)
@@ -412,17 +419,17 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 
 ## Key Files to Modify
 
-| File                            | Change                                                                 |
-| ------------------------------- | ---------------------------------------------------------------------- |
-| `/deno.json`                    | Add `./packages/dashboard-api` and `./packages/dashboard` to workspace |
-| `packages/shared/src/types.ts`  | `QueueInfo`, `listQueues()`, `findJobById()`, `cancelJob()`, metrics   |
-| `packages/store-memory/src/memory-store.ts` | Implement new StoreInterface methods                     |
-| `packages/store-pg/src/pg-store.ts`         | Implement new methods + metrics recording                |
-| `packages/store-sqlite-core/src/sqlite-store.ts` | Implement new methods + metrics recording          |
-| `tests/conformance/store.test.ts` | Conformance tests for new methods                                    |
-| `/tasks/status.yml`             | Update web-dashboard status                                            |
-| New: `packages/dashboard-api/`  | Entire new package                                                     |
-| New: `packages/dashboard/`      | Entire new package                                                     |
+| File                                             | Change                                                                 |
+| ------------------------------------------------ | ---------------------------------------------------------------------- |
+| `/deno.json`                                     | Add `./packages/dashboard-api` and `./packages/dashboard` to workspace |
+| `packages/shared/src/types.ts`                   | `QueueInfo`, `listQueues()`, `findJobById()`, `cancelJob()`, metrics   |
+| `packages/store-memory/src/memory-store.ts`      | Implement new StoreInterface methods                                   |
+| `packages/store-pg/src/pg-store.ts`              | Implement new methods + metrics recording                              |
+| `packages/store-sqlite-core/src/sqlite-store.ts` | Implement new methods + metrics recording                              |
+| `tests/conformance/store.test.ts`                | Conformance tests for new methods                                      |
+| `/tasks/status.yml`                              | Update web-dashboard status                                            |
+| New: `packages/dashboard-api/`                   | Entire new package                                                     |
+| New: `packages/dashboard/`                       | Entire new package                                                     |
 
 ## Verification
 
@@ -461,8 +468,8 @@ group maxSize checks, and event publishing.
 
 ### Cancel Active Job
 
-`cancelJob()` on StoreInterface sets `cancelledAt` and publishes `job:cancelled`. The Worker
-detects cancellation via the existing event system and aborts the active job's `AbortController`.
+`cancelJob()` on StoreInterface sets `cancelledAt` and publishes `job:cancelled`. The Worker detects
+cancellation via the existing event system and aborts the active job's `AbortController`.
 
 ### Metrics are Optional
 

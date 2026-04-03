@@ -2,6 +2,7 @@ import type {
   FetchOptions,
   JobData,
   JobState,
+  QueueInfo,
   StoreEvent,
   StoreInterface,
   StoreOptions,
@@ -746,6 +747,90 @@ export class PgStore implements StoreInterface {
       RETURNING id
     `;
     return rows.length;
+  }
+
+  // ─── Dashboard Methods ──────────────────────────────────────────
+
+  async listQueues(): Promise<QueueInfo[]> {
+    const rows = await this.sql<{ queue_name: string; state: string; count: number }[]>`
+      SELECT queue_name, state, COUNT(*)::int AS count
+      FROM conveyor_jobs
+      GROUP BY queue_name, state
+      ORDER BY queue_name
+    `;
+
+    const latestRows = await this.sql<{ queue_name: string; latest: Date }[]>`
+      SELECT queue_name,
+        GREATEST(
+          MAX(COALESCE(completed_at, created_at)),
+          MAX(COALESCE(failed_at, created_at)),
+          MAX(COALESCE(processed_at, created_at)),
+          MAX(created_at)
+        ) AS latest
+      FROM conveyor_jobs
+      GROUP BY queue_name
+    `;
+
+    const pausedRows = await this.sql<{ queue_name: string }[]>`
+      SELECT DISTINCT queue_name FROM conveyor_paused_names
+      WHERE job_name = '__all__'
+    `;
+
+    const latestMap = new Map(latestRows.map((r) => [r.queue_name, new Date(r.latest)]));
+    const pausedSet = new Set(pausedRows.map((r) => r.queue_name));
+
+    const queueMap = new Map<string, Record<JobState, number>>();
+    for (const row of rows) {
+      if (!queueMap.has(row.queue_name)) {
+        queueMap.set(row.queue_name, {
+          'waiting': 0,
+          'waiting-children': 0,
+          'delayed': 0,
+          'active': 0,
+          'completed': 0,
+          'failed': 0,
+        });
+      }
+      queueMap.get(row.queue_name)![assertJobState(row.state)] = row.count;
+    }
+
+    const result: QueueInfo[] = [];
+    for (const [name, counts] of queueMap) {
+      result.push({
+        name,
+        counts,
+        isPaused: pausedSet.has(name),
+        latestActivity: latestMap.get(name) ?? null,
+      });
+    }
+    return result;
+  }
+
+  async findJobById(jobId: string): Promise<JobData | null> {
+    const rows = await this.sql<JobRow[]>`
+      SELECT * FROM conveyor_jobs WHERE id = ${jobId} LIMIT 1
+    `;
+    if (rows.length === 0) return null;
+    return rowToJobData(rows[0]!);
+  }
+
+  async cancelJob(queueName: string, jobId: string): Promise<boolean> {
+    const now = new Date();
+    const rows = await this.sql`
+      UPDATE conveyor_jobs
+      SET cancelled_at = ${now}
+      WHERE queue_name = ${queueName} AND id = ${jobId} AND state = 'active'
+      RETURNING id
+    `;
+    if (rows.length === 0) return false;
+
+    await this.publish({
+      type: 'job:cancelled',
+      queueName,
+      jobId,
+      timestamp: now,
+    });
+    return true;
   }
 
   // ─── Flow (Parent-Child) ─────────────────────────────────────────

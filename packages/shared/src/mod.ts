@@ -25,6 +25,7 @@ export type {
   LimiterOptions,
   PauseOptions,
   QueueEventType,
+  QueueInfo,
   QueueOptions,
   RepeatOptions,
   ScheduleDelay,

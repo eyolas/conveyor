@@ -101,6 +101,9 @@ jobs:
       - name: Run SQLite tests (Deno)
         run: deno -A npm:vitest run --config vitest.sqlite.config.ts tests/store-sqlite-deno/
 
+      - name: Run dashboard-api tests
+        run: deno -A npm:vitest run --config vitest.dashboard-api.config.ts tests/dashboard-api/
+
   test-node:
     name: Tests (Node.js ${{ matrix.node-version }})
     runs-on: ubuntu-latest

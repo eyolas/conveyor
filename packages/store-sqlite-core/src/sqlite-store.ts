@@ -9,6 +9,7 @@ import type {
   FetchOptions,
   JobData,
   JobState,
+  QueueInfo,
   StoreEvent,
   StoreInterface,
   StoreOptions,
@@ -789,6 +790,92 @@ export class BaseSqliteStore implements StoreInterface {
       return result.changes;
     });
     return Promise.resolve(Number(changes));
+  }
+
+  // ─── Dashboard Methods ──────────────────────────────────────────
+
+  listQueues(): Promise<QueueInfo[]> {
+    const rows = this.db.prepare(`
+      SELECT queue_name, state, COUNT(*) AS count
+      FROM conveyor_jobs
+      GROUP BY queue_name, state
+      ORDER BY queue_name
+    `).all() as Array<{ queue_name: string; state: string; count: number | bigint }>;
+
+    const latestRows = this.db.prepare(`
+      SELECT queue_name,
+        MAX(
+          MAX(COALESCE(completed_at, created_at)),
+          MAX(COALESCE(failed_at, created_at)),
+          MAX(COALESCE(processed_at, created_at)),
+          MAX(created_at)
+        ) AS latest
+      FROM conveyor_jobs
+      GROUP BY queue_name
+    `).all() as Array<{ queue_name: string; latest: number | null }>;
+
+    const pausedRows = this.db.prepare(`
+      SELECT DISTINCT queue_name FROM conveyor_paused_names
+      WHERE job_name = '__all__'
+    `).all() as Array<{ queue_name: string }>;
+
+    const latestMap = new Map(
+      latestRows.map((r) => [r.queue_name, r.latest ? new Date(r.latest) : null]),
+    );
+    const pausedSet = new Set(pausedRows.map((r) => r.queue_name));
+
+    const queueMap = new Map<string, Record<JobState, number>>();
+    for (const row of rows) {
+      if (!queueMap.has(row.queue_name)) {
+        queueMap.set(row.queue_name, {
+          'waiting': 0,
+          'waiting-children': 0,
+          'delayed': 0,
+          'active': 0,
+          'completed': 0,
+          'failed': 0,
+        });
+      }
+      queueMap.get(row.queue_name)![assertJobState(row.state)] = Number(row.count);
+    }
+
+    const result: QueueInfo[] = [];
+    for (const [name, counts] of queueMap) {
+      result.push({
+        name,
+        counts,
+        isPaused: pausedSet.has(name),
+        latestActivity: latestMap.get(name) ?? null,
+      });
+    }
+    return Promise.resolve(result);
+  }
+
+  findJobById(jobId: string): Promise<JobData | null> {
+    const row = this.db.prepare(
+      'SELECT * FROM conveyor_jobs WHERE id = ? LIMIT 1',
+    ).get(jobId) as JobRow | undefined;
+    if (!row) return Promise.resolve(null);
+    return Promise.resolve(rowToJobData(row));
+  }
+
+  async cancelJob(queueName: string, jobId: string): Promise<boolean> {
+    const now = Date.now();
+    const result = this.db.prepare(`
+      UPDATE conveyor_jobs
+      SET cancelled_at = ?
+      WHERE queue_name = ? AND id = ? AND state = 'active'
+    `).run(now, queueName, jobId);
+
+    if (Number(result.changes) === 0) return false;
+
+    await this.publish({
+      type: 'job:cancelled',
+      queueName,
+      jobId,
+      timestamp: new Date(now),
+    });
+    return true;
   }
 
   // ─── Flow (Parent-Child) ─────────────────────────────────────────

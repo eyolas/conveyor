@@ -13,6 +13,7 @@ export default defineConfig({
       'tests/store-sqlite-node/**',
       'tests/store-sqlite-bun/**',
       'tests/store-sqlite-deno/**',
+      'tests/dashboard-api/**',
     ],
     testTimeout: 30_000,
     fileParallelism: false,
@@ -27,6 +28,7 @@ export default defineConfig({
       '@conveyor/store-sqlite-node': resolve(root, 'packages/store-sqlite-node/src/mod.ts'),
       '@conveyor/store-sqlite-bun': resolve(root, 'packages/store-sqlite-bun/src/mod.ts'),
       '@conveyor/store-sqlite-deno': resolve(root, 'packages/store-sqlite-deno/src/mod.ts'),
+      '@conveyor/dashboard-api': resolve(root, 'packages/dashboard-api/src/mod.ts'),
     },
   },
 });

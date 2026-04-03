@@ -8,9 +8,11 @@
     "./packages/store-sqlite-core",
     "./packages/store-sqlite-node",
     "./packages/store-sqlite-bun",
-    "./packages/store-sqlite-deno"
+    "./packages/store-sqlite-deno",
+    "./packages/dashboard-api"
   ],
   "imports": {
+    "@conveyor/dashboard-api": "./packages/dashboard-api/src/mod.ts",
     "@conveyor/core": "./packages/core/src/mod.ts",
     "@conveyor/shared": "./packages/shared/src/mod.ts",
     "@conveyor/store-memory": "./packages/store-memory/src/mod.ts",
@@ -31,6 +33,7 @@
     "test:sqlite:node": "deno -A npm:vitest run --config vitest.sqlite.config.ts tests/store-sqlite-node/",
     "test:sqlite:bun": "bun test tests/store-sqlite-bun/",
     "test:sqlite:deno": "deno -A npm:vitest run --config vitest.sqlite.config.ts tests/store-sqlite-deno/",
+    "test:dashboard-api": "deno -A npm:vitest run --config vitest.dashboard-api.config.ts tests/dashboard-api/",
     "bench": "deno bench --allow-env --allow-read --allow-write benchmarks/",
     "bench:report": "deno run --allow-run --allow-write --allow-read --allow-env benchmarks/generate-report.ts",
     "lint": "deno lint",
