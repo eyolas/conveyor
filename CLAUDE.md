@@ -225,7 +225,7 @@ Redis store, Cloudflare D1, dead letter queue.
 ### Verification Before Done
 
 - Never mark a task complete without proving it works
-- Run tests, check logs, demonstrate correctness
+- Run tests, `deno task check` (type-check), and `deno task lint` before marking complete
 - Ask: "Would a staff engineer approve this?"
 
 ### Demand Elegance (Balanced)
