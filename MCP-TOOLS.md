@@ -63,13 +63,13 @@ claudette visualize  # Generate interactive HTML graph visualization
 
 ### MCP Tools Available in Claude Code
 
-| Tool                 | Usage                                                  |
-| -------------------- | ------------------------------------------------------ |
-| `build_or_update_graph` | Initialize or refresh the graph                     |
-| `query_graph`        | Find callers, callees, importers, children, tests      |
-| `get_impact_radius`  | Analyze blast radius of changed files before refactors |
-| `get_review_context` | Generate focused review context for PRs                |
-| `semantic_search_nodes` | Search for code entities by name or keyword         |
+| Tool                    | Usage                                                  |
+| ----------------------- | ------------------------------------------------------ |
+| `build_or_update_graph` | Initialize or refresh the graph                        |
+| `query_graph`           | Find callers, callees, importers, children, tests      |
+| `get_impact_radius`     | Analyze blast radius of changed files before refactors |
+| `get_review_context`    | Generate focused review context for PRs                |
+| `semantic_search_nodes` | Search for code entities by name or keyword            |
 
 ## Context7 (Library Documentation)
 
