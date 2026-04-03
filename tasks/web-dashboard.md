@@ -27,6 +27,11 @@ Express, Hono, Fastify, AdonisJS, Koa, NestJS, Fresh, Deno.serve, Bun.serve, etc
 | Adapters        | `toNodeHandler()` only   | All Node.js frameworks use IncomingMessage/ServerResponse underneath |
 | UI tech         | Preact + Vite + Tailwind | 3KB, React-compatible, familiar ecosystem                            |
 | Package split   | Two packages             | API-only users don't download UI bundle                              |
+| Layout          | Collapsible sidebar      | BullBoard-inspired but scales better with many queues                |
+| Navigation      | Cmd+K command palette    | Fast queue/job search + quick actions without deep navigation        |
+| Theme           | Dark/light + system pref | Clean, clear aesthetic                                               |
+| Metrics storage | Store-side table         | Persistent historical data, aggregated per minute/hour               |
+| Queue discovery | `listQueues()` on store  | Auto-discovery, no explicit queue list needed                        |
 
 ---
 
@@ -42,8 +47,10 @@ packages/
       handler.ts                # createDashboardHandler() — Hono app → app.fetch
       controllers/
         queues.ts               # Queue CRUD + pause/resume/drain/clean
-        jobs.ts                 # Job CRUD + retry/promote/remove
+        jobs.ts                 # Job CRUD + retry/promote/remove/cancel/edit
         events.ts               # SSE streaming via store.subscribe()
+        search.ts               # Cross-queue search (job by ID, queue by name)
+        metrics.ts              # Metrics query endpoint (Phase 3)
       adapters/
         node.ts                 # toNodeHandler() — IncomingMessage/ServerResponse adapter
       middleware/
@@ -61,9 +68,14 @@ packages/
           home.tsx              # Queue overview grid
           queue.tsx             # Queue detail + job table
           job.tsx               # Job detail view
-        components/             # Shared UI components
+        components/
+          sidebar.tsx           # Collapsible queue list with search
+          command-palette.tsx   # Cmd+K: queue search, job ID lookup, quick actions
+          sparkline.tsx         # Inline throughput chart (Phase 3)
+          theme-toggle.tsx      # Dark/light mode switch
         hooks/
-          use-sse.ts            # SSE EventSource hook
+          use-sse.ts            # SSE EventSource hook with reconnection
+          use-theme.ts          # Theme preference hook (system + manual)
         api/
           client.ts             # Fetch wrapper for dashboard API
       index.html
@@ -80,7 +92,7 @@ packages/
 interface DashboardOptions {
   store: StoreInterface; // Same store instance used by Queue/Worker
   basePath?: string; // Mount point (e.g., '/admin'). Default: '/'
-  queues?: string[]; // Explicit queue names to expose
+  queues?: string[]; // Filter: only show these queues (default: all via listQueues)
   readOnly?: boolean; // Disable mutations. Default: false
   auth?: (req: Request) => boolean | Promise<boolean>; // Optional auth
   serveUI?: boolean; // Serve bundled SPA. Default: true
@@ -95,11 +107,17 @@ function toNodeHandler(handler: DashboardHandler): (req, res) => void;
 ### Framework Usage Examples
 
 ```typescript
-// Hono (Web Standard native)
+// Deno.serve (Web Standard native)
+Deno.serve((req) => handler(req));
+
+// Bun.serve (Web Standard native)
+Bun.serve({ fetch: handler });
+
+// Hono
 app.all('/admin/*', (c) => handler(c.req.raw));
 
-// Deno.serve
-Deno.serve((req) => handler(req));
+// Elysia (Bun)
+app.all('/admin/*', ({ request }) => handler(request));
 
 // Express (via toNodeHandler)
 app.use('/admin', toNodeHandler(handler));
@@ -112,6 +130,76 @@ router.any(
   '/admin/*',
   ({ request, response }) => toNodeHandler(handler)(request.request, response.response),
 );
+
+// NestJS (via Express adapter)
+app.use('/admin', toNodeHandler(handler));
+```
+
+### Auth Examples
+
+```typescript
+// JWT
+createDashboardHandler({
+  store,
+  auth: (req) => verifyJWT(req.headers.get('Authorization')),
+});
+
+// Basic auth
+createDashboardHandler({
+  store,
+  auth: (req) => {
+    const [user, pass] = atob(req.headers.get('Authorization')?.split(' ')[1] ?? '').split(':');
+    return user === 'admin' && pass === process.env.DASHBOARD_PASSWORD;
+  },
+});
+
+// Read-only monitoring (no mutations allowed)
+createDashboardHandler({ store, readOnly: true, auth: (req) => verifyToken(req) });
+```
+
+---
+
+## StoreInterface — New Methods
+
+### Phase 1 (required)
+
+```typescript
+interface QueueInfo {
+  name: string;
+  counts: Record<JobState, number>;
+  isPaused: boolean;
+  latestActivity: Date | null;
+}
+
+// New methods on StoreInterface
+listQueues(): Promise<QueueInfo[]>;
+findJobById(jobId: string): Promise<JobData | null>;
+cancelJob(queueName: string, jobId: string): Promise<boolean>;
+```
+
+- **`listQueues()`**: returns rich metadata to avoid N+1 queries from dashboard.
+  PG/SQLite: `GROUP BY queue_name, state` + paused check. Memory: iterate Map keys.
+- **`findJobById()`**: cross-queue job lookup by UUID. Needed for Cmd+K job search.
+  PG/SQLite: `SELECT * WHERE id = ? LIMIT 1`. Memory: iterate all maps.
+- **`cancelJob()`**: set `cancelledAt` + publish `job:cancelled`. Worker detects and aborts.
+
+### Phase 3 (optional — stores without metrics still work)
+
+```typescript
+interface MetricsBucket {
+  queueName: string;
+  jobName: string;
+  periodStart: Date;
+  granularity: 'minute' | 'hour';
+  completedCount: number;
+  failedCount: number;
+  avgProcessMs: number;
+  minProcessMs: number | null;
+  maxProcessMs: number | null;
+}
+
+getMetrics?(queueName: string, options: MetricsQueryOptions): Promise<MetricsBucket[]>;
+aggregateMetrics?(): Promise<void>;
 ```
 
 ---
@@ -124,7 +212,7 @@ All routes under `{basePath}/api/`.
 
 | Method | Path                        | Description                         | Mutates |
 | ------ | --------------------------- | ----------------------------------- | ------- |
-| GET    | `/api/queues`               | List all queues + counts per state  | No      |
+| GET    | `/api/queues`               | List all queues (via `listQueues`) | No      |
 | GET    | `/api/queues/:name`         | Queue detail (counts, paused names) | No      |
 | POST   | `/api/queues/:name/pause`   | Pause queue `{ jobName? }`          | Yes     |
 | POST   | `/api/queues/:name/resume`  | Resume queue `{ jobName? }`         | Yes     |
@@ -138,12 +226,27 @@ All routes under `{basePath}/api/`.
 
 | Method | Path                                  | Description                         | Mutates |
 | ------ | ------------------------------------- | ----------------------------------- | ------- |
-| GET    | `/api/queues/:name/jobs`              | List `?state=&start=&end=`          | No      |
+| GET    | `/api/queues/:name/jobs`              | List `?state=&start=&end=&name=`    | No      |
 | GET    | `/api/queues/:name/jobs/:id`          | Job detail (data, logs, stacktrace) | No      |
 | GET    | `/api/queues/:name/jobs/:id/children` | Flow children                       | No      |
+| POST   | `/api/queues/:name/jobs`              | Add job `{ name, data, opts? }`     | Yes     |
 | POST   | `/api/queues/:name/jobs/:id/retry`    | Retry single job                    | Yes     |
 | POST   | `/api/queues/:name/jobs/:id/promote`  | Promote delayed job                 | Yes     |
+| POST   | `/api/queues/:name/jobs/:id/cancel`   | Cancel active job                   | Yes     |
+| PATCH  | `/api/queues/:name/jobs/:id`          | Edit `{ data?, opts?: { priority? } }` | Yes  |
 | DELETE | `/api/queues/:name/jobs/:id`          | Remove job                          | Yes     |
+
+### Search Endpoint
+
+| Method | Path                       | Description                                  |
+| ------ | -------------------------- | -------------------------------------------- |
+| GET    | `/api/search`              | Cross-queue search `?q=&type=job\|queue`     |
+
+### Metrics Endpoints (Phase 3)
+
+| Method | Path                           | Description                                       |
+| ------ | ------------------------------ | ------------------------------------------------- |
+| GET    | `/api/queues/:name/metrics`    | Metrics `?granularity=minute\|hour&from=&to=`     |
 
 ### SSE Endpoints
 
@@ -162,53 +265,148 @@ All routes under `{basePath}/api/`.
 
 ---
 
-## UI Pages
+## Cmd+K Command Palette
 
-1. **Dashboard home** (`/`) — Grid of queue cards (name, state counts, sparkline, pause/resume)
-2. **Queue detail** (`/queues/:name`) — Tabs per state, job table, pagination, bulk actions
-3. **Job detail** (`/queues/:name/jobs/:id`) — Payload JSON viewer, logs, stacktrace, timeline,
-   parent/children links
-
-Real-time updates via SSE `EventSource` in the browser.
+- **Queue search**: client-side fuzzy filter on loaded `listQueues()` results
+- **Job ID search**: calls `GET /api/search?type=job&q=<id>`, navigates to job detail
+- **Quick actions**: purely frontend, maps to existing mutation endpoints
+  - Contextual when a queue is selected (pause, resume, retry all failed, drain)
+  - Global (navigate to queue, search job)
+- **Shortcut**: `Cmd+K` / `Ctrl+K`
+- **No dedicated backend endpoint**: reuses `/api/search` + existing endpoints
 
 ---
 
-## Phase 1: `@conveyor/dashboard-api` (MVP)
+## Metrics Architecture (Phase 3)
 
+### Collection
+
+Metrics recorded **inside the store**, in `updateJob()`, when a job transitions to `completed` or
+`failed`. Transparent to core — no changes needed.
+
+- PG: `INSERT INTO conveyor_metrics ... ON CONFLICT DO UPDATE` (atomic upsert in same transaction)
+- SQLite: same upsert pattern within `BEGIN IMMEDIATE` transaction
+- Memory: `Map<string, MetricsBucket[]>`
+
+### Retention
+
+- **Minute granularity**: 24 hours (1440 buckets max per queue)
+- **Hour granularity**: 30 days
+- **Aggregation**: `aggregateMetrics()` called every 5 minutes by dashboard API (setInterval).
+  Rolls up minute → hour, purges expired data.
+
+### Table
+
+```sql
+CREATE TABLE conveyor_metrics (
+  queue_name       TEXT NOT NULL,
+  job_name         TEXT NOT NULL DEFAULT '__all__',
+  period_start     TIMESTAMPTZ NOT NULL,
+  granularity      TEXT NOT NULL,  -- 'minute' | 'hour'
+  completed_count  INTEGER NOT NULL DEFAULT 0,
+  failed_count     INTEGER NOT NULL DEFAULT 0,
+  total_process_ms BIGINT NOT NULL DEFAULT 0,
+  min_process_ms   INTEGER,
+  max_process_ms   INTEGER,
+  PRIMARY KEY (queue_name, job_name, period_start, granularity)
+);
+```
+
+---
+
+## UI Pages
+
+1. **Dashboard home** (`/`) — Collapsible sidebar with queue list + search. Main area: queue cards
+   grid (name, state counts, pause/resume toggle, sparkline in Phase 3)
+2. **Queue detail** (`/queues/:name`) — Tabs per state, job table with pagination, bulk actions
+   header, metrics tab (Phase 3)
+3. **Job detail** (`/queues/:name/jobs/:id`) — Payload JSON viewer (collapsible tree), logs,
+   stacktrace, timeline, parent/children links, action buttons (retry, promote, remove, cancel)
+
+Dark/light mode with system preference detection. Real-time updates via SSE `EventSource`.
+
+---
+
+## Phase 1: `@conveyor/dashboard-api` + StoreInterface (Foundation)
+
+**StoreInterface additions (in `@conveyor/shared`):**
+- [ ] Add `QueueInfo` type to `types.ts`
+- [ ] Add `listQueues(): Promise<QueueInfo[]>` to `StoreInterface`
+- [ ] Add `findJobById(jobId: string): Promise<JobData | null>` to `StoreInterface`
+- [ ] Add `cancelJob(queueName: string, jobId: string): Promise<boolean>` to `StoreInterface`
+- [ ] Implement in MemoryStore, PgStore, BaseSqliteStore
+- [ ] Add conformance tests for `listQueues()`, `findJobById()`, `cancelJob()`
+
+**dashboard-api package:**
 - [ ] Package setup (`deno.json`, workspace config, `mod.ts`)
 - [ ] `createDashboardHandler()` with Hono internal router
 - [ ] Queue controllers (list, detail, pause/resume/drain/clean/retry/promote/obliterate)
-- [ ] Job controllers (list, detail, children, retry/promote/remove)
+- [ ] Job controllers (list, detail, children, retry/promote/remove/cancel/edit)
+- [ ] Job add controller (`POST /api/queues/:name/jobs`) — extract logic from `Queue.add()` into
+      shared utility
+- [ ] Search controller (`GET /api/search` — job by ID cross-queue, queue by name)
 - [ ] SSE streaming controller (per-queue + all-queues)
 - [ ] `toNodeHandler()` adapter with streaming support (critical for SSE)
 - [ ] Auth middleware hook
 - [ ] Read-only mode middleware
-- [ ] Base path support
 - [ ] CORS middleware
+- [ ] Base path support
 - [ ] Response envelope helpers (data/error format)
-- [ ] Tests with MemoryStore (controllers, SSE, auth, read-only, adapter)
-- [ ] Requires explicit `queues` list (no auto-discovery)
+- [ ] Tests with MemoryStore (controllers, SSE, auth, read-only, adapter, search)
 
 ## Phase 2: `@conveyor/dashboard` (UI)
 
-- [ ] Preact SPA setup (Vite + Tailwind)
-- [ ] Dashboard home page (queue cards + live counts)
-- [ ] Queue detail page (job table + tabs + pagination)
-- [ ] Job detail page (payload, logs, stacktrace, timeline)
-- [ ] SSE integration (`useSSE` hook for live updates)
-- [ ] Mutation actions in UI (pause, resume, retry, remove)
-- [ ] Static asset serving + SPA fallback routing
-- [ ] Package setup (re-exports dashboard-api + UI bundle)
-- [ ] Build pipeline (Vite → dist/)
+**Package setup:**
+- [ ] `packages/dashboard/deno.json`, add to workspace
+- [ ] `src/mod.ts`: re-exports dashboard-api + serves UI assets
+- [ ] `src/assets.ts`: static file serving + SPA fallback routing
 
-## Phase 3: Enhanced
+**UI application:**
+- [ ] Preact + Vite + Tailwind CSS setup
+- [ ] API client fetch wrapper with base path support
+- [ ] SSE hook (`useSSE`) with auto-reconnection
+- [ ] Theme system: dark/light mode with system preference detection
+- [ ] **Layout**: collapsible sidebar with queue list + search filter
+- [ ] **Home page**: queue cards grid with state counts, pause/resume toggle
+- [ ] **Queue detail**: tabs per state, job table with pagination, actions header
+- [ ] **Job detail**: payload JSON viewer (collapsible tree), logs, stacktrace, timeline,
+      parent/children links, action buttons
+- [ ] **Cmd+K command palette**:
+  - Queue name fuzzy search (client-side)
+  - Job ID search (calls `/api/search`)
+  - Quick actions (pause, resume, retry all failed, drain)
+  - Keyboard shortcut: `Cmd+K` / `Ctrl+K`
+- [ ] Job mutation UI: retry, promote, remove, cancel buttons
+- [ ] Build pipeline: `vite build` → `dist/`
 
+## Phase 3: Metrics
+
+**StoreInterface:**
+- [ ] Add `MetricsBucket`, `MetricsQueryOptions` types
+- [ ] Add optional `getMetrics()` and `aggregateMetrics()` to `StoreInterface`
+- [ ] Migration v8: create `conveyor_metrics` table (PG + SQLite)
+- [ ] Implement metrics recording in `updateJob()` for PG, SQLite, Memory
+- [ ] Implement `getMetrics()` + `aggregateMetrics()` in all stores
+- [ ] Conformance tests for metrics
+
+**dashboard-api:**
+- [ ] Metrics controller: `GET /api/queues/:name/metrics`
+- [ ] Aggregation timer in `createDashboardHandler()` (5min interval)
+
+**UI:**
+- [ ] Sparkline component (inline on queue cards)
+- [ ] Queue detail metrics tab: throughput + processing time charts
+- [ ] Time range selector (1h, 6h, 24h, 7d, 30d)
+- [ ] Chart library: custom SVG sparklines or uPlot (~35KB)
+
+## Phase 4: Enhanced
+
+- [ ] Job add UI: form to add a job (future integration with `@conveyor/schema` for form generation)
+- [ ] Job edit UI: edit payload/priority for waiting/delayed/failed jobs
 - [ ] Flow visualization (parent/children tree view)
-- [ ] Job search by ID/name
-- [ ] Bulk actions (multi-select retry/remove)
-- [ ] Dark mode
-- [ ] `listQueues()` on StoreInterface (auto-discovery)
-- [ ] Group/rate-limit visualization
+- [ ] Bulk actions (multi-select checkbox + bulk retry/remove)
+- [ ] Group visualization (per-group counts and active/waiting)
+- [ ] Job search by payload (PG only, `jsonb @>`)
 
 ---
 
@@ -217,17 +415,22 @@ Real-time updates via SSE `EventSource` in the browser.
 | File                            | Change                                                                 |
 | ------------------------------- | ---------------------------------------------------------------------- |
 | `/deno.json`                    | Add `./packages/dashboard-api` and `./packages/dashboard` to workspace |
-| `/tasks/status.yml`             | Update web-dashboard status to `planned` with file reference           |
+| `packages/shared/src/types.ts`  | `QueueInfo`, `listQueues()`, `findJobById()`, `cancelJob()`, metrics   |
+| `packages/store-memory/src/memory-store.ts` | Implement new StoreInterface methods                     |
+| `packages/store-pg/src/pg-store.ts`         | Implement new methods + metrics recording                |
+| `packages/store-sqlite-core/src/sqlite-store.ts` | Implement new methods + metrics recording          |
+| `tests/conformance/store.test.ts` | Conformance tests for new methods                                    |
+| `/tasks/status.yml`             | Update web-dashboard status                                            |
 | New: `packages/dashboard-api/`  | Entire new package                                                     |
 | New: `packages/dashboard/`      | Entire new package                                                     |
-| `/packages/shared/src/types.ts` | `listQueues()` method (Phase 3 only)                                   |
 
 ## Verification
 
-- **Unit tests:** controllers with MemoryStore, middleware (auth, read-only)
+- **Unit tests:** controllers with MemoryStore, middleware (auth, read-only), search
 - **Integration tests:** full `Request → Response` cycle via `createDashboardHandler()`
 - **SSE tests:** subscribe, receive events, verify stream cleanup on disconnect
 - **Node adapter tests:** verify `toNodeHandler()` with mock IncomingMessage/ServerResponse
+- **Conformance tests:** `listQueues()`, `findJobById()`, `cancelJob()` across all stores
 - **Type check:** `deno task check` passes with new packages
 - **Lint/fmt:** `deno task lint` + `deno task fmt` pass
 
@@ -246,10 +449,27 @@ without breaking the public API.
 
 ### Queue Discovery
 
-Phase 1 requires explicit `queues: ['queue1', 'queue2']` in options. Phase 3 adds `listQueues()` to
-`StoreInterface` for auto-discovery (non-breaking addition).
+`listQueues()` on StoreInterface provides auto-discovery. The optional `queues` option in
+`DashboardOptions` acts as a filter (only show these queues) — useful for multi-tenant setups or
+restricting visibility.
+
+### Add Job from Dashboard
+
+Extract job creation logic from `Queue.add()` into a shared utility in `@conveyor/shared`
+(`saveJobWithEvents()`). Both `Queue.add()` and the dashboard controller use it. Handles dedup,
+group maxSize checks, and event publishing.
+
+### Cancel Active Job
+
+`cancelJob()` on StoreInterface sets `cancelledAt` and publishes `job:cancelled`. The Worker
+detects cancellation via the existing event system and aborts the active job's `AbortController`.
+
+### Metrics are Optional
+
+Stores that don't implement `getMetrics()` still work with the dashboard — the UI shows "no metrics
+data". The `?` optional method pattern on StoreInterface ensures backwards compatibility.
 
 ### Static Assets
 
-Served via `node:fs/promises` from `dist/` (resolved via `import.meta.url`). Works in Deno 2+, Node
-18+, and Bun. All non-`/api/` routes fallback to `index.html` for SPA client-side routing.
+Served via `import.meta.url` from `dist/`. Works in Deno 2+, Node 18+, and Bun. All non-`/api/`
+routes fallback to `index.html` for SPA client-side routing.
