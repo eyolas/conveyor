@@ -1,3 +1,148 @@
 @import 'tailwindcss';
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* ─── Design Tokens ─────────────────────────────────────────────────── */
+
+@theme {
+  --font-display: 'Sora', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-surface-0: #06090f;
+  --color-surface-1: #0c1117;
+  --color-surface-2: #111820;
+  --color-surface-3: #1a2230;
+  --color-surface-4: #243042;
+  --color-border-dim: #1a2230;
+  --color-border-default: #243042;
+  --color-border-bright: #334766;
+  --color-text-muted: #5a6f8a;
+  --color-text-secondary: #8899ad;
+  --color-text-primary: #c8d5e2;
+  --color-text-bright: #e8eef4;
+
+  --color-accent: #818cf8;
+  --color-accent-bright: #a5b4fc;
+  --color-accent-dim: #4f46e5;
+  --color-accent-glow: rgba(129, 140, 248, 0.15);
+  --color-accent-glow-strong: rgba(129, 140, 248, 0.3);
+
+  --color-teal: #2dd4bf;
+  --color-teal-dim: #14b8a6;
+  --color-teal-glow: rgba(45, 212, 191, 0.15);
+
+  --color-rose: #fb7185;
+  --color-rose-dim: #f43f5e;
+  --color-rose-glow: rgba(251, 113, 133, 0.15);
+
+  --color-amber: #fbbf24;
+  --color-amber-dim: #f59e0b;
+  --color-amber-glow: rgba(251, 191, 36, 0.15);
+
+  --color-sky: #38bdf8;
+  --color-sky-glow: rgba(56, 189, 248, 0.15);
+
+  --color-violet: #c084fc;
+  --color-violet-glow: rgba(192, 132, 252, 0.15);
+
+  /* Light theme overrides handled via Tailwind classes */
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────── */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Background Pattern (dark mode dot grid) ───────────────────────── */
+
+.dark body {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(99, 102, 241, 0.04) 1px, transparent 0);
+  background-size: 32px 32px;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #243042;
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #334766;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ─── Animations ────────────────────────────────────────────────────── */
+
+/* Only used for overlays/modals — never on data-driven content */
+@keyframes fade-in-scale {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.animate-fade-in-scale {
+  animation: fade-in-scale 0.2s ease-out both;
+}
+
+/* ─── Glow Effects ──────────────────────────────────────────────────── */
+
+.glow-accent {
+  box-shadow: 0 0 20px rgba(129, 140, 248, 0.08), 0 0 40px rgba(129, 140, 248, 0.04);
+}
+
+.glow-accent-hover:hover {
+  box-shadow: 0 0 20px rgba(129, 140, 248, 0.15), 0 0 40px rgba(129, 140, 248, 0.08);
+}
+
+.glow-teal {
+  box-shadow: 0 0 12px rgba(45, 212, 191, 0.2);
+}
+
+.glow-rose {
+  box-shadow: 0 0 12px rgba(251, 113, 133, 0.2);
+}
+
+.glow-amber {
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.2);
+}
+
+/* ─── Glass Effect ──────────────────────────────────────────────────── */
+
+.glass {
+  background: rgba(12, 17, 23, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+

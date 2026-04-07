@@ -42,6 +42,7 @@
     "fmt": "deno fmt",
     "check": "deno check packages/*/src/mod.ts",
     "setup": "git config core.hooksPath .githooks",
+    "build:ui": "cd packages/dashboard/ui && npx vite build",
     "docs:dev": "cd docs && npx vitepress dev",
     "docs:build": "cd docs && npx vitepress build",
     "docs:preview": "cd docs && npx vitepress preview"

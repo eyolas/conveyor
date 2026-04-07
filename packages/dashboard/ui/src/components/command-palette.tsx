@@ -14,8 +14,15 @@ interface CommandItem {
   label: string;
   description?: string;
   section: 'queues' | 'actions' | 'search';
+  icon?: string;
   action: () => void | Promise<void>;
 }
+
+const SECTION_CONFIG = {
+  queues: { label: 'Queues', icon: 'M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4' },
+  search: { label: 'Search', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
+  actions: { label: 'Actions', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+} as const;
 
 export function CommandPalette({ open, onClose, activeQueue }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
@@ -26,11 +33,10 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
   const buildItems = useCallback(async (q: string) => {
     const result: CommandItem[] = [];
 
-    // Queue search (client-side)
     if (!q || q.length <= 36) {
       try {
         const queues = await listQueues();
-        const filtered = q ? queues.filter((qInfo: QueueInfo) => qInfo.name.includes(q)) : queues;
+        const filtered = q ? queues.filter((qInfo: QueueInfo) => qInfo.name.toLowerCase().includes(q.toLowerCase())) : queues;
         for (const qInfo of filtered.slice(0, 5)) {
           result.push({
             id: `queue:${qInfo.name}`,
@@ -45,7 +51,6 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
       }
     }
 
-    // Job ID search
     if (q && q.length >= 4) {
       result.push({
         id: `search:job:${q}`,
@@ -60,7 +65,6 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
       });
     }
 
-    // Quick actions (when a queue is active or typed)
     const targetQueue = activeQueue ?? (result.length > 0 && result[0]!.section === 'queues' ? result[0]!.label : undefined);
     if (targetQueue && (!q || 'pause resume retry drain promote'.includes(q.toLowerCase()))) {
       const actions = [
@@ -125,17 +129,20 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
   if (!open) return null;
 
   const sections = ['queues', 'search', 'actions'] as const;
-  const sectionLabels = { queues: 'Queues', search: 'Search', actions: 'Actions' };
 
   return (
-    <div class="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]" onClick={onClose}>
-      <div class="fixed inset-0 bg-black/50" />
+    <div class="fixed inset-0 z-50 flex items-start justify-center pt-[18vh]" onClick={onClose}>
+      {/* Backdrop */}
+      <div class="fixed inset-0 bg-black/40 backdrop-blur-sm dark:bg-black/60" />
+
+      {/* Panel */}
       <div
-        class="relative w-full max-w-lg overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+        class="animate-fade-in-scale relative w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-border-default dark:bg-surface-1"
         onClick={(e) => e.stopPropagation()}
       >
-        <div class="flex items-center border-b border-zinc-200 px-4 dark:border-zinc-700">
-          <svg class="mr-2 h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        {/* Input */}
+        <div class="flex items-center gap-3 border-b border-slate-200 px-5 dark:border-border-dim">
+          <svg class="h-4 w-4 flex-shrink-0 text-slate-400 dark:text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -145,24 +152,37 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
             value={query}
             onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
             onKeyDown={onKeyDown}
-            class="flex-1 bg-transparent py-3 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none dark:text-zinc-100 dark:placeholder-zinc-500"
+            class="flex-1 bg-transparent py-4 font-body text-sm text-slate-900 placeholder-slate-400 focus:outline-none dark:text-text-bright dark:placeholder-text-muted"
           />
-          <kbd class="rounded border border-zinc-300 px-1.5 py-0.5 text-xs text-zinc-400 dark:border-zinc-600">
+          <kbd class="flex h-5 items-center rounded-md border border-slate-200 bg-slate-50 px-1.5 font-mono text-[10px] text-slate-400 dark:border-border-default dark:bg-surface-2 dark:text-text-muted">
             esc
           </kbd>
         </div>
+
+        {/* Results */}
         <div class="max-h-80 overflow-y-auto p-2">
           {items.length === 0 && query && (
-            <p class="px-3 py-6 text-center text-sm text-zinc-400">No results</p>
+            <div class="flex flex-col items-center gap-2 py-10">
+              <svg class="h-8 w-8 text-slate-300 dark:text-surface-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <p class="text-sm text-slate-400 dark:text-text-muted">No results for "{query}"</p>
+            </div>
           )}
           {sections.map((section) => {
             const sectionItems = items.filter((i) => i.section === section);
             if (sectionItems.length === 0) return null;
+            const config = SECTION_CONFIG[section];
             return (
-              <div key={section}>
-                <p class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-                  {sectionLabels[section]}
-                </p>
+              <div key={section} class="mb-1">
+                <div class="flex items-center gap-2 px-3 py-2">
+                  <svg class="h-3 w-3 text-slate-400 dark:text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d={config.icon} />
+                  </svg>
+                  <span class="font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
+                    {config.label}
+                  </span>
+                </div>
                 {sectionItems.map((item) => {
                   const idx = items.indexOf(item);
                   return (
@@ -170,15 +190,17 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
                       key={item.id}
                       onClick={() => execute(item)}
                       onMouseEnter={() => setSelected(idx)}
-                      class={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm ${
+                      class={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition-all duration-100 ${
                         idx === selected
-                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
-                          : 'text-zinc-700 dark:text-zinc-300'
+                          ? 'bg-accent/10 text-accent dark:bg-accent-glow-strong dark:text-accent-bright'
+                          : 'text-slate-700 hover:bg-slate-50 dark:text-text-secondary dark:hover:bg-surface-2'
                       }`}
                     >
-                      <span>{item.label}</span>
+                      <span class="font-medium">{item.label}</span>
                       {item.description && (
-                        <span class="text-xs text-zinc-400 dark:text-zinc-500">{item.description}</span>
+                        <span class="font-mono text-xs text-slate-400 dark:text-text-muted">
+                          {item.description}
+                        </span>
                       )}
                     </button>
                   );
@@ -186,6 +208,22 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
               </div>
             );
           })}
+        </div>
+
+        {/* Footer hints */}
+        <div class="flex items-center gap-4 border-t border-slate-200 px-5 py-2.5 dark:border-border-dim">
+          <span class="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-text-muted">
+            <kbd class="rounded border border-slate-200 bg-slate-50 px-1 py-0.5 font-mono dark:border-border-default dark:bg-surface-2">&uarr;&darr;</kbd>
+            navigate
+          </span>
+          <span class="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-text-muted">
+            <kbd class="rounded border border-slate-200 bg-slate-50 px-1 py-0.5 font-mono dark:border-border-default dark:bg-surface-2">&crarr;</kbd>
+            select
+          </span>
+          <span class="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-text-muted">
+            <kbd class="rounded border border-slate-200 bg-slate-50 px-1 py-0.5 font-mono dark:border-border-default dark:bg-surface-2">esc</kbd>
+            close
+          </span>
         </div>
       </div>
     </div>
