@@ -1,0 +1,16 @@
+{
+  "name": "@conveyor/dashboard",
+  "version": "1.0.0",
+  "exports": "./src/mod.ts",
+  "imports": {
+    "@conveyor/dashboard-api": "jsr:@conveyor/dashboard-api@^1.0.0"
+  },
+  "publish": {
+    "include": ["src/**/*.ts", "dist/**", "deno.json", "README.md", "LICENSE"]
+  },
+  "lint": {
+    "rules": {
+      "exclude": ["no-slow-types"]
+    }
+  }
+}

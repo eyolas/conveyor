@@ -9,9 +9,11 @@
     "./packages/store-sqlite-node",
     "./packages/store-sqlite-bun",
     "./packages/store-sqlite-deno",
-    "./packages/dashboard-api"
+    "./packages/dashboard-api",
+    "./packages/dashboard"
   ],
   "imports": {
+    "@conveyor/dashboard": "./packages/dashboard/src/mod.ts",
     "@conveyor/dashboard-api": "./packages/dashboard-api/src/mod.ts",
     "@conveyor/core": "./packages/core/src/mod.ts",
     "@conveyor/shared": "./packages/shared/src/mod.ts",
@@ -48,13 +50,19 @@
     "lineWidth": 100,
     "indentWidth": 2,
     "singleQuote": true,
-    "exclude": ["docs/"]
+    "exclude": ["docs/", "packages/dashboard/ui/", "packages/dashboard/dist/"]
   },
   "lint": {
     "rules": {
       "tags": ["recommended"]
     },
-    "exclude": ["tests/bun-vitest-shim.ts", "bunfig.toml", "docs/"]
+    "exclude": [
+      "tests/bun-vitest-shim.ts",
+      "bunfig.toml",
+      "docs/",
+      "packages/dashboard/ui/",
+      "packages/dashboard/dist/"
+    ]
   },
   "compilerOptions": {
     "strict": true,

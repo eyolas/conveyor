@@ -1,5 +1,6 @@
 node_modules/
 dist/
+!packages/dashboard/dist/
 .env
 *.log
 .DS_Store

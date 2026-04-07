@@ -789,6 +789,11 @@
           "npm:croner@10"
         ]
       },
+      "packages/dashboard": {
+        "dependencies": [
+          "jsr:@conveyor/dashboard-api@1"
+        ]
+      },
       "packages/dashboard-api": {
         "dependencies": [
           "jsr:@conveyor/shared@1",
