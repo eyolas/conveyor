@@ -6,7 +6,7 @@
  * and returned by Worker processing.
  */
 
-import type { JobData, JobOptions, JobState, StoreInterface } from '@conveyor/shared';
+import type { AttemptRecord, JobData, JobOptions, JobState, StoreInterface } from '@conveyor/shared';
 import { JobNotFoundError } from '@conveyor/shared';
 import { JobObservable } from './job-observable.ts';
 
@@ -56,6 +56,7 @@ export class Job<T = unknown> {
   private readonly _groupId: string | null;
   private _stacktrace: string[];
   private _discarded: boolean;
+  private _attemptLogs: AttemptRecord[];
 
   private readonly store: StoreInterface;
 
@@ -92,6 +93,7 @@ export class Job<T = unknown> {
     this._groupId = jobData.groupId;
     this._stacktrace = [...(jobData.stacktrace ?? [])];
     this._discarded = jobData.discarded ?? false;
+    this._attemptLogs = [...(jobData.attemptLogs ?? [])];
 
     this.store = store;
   }
@@ -173,6 +175,11 @@ export class Job<T = unknown> {
     return this._discarded;
   }
 
+  /** Per-attempt processing history. */
+  get attemptLogs(): AttemptRecord[] {
+    return [...this._attemptLogs];
+  }
+
   // ─── Mutations ────────────────────────────────────────────────────
 
   /**
@@ -203,7 +210,15 @@ export class Job<T = unknown> {
    */
   async log(message: string): Promise<void> {
     this._logs.push(message);
-    await this.store.updateJob(this.queueName, this.id, { logs: this._logs });
+    // Also append to the current attempt's logs
+    const currentAttempt = this._attemptLogs[this._attemptLogs.length - 1];
+    if (currentAttempt && currentAttempt.endedAt === null) {
+      currentAttempt.logs.push(message);
+    }
+    await this.store.updateJob(this.queueName, this.id, {
+      logs: this._logs,
+      attemptLogs: this._attemptLogs,
+    });
   }
 
   /**
@@ -562,6 +577,7 @@ export class Job<T = unknown> {
       groupId: this._groupId,
       stacktrace: this._stacktrace,
       discarded: this._discarded,
+      attemptLogs: this._attemptLogs,
     };
   }
 }

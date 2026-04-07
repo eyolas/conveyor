@@ -50,6 +50,15 @@ export interface JobData {
   cancelledAt: string | null;
   groupId: string | null;
   discarded: boolean;
+  attemptLogs?: Array<{
+    attempt: number;
+    startedAt: string;
+    endedAt: string | null;
+    status: 'completed' | 'failed';
+    error: string | null;
+    stacktrace: string | null;
+    logs: string[];
+  }>;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

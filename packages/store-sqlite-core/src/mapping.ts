@@ -5,7 +5,7 @@
  * JSON columns are stored as TEXT and timestamps as INTEGER (ms since epoch).
  */
 
-import type { JobData, JobOptions } from '@conveyor/shared';
+import type { AttemptRecord, JobData, JobOptions } from '@conveyor/shared';
 import { assertJobState } from '@conveyor/shared';
 
 /**
@@ -42,6 +42,7 @@ export interface JobRow {
   group_id: string | null;
   stacktrace: string;
   discarded: number;
+  attempt_logs: string;
 }
 
 /** @internal Parse a JSON string, throwing on parse failure. */
@@ -101,6 +102,7 @@ export function rowToJobData(row: JobRow): JobData {
     groupId: row.group_id ?? null,
     stacktrace: (parseJson(row.stacktrace) ?? []) as string[],
     discarded: Boolean(row.discarded),
+    attemptLogs: (parseJson(row.attempt_logs) ?? []) as AttemptRecord[],
   };
 }
 
@@ -144,5 +146,6 @@ export function jobDataToRow(
     group_id: job.groupId ?? null,
     stacktrace: JSON.stringify(job.stacktrace ?? []),
     discarded: job.discarded ? 1 : 0,
+    attempt_logs: JSON.stringify(job.attemptLogs ?? []),
   };
 }

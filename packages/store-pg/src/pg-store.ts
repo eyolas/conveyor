@@ -201,6 +201,7 @@ export class PgStore implements StoreInterface {
       groupId: 'group_id',
       stacktrace: 'stacktrace',
       discarded: 'discarded',
+      attemptLogs: 'attempt_logs',
     };
 
     const row: Record<string, unknown> = {};

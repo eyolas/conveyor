@@ -53,6 +53,27 @@ export type JobState =
   | 'failed';
 
 /**
+ * Record of a single processing attempt for a job.
+ * One record is created each time a worker picks up the job.
+ */
+export interface AttemptRecord {
+  /** 1-based attempt number. */
+  attempt: number;
+  /** When this attempt started processing (ISO 8601). */
+  startedAt: string;
+  /** When this attempt ended (ISO 8601), or `null` if still running. */
+  endedAt: string | null;
+  /** Outcome of this attempt. */
+  status: 'completed' | 'failed';
+  /** Error message if the attempt failed. */
+  error: string | null;
+  /** Stack trace if the attempt failed. */
+  stacktrace: string | null;
+  /** Logs produced during this specific attempt. */
+  logs: string[];
+}
+
+/**
  * The raw data structure stored for each job.
  * This is the shape read from and written to the store.
  *
@@ -136,6 +157,9 @@ export interface JobData<T = unknown> {
 
   /** Whether this job has been discarded (no more retries). */
   discarded: boolean;
+
+  /** Per-attempt processing history. */
+  attemptLogs: AttemptRecord[];
 }
 
 /** Configuration for retry backoff strategies. */

@@ -6,6 +6,7 @@
  */
 
 import type {
+  AttemptRecord,
   BatchOptions,
   BatchResult,
   FetchOptions,
@@ -282,7 +283,29 @@ export class Worker<T = unknown> {
 
   private async processJob(jobData: JobData<T>): Promise<void> {
     this.activeCount++;
+
+    // Open a new attempt record
+    const attemptLogs: AttemptRecord[] = [...(jobData.attemptLogs ?? [])];
+    const currentAttempt: AttemptRecord = {
+      attempt: attemptLogs.length + 1,
+      startedAt: new Date().toISOString(),
+      endedAt: null,
+      status: 'failed', // default; overwritten on success
+      error: null,
+      stacktrace: null,
+      logs: [],
+    };
+    attemptLogs.push(currentAttempt);
+    jobData.attemptLogs = attemptLogs;
+
     const job = new Job(jobData as JobData<T>, this.store);
+
+    // Persist the open attempt record (best-effort, don't block processing)
+    try {
+      await this.store.updateJob(this.queueName, job.id, { attemptLogs });
+    } catch {
+      // Non-critical: attempt tracking is informational
+    }
 
     // Create AbortController for cancellation support
     const controller = new AbortController();
@@ -301,11 +324,20 @@ export class Worker<T = unknown> {
         ? await this.withTimeout(this.processor!(job, controller.signal), job.opts.timeout)
         : await this.processor!(job, controller.signal);
 
+      // Close the attempt as succeeded
+      const finalAttemptLogs = job.attemptLogs;
+      const last = finalAttemptLogs[finalAttemptLogs.length - 1];
+      if (last) {
+        last.endedAt = new Date().toISOString();
+        last.status = 'completed';
+      }
+
       // Success
       await this.store.updateJob(this.queueName, job.id, {
         state: 'completed',
         returnvalue: result,
         completedAt: new Date(),
+        attemptLogs: finalAttemptLogs,
         ...Worker.UNLOCK,
       });
 
@@ -536,6 +568,17 @@ export class Worker<T = unknown> {
     const stacktrace = [...(freshJob?.stacktrace ?? []), error.stack ?? error.message];
     const discarded = freshJob?.discarded ?? false;
 
+    // Close the current attempt record as failed
+    const attemptLogs = [...(freshJob?.attemptLogs ?? [])];
+    const lastAttempt = attemptLogs[attemptLogs.length - 1];
+    if (lastAttempt && lastAttempt.endedAt === null) {
+      lastAttempt.endedAt = new Date().toISOString();
+      lastAttempt.status = 'failed';
+      lastAttempt.error = error.message;
+      lastAttempt.stacktrace = error.stack ?? error.message;
+      lastAttempt.logs = freshJob?.logs ?? [];
+    }
+
     if (!discarded && attemptsMade < maxAttempts) {
       if (job.opts.backoff) {
         // Retry with backoff delay
@@ -548,6 +591,7 @@ export class Worker<T = unknown> {
           failedReason: error.message,
           delayUntil,
           stacktrace,
+          attemptLogs,
           ...Worker.UNLOCK,
         });
       } else {
@@ -557,6 +601,7 @@ export class Worker<T = unknown> {
           attemptsMade,
           failedReason: error.message,
           stacktrace,
+          attemptLogs,
           ...Worker.UNLOCK,
         });
       }
@@ -568,6 +613,7 @@ export class Worker<T = unknown> {
         failedReason: error.message,
         failedAt: new Date(),
         stacktrace,
+        attemptLogs,
         ...Worker.UNLOCK,
       });
 

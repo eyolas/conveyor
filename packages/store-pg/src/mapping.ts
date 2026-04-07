@@ -4,7 +4,7 @@
  * Mapping functions between {@linkcode JobData} and PostgreSQL row format.
  */
 
-import type { JobData, JobOptions } from '@conveyor/shared';
+import type { AttemptRecord, JobData, JobOptions } from '@conveyor/shared';
 import { assertJobState } from '@conveyor/shared';
 
 /**
@@ -40,6 +40,7 @@ export interface JobRow {
   group_id: string | null;
   stacktrace: string[];
   discarded: boolean;
+  attempt_logs: unknown;
 }
 
 /** Parse a value that may already be a JS object (driver auto-parsed) or a JSON string. */
@@ -91,6 +92,7 @@ export function rowToJobData(row: JobRow): JobData {
     groupId: row.group_id ?? null,
     stacktrace: ensureParsed<string[]>(row.stacktrace) ?? [],
     discarded: row.discarded ?? false,
+    attemptLogs: ensureParsed<AttemptRecord[]>(row.attempt_logs) ?? [],
   };
 }
 
@@ -132,5 +134,6 @@ export function jobDataToRow(
     group_id: job.groupId ?? null,
     stacktrace: job.stacktrace ?? [],
     discarded: job.discarded ?? false,
+    attempt_logs: job.attemptLogs ?? [],
   };
 }

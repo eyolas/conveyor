@@ -127,6 +127,11 @@ export const migrations: Migration[] = [
       ON conveyor_rate_limits (queue_name, fetched_at);
     `,
   },
+  {
+    version: 8,
+    name: 'add_attempt_logs',
+    up: `ALTER TABLE conveyor_jobs ADD COLUMN attempt_logs TEXT NOT NULL DEFAULT '[]'`,
+  },
 ];
 
 /**

@@ -10,6 +10,7 @@ import {
   retryJob,
 } from '../api/client';
 import { useSSE } from '../hooks/use-sse';
+import { AttemptHistory } from '../components/attempt-history';
 import { Badge } from '../components/badge';
 import { JsonViewer } from '../components/json-viewer';
 
@@ -199,31 +200,12 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
         </Section>
       )}
 
-      {/* Error */}
-      {job.failedReason && (
-        <Section title="Error" icon="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
-          <div class="overflow-hidden rounded-xl border border-rose/20 bg-rose/5 dark:border-rose/15 dark:bg-rose-glow">
-            <div class="flex items-center gap-2 border-b border-rose/10 px-5 py-3 dark:border-rose/10">
-              <svg class="h-4 w-4 text-rose dark:text-rose" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span class="font-display text-sm font-medium text-rose-700 dark:text-rose">
-                Error Message
-              </span>
-            </div>
-            <p class="px-5 py-4 text-sm leading-relaxed text-rose-800 dark:text-rose">
-              {job.failedReason}
-            </p>
+      {/* Attempt History */}
+      {(job.stacktrace.length > 0 || job.attemptsMade > 1) && (
+        <Section title={`Attempts (${job.attemptsMade})`} icon="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+          <div class="rounded-xl border border-slate-200 bg-white p-5 dark:border-border-dim dark:bg-surface-1">
+            <AttemptHistory job={job} />
           </div>
-        </Section>
-      )}
-
-      {/* Stacktrace */}
-      {job.stacktrace.length > 0 && (
-        <Section title="Stacktrace" icon="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4">
-          <pre class="overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-5 font-mono text-xs leading-relaxed text-slate-600 dark:border-border-dim dark:bg-surface-2 dark:text-text-secondary">
-            {job.stacktrace.join('\n---\n')}
-          </pre>
         </Section>
       )}
 
