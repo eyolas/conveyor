@@ -4,6 +4,7 @@ import type { ComponentChildren } from 'preact';
 import { Sidebar } from './sidebar';
 import { ThemeToggle } from './theme-toggle';
 import { CommandPalette } from './command-palette';
+import { ToastContainer } from './toast';
 
 function extractQueue(url: string): string | undefined {
   const match = url.match(/^\/queues\/([^/]+)/);
@@ -94,6 +95,7 @@ export function Layout({ children, url }: LayoutProps) {
         onClose={() => setCmdkOpen(false)}
         activeQueue={activeQueue}
       />
+      <ToastContainer />
     </div>
   );
 }

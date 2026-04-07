@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { route } from 'preact-router';
+import { ConfirmDialog } from '../components/confirm-dialog';
+import { showToast } from '../components/toast';
 import {
   type QueueDetail,
   drainQueue,
@@ -36,6 +38,7 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
   const [jobs, setJobs] = useState<JobData[]>([]);
   const [total, setTotal] = useState(0);
   const [start, setStart] = useState(0);
+  const [confirmDrain, setConfirmDrain] = useState(false);
 
   const loadQueue = useCallback(async () => {
     if (!queueName) return;
@@ -106,24 +109,36 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
         {/* Actions */}
         <div class="flex items-center gap-2">
           <ActionButton
-            onClick={async () => { isPaused ? await resumeQueue(queueName) : await pauseQueue(queueName); loadQueue(); }}
+            onClick={async () => {
+              isPaused ? await resumeQueue(queueName) : await pauseQueue(queueName);
+              showToast(isPaused ? 'Queue resumed' : 'Queue paused');
+              loadQueue();
+            }}
             icon={isPaused
               ? 'M8 5v14l11-7z'
               : 'M6 19h4V5H6v14zm8-14v14h4V5h-4z'}
             label={isPaused ? 'Resume' : 'Pause'}
           />
           <ActionButton
-            onClick={async () => { await retryAllJobs(queueName, 'failed'); loadQueue(); loadJobs(); }}
+            onClick={async () => {
+              const res = await retryAllJobs(queueName, 'failed');
+              showToast(`${res.retried} job${res.retried !== 1 ? 's' : ''} retried`);
+              loadQueue(); loadJobs();
+            }}
             icon="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
             label="Retry Failed"
           />
           <ActionButton
-            onClick={async () => { await promoteAllJobs(queueName); loadQueue(); loadJobs(); }}
+            onClick={async () => {
+              const res = await promoteAllJobs(queueName);
+              showToast(`${res.promoted} job${res.promoted !== 1 ? 's' : ''} promoted`);
+              loadQueue(); loadJobs();
+            }}
             icon="M5 10l7-7m0 0l7 7m-7-7v18"
             label="Promote"
           />
           <ActionButton
-            onClick={async () => { await drainQueue(queueName); loadQueue(); loadJobs(); }}
+            onClick={() => setConfirmDrain(true)}
             label="Drain"
             icon="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
             danger
@@ -233,6 +248,21 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
           onPageChange={(s) => setStart(s)}
         />
       </div>
+
+      <ConfirmDialog
+        open={confirmDrain}
+        title="Drain queue"
+        message={`This will remove all waiting and delayed jobs from "${queueName}". Active jobs will not be affected. This action cannot be undone.`}
+        confirmLabel="Drain"
+        onConfirm={async () => {
+          setConfirmDrain(false);
+          await drainQueue(queueName);
+          showToast('Queue drained');
+          loadQueue();
+          loadJobs();
+        }}
+        onCancel={() => setConfirmDrain(false)}
+      />
     </div>
   );
 }

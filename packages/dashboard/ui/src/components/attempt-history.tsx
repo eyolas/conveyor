@@ -15,9 +15,7 @@ interface AttemptDisplay {
   logs: string[];
 }
 
-/** Build attempt list from rich attemptLogs or fall back to stacktrace array. */
 function buildAttempts(job: JobData): AttemptDisplay[] {
-  // Rich data available — use it directly
   if (job.attemptLogs && job.attemptLogs.length > 0) {
     return job.attemptLogs.map((a) => ({
       number: a.attempt,
@@ -29,8 +27,6 @@ function buildAttempts(job: JobData): AttemptDisplay[] {
       logs: a.logs,
     }));
   }
-
-  // Fallback: reconstruct from flat stacktrace array (old jobs)
   const attempts: AttemptDisplay[] = [];
   for (let i = 0; i < job.stacktrace.length; i++) {
     attempts.push({
@@ -70,80 +66,80 @@ function formatTime(iso: string | null): string | null {
   return new Date(iso).toLocaleTimeString();
 }
 
-function AttemptCard({ attempt, isLast }: { attempt: AttemptDisplay; isLast: boolean }) {
-  const [expanded, setExpanded] = useState(
-    attempt.status === 'failed' && isLast,
-  );
+function AttemptRow({ attempt, isLast }: { attempt: AttemptDisplay; isLast: boolean }) {
+  const [expanded, setExpanded] = useState(false);
   const isFailed = attempt.status === 'failed';
-  const hasDetails = isFailed && (attempt.stacktrace || attempt.logs.length > 0);
+  const hasDetails = attempt.stacktrace || attempt.logs.length > 0;
   const duration = formatDuration(attempt.startedAt, attempt.endedAt);
 
   return (
-    <div class="relative flex gap-4">
-      {/* Timeline connector */}
-      <div class="flex flex-col items-center">
-        <div
-          class={`relative z-10 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-bold ${
-            isFailed
-              ? 'bg-rose/10 text-rose ring-2 ring-rose/20 dark:bg-rose-glow dark:text-rose dark:ring-rose/15'
-              : 'bg-teal/10 text-teal-dim ring-2 ring-teal/20 dark:bg-teal-glow dark:text-teal dark:ring-teal/15'
-          }`}
-        >
-          {isFailed ? (
-            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+    <>
+      <tr
+        onClick={() => hasDetails && setExpanded(!expanded)}
+        class={`border-b border-slate-100 transition-colors dark:border-border-dim/50 ${
+          hasDetails ? 'cursor-pointer hover:bg-slate-50/80 dark:hover:bg-surface-2/50' : ''
+        } ${expanded ? 'bg-slate-50/60 dark:bg-surface-2/30' : ''} ${isLast ? 'border-b-0' : ''}`}
+      >
+        {/* # */}
+        <td class="w-12 py-3 pl-5 pr-2">
+          <span class="font-mono text-xs font-semibold tabular-nums text-slate-500 dark:text-text-muted">
+            #{attempt.number}
+          </span>
+        </td>
+        {/* Status */}
+        <td class="w-24 px-3 py-3">
+          <span class={`inline-flex items-center gap-1.5 font-display text-[11px] font-semibold uppercase tracking-wide ${
+            isFailed ? 'text-rose dark:text-rose' : 'text-teal-dim dark:text-teal'
+          }`}>
+            <span class={`h-1.5 w-1.5 rounded-full ${isFailed ? 'bg-rose' : 'bg-teal'}`} />
+            {attempt.status}
+          </span>
+        </td>
+        {/* Time */}
+        <td class="px-3 py-3">
+          {attempt.startedAt ? (
+            <span class="font-mono text-xs tabular-nums text-slate-500 dark:text-text-muted">
+              {formatTime(attempt.startedAt)}
+            </span>
           ) : (
-            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+            <span class="text-xs text-slate-300 dark:text-text-muted">&mdash;</span>
           )}
-        </div>
-        {!isLast && <div class="w-px flex-1 bg-slate-200 dark:bg-border-dim" />}
-      </div>
-
-      {/* Content */}
-      <div class={`flex-1 ${isLast ? 'pb-0' : 'pb-5'}`}>
-        {/* Header row */}
-        <button
-          onClick={() => hasDetails && setExpanded(!expanded)}
-          class={`group flex w-full items-start justify-between text-left ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}
-          disabled={!hasDetails}
-        >
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="font-display text-sm font-medium text-slate-700 dark:text-text-primary">
-                Attempt {attempt.number}
-              </span>
-              <span class={`font-display text-[11px] font-medium uppercase tracking-wide ${
-                isFailed ? 'text-rose dark:text-rose' : 'text-teal-dim dark:text-teal'
-              }`}>
-                {attempt.status}
-              </span>
-              {duration && (
-                <span class="font-mono text-[11px] tabular-nums text-slate-400 dark:text-text-muted">
-                  {duration}
-                </span>
-              )}
-            </div>
-            {/* Metadata line */}
-            {attempt.startedAt && (
-              <p class="mt-0.5 text-[11px] text-slate-400 dark:text-text-muted">
-                {formatTime(attempt.startedAt)}
-                {attempt.endedAt && <> &rarr; {formatTime(attempt.endedAt)}</>}
-                {attempt.logs.length > 0 && <> &middot; {attempt.logs.length} log{attempt.logs.length > 1 ? 's' : ''}</>}
-              </p>
-            )}
-            {/* Error preview when collapsed */}
-            {!expanded && attempt.error && (
-              <p class="mt-1 truncate text-xs text-slate-400 dark:text-text-muted" style={{ maxWidth: '500px' }}>
-                {attempt.error}
-              </p>
-            )}
-          </div>
+        </td>
+        {/* Duration */}
+        <td class="w-20 px-3 py-3">
+          {duration ? (
+            <span class="font-mono text-xs tabular-nums text-slate-500 dark:text-text-muted">
+              {duration}
+            </span>
+          ) : (
+            <span class="text-xs text-slate-300 dark:text-text-muted">&mdash;</span>
+          )}
+        </td>
+        {/* Error */}
+        <td class="max-w-xs truncate px-3 py-3">
+          {attempt.error ? (
+            <span class="font-mono text-xs text-rose/80 dark:text-rose/70">
+              {attempt.error.split('\n')[0]}
+            </span>
+          ) : (
+            isFailed
+              ? <span class="text-xs text-slate-300 dark:text-text-muted">&mdash;</span>
+              : null
+          )}
+        </td>
+        {/* Logs count */}
+        <td class="w-16 px-3 py-3 text-right">
+          {attempt.logs.length > 0 && (
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] tabular-nums text-slate-500 dark:bg-surface-3 dark:text-text-muted">
+              {attempt.logs.length}
+            </span>
+          )}
+        </td>
+        {/* Expand */}
+        <td class="w-10 py-3 pr-5">
           {hasDetails && (
             <svg
-              class={`mt-1 h-4 w-4 flex-shrink-0 text-slate-400 transition-transform duration-150 dark:text-text-muted ${expanded ? 'rotate-180' : ''}`}
+              class={`h-3.5 w-3.5 text-slate-400 transition-transform duration-150 dark:text-text-muted ${expanded ? 'rotate-180' : ''}`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -152,45 +148,47 @@ function AttemptCard({ attempt, isLast }: { attempt: AttemptDisplay; isLast: boo
               <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
           )}
-        </button>
-
-        {/* Expanded details */}
-        {expanded && (
-          <div class="mt-3 space-y-3">
-            {/* Logs */}
-            {attempt.logs.length > 0 && (
-              <div class="overflow-hidden rounded-lg border border-slate-200 dark:border-border-dim">
-                <div class="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-border-dim dark:bg-surface-2">
-                  <svg class="h-3 w-3 text-slate-400 dark:text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span class="font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
+        </td>
+      </tr>
+      {/* Expanded detail row */}
+      {expanded && hasDetails && (
+        <tr class={`${isLast ? '' : 'border-b border-slate-100 dark:border-border-dim/50'}`}>
+          <td colspan={7} class="bg-slate-50/80 px-5 pb-4 pt-2 dark:bg-surface-2/30">
+            <div class="ml-7 space-y-3">
+              {/* Logs */}
+              {attempt.logs.length > 0 && (
+                <div>
+                  <p class="mb-1.5 font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
                     Logs
-                  </span>
+                  </p>
+                  <div class="max-h-36 overflow-auto rounded-lg border border-slate-200 bg-white p-3 dark:border-border-dim dark:bg-surface-1">
+                    {attempt.logs.map((log, i) => (
+                      <div key={i} class="flex gap-2 py-px">
+                        <span class="w-5 flex-shrink-0 text-right font-mono text-[10px] tabular-nums text-slate-300 dark:text-text-muted">
+                          {i + 1}
+                        </span>
+                        <span class="font-mono text-xs text-slate-600 dark:text-text-secondary">{log}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div class="max-h-40 overflow-auto bg-white p-3 dark:bg-surface-1">
-                  {attempt.logs.map((log, i) => (
-                    <div key={i} class="flex gap-2 py-0.5">
-                      <span class="w-5 flex-shrink-0 text-right font-mono text-[10px] tabular-nums text-slate-300 dark:text-text-muted">
-                        {i + 1}
-                      </span>
-                      <span class="font-mono text-xs text-slate-600 dark:text-text-secondary">{log}</span>
-                    </div>
-                  ))}
+              )}
+              {/* Stacktrace */}
+              {attempt.stacktrace && (
+                <div>
+                  <p class="mb-1.5 font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
+                    Stacktrace
+                  </p>
+                  <pre class="max-h-48 overflow-auto rounded-lg border border-slate-200 bg-white p-3 font-mono text-xs leading-relaxed text-slate-600 dark:border-border-dim dark:bg-surface-1 dark:text-text-secondary">
+                    {attempt.stacktrace}
+                  </pre>
                 </div>
-              </div>
-            )}
-
-            {/* Stacktrace */}
-            {attempt.stacktrace && (
-              <pre class="overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-600 dark:border-border-dim dark:bg-surface-2 dark:text-text-secondary">
-                {attempt.stacktrace}
-              </pre>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -201,14 +199,29 @@ export function AttemptHistory({ job }: AttemptHistoryProps) {
   if (attempts.length === 1 && attempts[0]!.status === 'completed') return null;
 
   return (
-    <div class="space-y-0">
-      {attempts.map((attempt, i) => (
-        <AttemptCard
-          key={attempt.number}
-          attempt={attempt}
-          isLast={i === attempts.length - 1}
-        />
-      ))}
+    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-border-dim dark:bg-surface-1">
+      <table class="w-full text-left">
+        <thead>
+          <tr class="border-b border-slate-100 dark:border-border-dim">
+            <th class="py-2.5 pl-5 pr-2 font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">#</th>
+            <th class="px-3 py-2.5 font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">Status</th>
+            <th class="px-3 py-2.5 font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">Time</th>
+            <th class="px-3 py-2.5 font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">Duration</th>
+            <th class="px-3 py-2.5 font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">Error</th>
+            <th class="px-3 py-2.5 text-right font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">Logs</th>
+            <th class="w-10 py-2.5 pr-5" />
+          </tr>
+        </thead>
+        <tbody>
+          {attempts.map((attempt, i) => (
+            <AttemptRow
+              key={attempt.number}
+              attempt={attempt}
+              isLast={i === attempts.length - 1}
+            />
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
