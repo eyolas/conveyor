@@ -2,51 +2,57 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ─── Design Tokens ─────────────────────────────────────────────────── */
+/* ─── Design Tokens (aligned with docs site) ───────────────────────── */
 
 @theme {
-  --font-display: 'Sora', system-ui, sans-serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'Fira Code', ui-monospace, monospace;
 
-  --color-surface-0: #06090f;
-  --color-surface-1: #0c1117;
-  --color-surface-2: #111820;
-  --color-surface-3: #1a2230;
-  --color-surface-4: #243042;
-  --color-border-dim: #1a2230;
-  --color-border-default: #243042;
-  --color-border-bright: #334766;
-  --color-text-muted: #5a6f8a;
-  --color-text-secondary: #8899ad;
-  --color-text-primary: #c8d5e2;
-  --color-text-bright: #e8eef4;
+  /* Dark surfaces — from docs */
+  --color-surface-0: #0C1018;
+  --color-surface-1: #111827;
+  --color-surface-2: #151D2B;
+  --color-surface-3: #1C2433;
+  --color-surface-4: #1E2838;
+  --color-border-dim: #21262D;
+  --color-border-default: #2D3A4E;
+  --color-border-bright: #3D4F66;
+  --color-text-muted: #94A3B8;
+  --color-text-secondary: #94A3B8;
+  --color-text-primary: #CBD5E1;
+  --color-text-bright: #E2E8F0;
 
-  --color-accent: #818cf8;
-  --color-accent-bright: #a5b4fc;
-  --color-accent-dim: #4f46e5;
-  --color-accent-glow: rgba(129, 140, 248, 0.15);
-  --color-accent-glow-strong: rgba(129, 140, 248, 0.3);
+  /* Brand — warm orange from docs */
+  --color-accent: #F07623;
+  --color-accent-bright: #FF9A52;
+  --color-accent-dim: #E85D04;
+  --color-accent-glow: rgba(240, 118, 35, 0.12);
+  --color-accent-glow-strong: rgba(240, 118, 35, 0.25);
 
-  --color-teal: #2dd4bf;
-  --color-teal-dim: #14b8a6;
-  --color-teal-glow: rgba(45, 212, 191, 0.15);
+  /* Semantic — from docs */
+  --color-teal: #34D399;
+  --color-teal-dim: #059669;
+  --color-teal-glow: rgba(52, 211, 153, 0.15);
 
-  --color-rose: #fb7185;
-  --color-rose-dim: #f43f5e;
-  --color-rose-glow: rgba(251, 113, 133, 0.15);
+  --color-rose: #F85149;
+  --color-rose-dim: #DA3633;
+  --color-rose-glow: rgba(248, 81, 73, 0.15);
 
-  --color-amber: #fbbf24;
-  --color-amber-dim: #f59e0b;
-  --color-amber-glow: rgba(251, 191, 36, 0.15);
+  --color-amber: #FFBD2E;
+  --color-amber-dim: #D4940A;
+  --color-amber-glow: rgba(255, 189, 46, 0.15);
 
-  --color-sky: #38bdf8;
-  --color-sky-glow: rgba(56, 189, 248, 0.15);
+  --color-sky: #22D3EE;
+  --color-sky-glow: rgba(34, 211, 238, 0.15);
 
-  --color-violet: #c084fc;
-  --color-violet-glow: rgba(192, 132, 252, 0.15);
+  --color-violet: #A78BFA;
+  --color-violet-glow: rgba(167, 139, 250, 0.15);
 
-  /* Light theme overrides handled via Tailwind classes */
+  /* Border radius — docs uses 10px/14px */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 }
 
 /* ─── Base ──────────────────────────────────────────────────────────── */
@@ -61,14 +67,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ─── Background Pattern (dark mode dot grid) ───────────────────────── */
-
-.dark body {
-  background-image:
-    radial-gradient(circle at 1px 1px, rgba(99, 102, 241, 0.04) 1px, transparent 0);
-  background-size: 32px 32px;
-}
-
 /* ─── Scrollbar ─────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar {
@@ -81,12 +79,12 @@ body {
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #243042;
+  background: #2D3A4E;
   border-radius: 3px;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #334766;
+  background: #3D4F66;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -100,7 +98,6 @@ body {
 
 /* ─── Animations ────────────────────────────────────────────────────── */
 
-/* Only used for overlays/modals — never on data-driven content */
 @keyframes fade-in-scale {
   from { opacity: 0; transform: scale(0.96) translateY(4px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
@@ -110,39 +107,16 @@ body {
   animation: fade-in-scale 0.2s ease-out both;
 }
 
-/* ─── Glow Effects ──────────────────────────────────────────────────── */
-
-.glow-accent {
-  box-shadow: 0 0 20px rgba(129, 140, 248, 0.08), 0 0 40px rgba(129, 140, 248, 0.04);
-}
-
-.glow-accent-hover:hover {
-  box-shadow: 0 0 20px rgba(129, 140, 248, 0.15), 0 0 40px rgba(129, 140, 248, 0.08);
-}
-
-.glow-teal {
-  box-shadow: 0 0 12px rgba(45, 212, 191, 0.2);
-}
-
-.glow-rose {
-  box-shadow: 0 0 12px rgba(251, 113, 133, 0.2);
-}
-
-.glow-amber {
-  box-shadow: 0 0 12px rgba(251, 191, 36, 0.2);
-}
-
-/* ─── Glass Effect ──────────────────────────────────────────────────── */
+/* ─── Glass Effect (from docs navbar) ────────────────────────────────── */
 
 .glass {
-  background: rgba(12, 17, 23, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(12, 16, 24, 0.85);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
 }
 
 .glass-light {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 251, 245, 0.85);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
 }
-
