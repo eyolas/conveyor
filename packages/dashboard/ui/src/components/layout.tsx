@@ -46,12 +46,8 @@ export function Layout({ children, url }: LayoutProps) {
         {/* Header */}
         <header class="flex h-14 items-center justify-between border-b border-slate-200 px-5 dark:border-border-dim">
           <div class="flex items-center gap-3">
-            {/* Logo mark */}
-            <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-violet-500 dark:from-accent dark:to-violet">
-              <svg class="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
+            {/* Logo */}
+            <img src="/logo.jpeg" alt="Conveyor" class="h-7 w-7 rounded-lg object-cover" />
             <h1 class="font-display text-sm font-semibold tracking-tight text-slate-900 dark:text-text-bright">
               Conveyor
             </h1>
