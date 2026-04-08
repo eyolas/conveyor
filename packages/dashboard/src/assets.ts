@@ -7,13 +7,21 @@
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
+  '.wasm': 'application/wasm',
+  '.txt': 'text/plain; charset=utf-8',
 };
 
 /** In-memory cache of loaded assets. */
@@ -33,7 +41,12 @@ export async function serveAsset(pathname: string): Promise<Response | null> {
   const filePath = pathname.replace(/^\/+/, '') || 'index.html';
 
   // Security: prevent directory traversal
-  if (filePath.includes('..') || filePath.includes('\0')) return null;
+  if (filePath.includes('..') || filePath.includes('\0') || filePath.includes('\\')) return null;
+
+  // Verify resolved path stays within dist (defense in depth)
+  const distDir = getDistDir();
+  const resolved = new URL(filePath, `file://${distDir}/`).pathname;
+  if (!resolved.startsWith(distDir)) return null;
 
   // Check cache
   const cached = assetCache.get(filePath);
@@ -53,7 +66,6 @@ export async function serveAsset(pathname: string): Promise<Response | null> {
   const contentType = MIME_TYPES[ext] ?? 'application/octet-stream';
 
   // Try to read the file
-  const distDir = getDistDir();
   const fullPath = `${distDir}/${filePath}`;
 
   try {

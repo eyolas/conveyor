@@ -67,8 +67,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   });
-  const body = await res.json();
-  if (!res.ok) throw new Error((body as ErrorResponse).error?.message ?? 'Request failed');
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    throw new Error(`API error: ${res.status} ${res.statusText}`);
+  }
+  if (!res.ok) throw new Error((body as ErrorResponse).error?.message ?? `API error: ${res.status}`);
   return body as T;
 }
 

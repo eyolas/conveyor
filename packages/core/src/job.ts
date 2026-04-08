@@ -210,14 +210,17 @@ export class Job<T = unknown> {
    */
   async log(message: string): Promise<void> {
     this._logs.push(message);
-    // Also append to the current attempt's logs
-    const currentAttempt = this._attemptLogs[this._attemptLogs.length - 1];
+    // Read fresh attempt logs from store to avoid overwriting concurrent updates
+    const freshJob = await this.store.getJob(this.queueName, this.id);
+    const attemptLogs = freshJob?.attemptLogs ?? [];
+    const currentAttempt = attemptLogs[attemptLogs.length - 1];
     if (currentAttempt && currentAttempt.endedAt === null) {
       currentAttempt.logs.push(message);
     }
+    this._attemptLogs = attemptLogs;
     await this.store.updateJob(this.queueName, this.id, {
       logs: this._logs,
-      attemptLogs: this._attemptLogs,
+      attemptLogs,
     });
   }
 

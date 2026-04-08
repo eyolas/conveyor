@@ -371,11 +371,22 @@ export class Worker<T = unknown> {
       if (controller.signal.aborted) {
         try {
           const now = new Date();
+          // Close the current attempt record
+          const freshJob = await this.store.getJob(this.queueName, job.id);
+          const attemptLogs = [...(freshJob?.attemptLogs ?? [])];
+          const lastAttempt = attemptLogs[attemptLogs.length - 1];
+          if (lastAttempt && lastAttempt.endedAt === null) {
+            lastAttempt.endedAt = now.toISOString();
+            lastAttempt.status = 'failed';
+            lastAttempt.error = 'Job cancelled';
+            lastAttempt.logs = freshJob?.logs ?? [];
+          }
           await this.store.updateJob(this.queueName, job.id, {
             state: 'failed',
             failedReason: 'Job cancelled',
             failedAt: now,
             cancelledAt: now,
+            attemptLogs,
             ...Worker.UNLOCK,
           });
           this.events.emit('cancelled', job);
