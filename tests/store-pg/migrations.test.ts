@@ -114,7 +114,9 @@ describe('[PgStore] migrations', () => {
     expect(rows[3]!.version).toBe(4);
     expect(rows[4]!.version).toBe(5);
     expect(rows[5]!.version).toBe(6);
-    expect(rows[6]!.version).toBe(999);
+    expect(rows[6]!.version).toBe(8);
+    expect(rows[7]!.version).toBe(9);
+    expect(rows[8]!.version).toBe(999);
   });
 
   it('concurrent calls do not conflict (advisory lock)', async () => {
