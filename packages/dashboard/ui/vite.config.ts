@@ -8,4 +8,10 @@ export default defineConfig({
     outDir: '../dist',
     emptyOutDir: true,
   },
+  server: {
+    port: 5188,
+    proxy: {
+      '/api': 'http://localhost:8080',
+    },
+  },
 });

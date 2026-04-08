@@ -43,6 +43,9 @@
     "check": "deno check packages/*/src/mod.ts",
     "setup": "git config core.hooksPath .githooks",
     "build:ui": "cd packages/dashboard/ui && npx vite build",
+    "dev:ui": "cd packages/dashboard/ui && npx vite",
+    "dev:api": "deno run --allow-all --watch examples/with-dashboard/dev-server.ts",
+    "dev:dashboard": "deno run --allow-all --watch examples/with-dashboard/dev-server.ts & cd packages/dashboard/ui && npx vite",
     "docs:dev": "cd docs && npx vitepress dev",
     "docs:build": "cd docs && npx vitepress build",
     "docs:preview": "cd docs && npx vitepress preview"
