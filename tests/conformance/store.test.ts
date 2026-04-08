@@ -1927,8 +1927,7 @@ export function runConformanceTests(
 
     // Create and complete a job
     const jobData = createJobData(queueName, 'metric-job', { x: 1 });
-    await store.saveJob(queueName, jobData);
-    const jobId = jobData.id!;
+    const jobId = await store.saveJob(queueName, jobData);
 
     // Simulate fetch (sets processedAt)
     await store.fetchNextJob(queueName, 'worker-1', { lockDuration: 30_000 });
@@ -1941,8 +1940,9 @@ export function runConformanceTests(
 
     // Query metrics
     const now = new Date();
-    const from = new Date(now.getTime() - 60_000);
-    const buckets = await store.getMetrics(queueName, { granularity: 'minute', from, to: now });
+    const from = new Date(now.getTime() - 5 * 60_000);
+    const to = new Date(now.getTime() + 5 * 60_000);
+    const buckets = await store.getMetrics(queueName, { granularity: 'minute', from, to });
 
     // Should have at least one bucket with __all__ aggregation
     const allBucket = buckets.find((b) => b.jobName === '__all__');
@@ -1970,8 +1970,7 @@ export function runConformanceTests(
     }
 
     const jobData = createJobData(queueName, 'fail-job', { x: 1 });
-    await store.saveJob(queueName, jobData);
-    const jobId = jobData.id!;
+    const jobId = await store.saveJob(queueName, jobData);
 
     await store.fetchNextJob(queueName, 'worker-1', { lockDuration: 30_000 });
 
@@ -2003,8 +2002,7 @@ export function runConformanceTests(
 
     // Create and complete a job to generate minute metrics
     const jobData = createJobData(queueName, 'agg-job', { x: 1 });
-    await store.saveJob(queueName, jobData);
-    const jobId = jobData.id!;
+    const jobId = await store.saveJob(queueName, jobData);
     await store.fetchNextJob(queueName, 'worker-1', { lockDuration: 30_000 });
     await store.updateJob(queueName, jobId, {
       state: 'completed',

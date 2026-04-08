@@ -645,8 +645,7 @@ test('GET /api/queues/:name/metrics returns data after job completion', async ()
   await store.connect();
 
   const jobData = createJobData('emails', 'send', { to: 'a@b.com' });
-  await store.saveJob('emails', jobData);
-  const jobId = jobData.id!;
+  const jobId = await store.saveJob('emails', jobData);
   await store.fetchNextJob('emails', 'w1', { lockDuration: 30_000 });
   await store.updateJob('emails', jobId, { state: 'completed', completedAt: new Date() });
 
@@ -683,8 +682,7 @@ test('GET /api/metrics/sparklines returns batch data', async () => {
   await store.connect();
 
   const jobData = createJobData('emails', 'send', { to: 'a@b.com' });
-  await store.saveJob('emails', jobData);
-  const jobId = jobData.id!;
+  const jobId = await store.saveJob('emails', jobData);
   await store.fetchNextJob('emails', 'w1', { lockDuration: 30_000 });
   await store.updateJob('emails', jobId, { state: 'completed', completedAt: new Date() });
 
