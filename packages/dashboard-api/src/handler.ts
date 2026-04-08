@@ -59,9 +59,12 @@ export function createDashboardHandler(options: DashboardOptions): DashboardHand
   registerSearchRoutes(app, apiBase, store, filterQueues);
   registerMetricsRoutes(app, apiBase, store, filterQueues);
 
-  // Start metrics aggregation timer (every 5 minutes)
+  // Start metrics aggregation timer (every 5 minutes) + run once immediately
   let aggregationTimer: ReturnType<typeof setInterval> | null = null;
   if (store.aggregateMetrics) {
+    // Run once at startup so hour buckets are available immediately
+    store.aggregateMetrics().catch(() => {});
+
     aggregationTimer = setInterval(async () => {
       try {
         await store.aggregateMetrics!();
