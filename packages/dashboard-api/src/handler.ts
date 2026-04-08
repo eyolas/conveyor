@@ -60,19 +60,27 @@ export function createDashboardHandler(options: DashboardOptions): DashboardHand
   registerMetricsRoutes(app, apiBase, store, filterQueues);
 
   // Start metrics aggregation timer (every 5 minutes)
+  let aggregationTimer: ReturnType<typeof setInterval> | null = null;
   if (store.aggregateMetrics) {
-    const timer = setInterval(async () => {
+    aggregationTimer = setInterval(async () => {
       try {
         await store.aggregateMetrics!();
-      } catch {
-        // Aggregation errors are non-critical
+      } catch (err) {
+        console.warn('[Conveyor] Metrics aggregation error:', err);
       }
     }, 5 * 60_000);
     // Unref the timer so it doesn't prevent process exit
-    if (typeof timer === 'object' && 'unref' in timer) {
-      (timer as { unref: () => void }).unref();
+    if (typeof aggregationTimer === 'object' && 'unref' in aggregationTimer) {
+      (aggregationTimer as { unref: () => void }).unref();
     }
   }
 
-  return (request: Request) => app.fetch(request);
+  const handler: DashboardHandler = (request: Request) => app.fetch(request);
+  handler.close = () => {
+    if (aggregationTimer !== null) {
+      clearInterval(aggregationTimer);
+      aggregationTimer = null;
+    }
+  };
+  return handler;
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { route } from 'preact-router';
-import { getMetrics, listQueues, type MetricsBucket, pauseQueue, resumeQueue, type QueueInfo } from '../api/client';
+import { getSparklines, listQueues, pauseQueue, resumeQueue, type QueueInfo } from '../api/client';
 import { useSSE } from '../hooks/use-sse';
 import { Badge } from '../components/badge';
 import { Sparkline } from '../components/sparkline';
@@ -58,27 +58,19 @@ export function HomePage() {
     loadQueues();
   }, [loadQueues]);
 
-  // Sparkline data per queue (last 1h, minute granularity)
+  // Sparkline data per queue (last 1h, single batch request)
   const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
 
-  const loadSparklines = useCallback(async (queueNames: string[]) => {
-    const now = new Date();
-    const from = new Date(now.getTime() - 60 * 60_000);
-    const results: Record<string, number[]> = {};
-    await Promise.all(queueNames.map(async (name) => {
-      try {
-        const buckets = await getMetrics(name, 'minute', from, now);
-        const allBuckets = buckets.filter((b: MetricsBucket) => b.jobName === '__all__');
-        results[name] = allBuckets.map((b: MetricsBucket) => b.completedCount + b.failedCount);
-      } catch {
-        results[name] = [];
-      }
-    }));
-    setSparklines(results);
+  const loadSparklines = useCallback(async () => {
+    try {
+      setSparklines(await getSparklines());
+    } catch {
+      // Metrics may not be available
+    }
   }, []);
 
   useEffect(() => {
-    if (queues.length > 0) loadSparklines(queues.map((q) => q.name));
+    if (queues.length > 0) loadSparklines();
   }, [queues, loadSparklines]);
 
   useSSE({ onEvent: () => loadQueues() });

@@ -788,9 +788,12 @@ export class MemoryStore implements StoreInterface {
     for (const [_key, bucket] of this.metrics) {
       if (bucket.granularity !== 'minute') continue;
 
-      // Floor to hour
-      const hourStart = new Date(bucket.periodStart);
-      hourStart.setMinutes(0, 0, 0);
+      // Floor to hour (UTC)
+      const bp = bucket.periodStart;
+      const hourStart = new Date(Date.UTC(
+        bp.getUTCFullYear(), bp.getUTCMonth(), bp.getUTCDate(),
+        bp.getUTCHours(), 0, 0, 0,
+      ));
 
       const hourKey =
         `${bucket.queueName}::${bucket.jobName}::${hourStart.getTime()}::hour`;
@@ -894,9 +897,12 @@ export class MemoryStore implements StoreInterface {
     state: 'completed' | 'failed',
     processMs: number,
   ): void {
-    // Floor to current minute
-    const periodStart = new Date(timestamp);
-    periodStart.setSeconds(0, 0);
+    // Floor to current minute (UTC)
+    const t = new Date(timestamp);
+    const periodStart = new Date(Date.UTC(
+      t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(),
+      t.getUTCHours(), t.getUTCMinutes(), 0, 0,
+    ));
 
     const key = `${queueName}::${jobName}::${periodStart.getTime()}::minute`;
     const existing = this.metrics.get(key);

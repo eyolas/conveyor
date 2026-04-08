@@ -936,25 +936,32 @@ export class PgStore implements StoreInterface {
     if (!job.processed_at || !endTs) return;
 
     const processMs = new Date(endTs).getTime() - new Date(job.processed_at).getTime();
-    const periodStart = new Date(Math.floor(Date.now() / 60_000) * 60_000);
+    const now = new Date();
+    const periodStart = new Date(Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
+      now.getUTCHours(), now.getUTCMinutes(), 0, 0,
+    ));
     const isCompleted = state === 'completed';
     const completedCount = isCompleted ? 1 : 0;
     const failedCount = isCompleted ? 0 : 1;
     const jobName = job.name;
 
-    // Upsert for specific job name and '__all__'
-    for (const name of [jobName, '__all__']) {
-      await this.sql`
-        INSERT INTO conveyor_metrics (queue_name, job_name, period_start, granularity, completed_count, failed_count, total_process_ms, min_process_ms, max_process_ms)
-        VALUES (${queueName}, ${name}, ${periodStart}, 'minute', ${completedCount}, ${failedCount}, ${processMs}, ${processMs}, ${processMs})
-        ON CONFLICT (queue_name, job_name, period_start, granularity) DO UPDATE SET
-          completed_count = conveyor_metrics.completed_count + EXCLUDED.completed_count,
-          failed_count = conveyor_metrics.failed_count + EXCLUDED.failed_count,
-          total_process_ms = conveyor_metrics.total_process_ms + EXCLUDED.total_process_ms,
-          min_process_ms = LEAST(conveyor_metrics.min_process_ms, EXCLUDED.min_process_ms),
-          max_process_ms = GREATEST(conveyor_metrics.max_process_ms, EXCLUDED.max_process_ms)
-      `;
-    }
+    // Upsert for specific job name and '__all__' in a single transaction
+    await this.sql.begin(async (_tx) => {
+      const tx = sql(_tx);
+      for (const name of [jobName, '__all__']) {
+        await tx`
+          INSERT INTO conveyor_metrics (queue_name, job_name, period_start, granularity, completed_count, failed_count, total_process_ms, min_process_ms, max_process_ms)
+          VALUES (${queueName}, ${name}, ${periodStart}, 'minute', ${completedCount}, ${failedCount}, ${processMs}, ${processMs}, ${processMs})
+          ON CONFLICT (queue_name, job_name, period_start, granularity) DO UPDATE SET
+            completed_count = conveyor_metrics.completed_count + EXCLUDED.completed_count,
+            failed_count = conveyor_metrics.failed_count + EXCLUDED.failed_count,
+            total_process_ms = conveyor_metrics.total_process_ms + EXCLUDED.total_process_ms,
+            min_process_ms = LEAST(conveyor_metrics.min_process_ms, EXCLUDED.min_process_ms),
+            max_process_ms = GREATEST(conveyor_metrics.max_process_ms, EXCLUDED.max_process_ms)
+        `;
+      }
+    });
   }
 
   async getMetrics(queueName: string, options: MetricsQueryOptions): Promise<MetricsBucket[]> {
@@ -978,46 +985,49 @@ export class PgStore implements StoreInterface {
   }
 
   async aggregateMetrics(): Promise<void> {
-    // Aggregate minute buckets into hour buckets
-    const minuteRows = await this.sql`
-      SELECT queue_name, job_name,
-        date_trunc('hour', period_start) AS hour_start,
-        SUM(completed_count)::int AS completed_count,
-        SUM(failed_count)::int AS failed_count,
-        SUM(total_process_ms)::bigint AS total_process_ms,
-        MIN(min_process_ms)::int AS min_process_ms,
-        MAX(max_process_ms)::int AS max_process_ms
-      FROM conveyor_metrics
-      WHERE granularity = 'minute'
-      GROUP BY queue_name, job_name, date_trunc('hour', period_start)
-    `;
-
-    for (const row of minuteRows) {
-      await this.sql`
-        INSERT INTO conveyor_metrics (queue_name, job_name, period_start, granularity, completed_count, failed_count, total_process_ms, min_process_ms, max_process_ms)
-        VALUES (${row.queue_name}, ${row.job_name}, ${row.hour_start}, 'hour', ${row.completed_count}, ${row.failed_count}, ${row.total_process_ms}, ${row.min_process_ms}, ${row.max_process_ms})
-        ON CONFLICT (queue_name, job_name, period_start, granularity) DO UPDATE SET
-          completed_count = EXCLUDED.completed_count,
-          failed_count = EXCLUDED.failed_count,
-          total_process_ms = EXCLUDED.total_process_ms,
-          min_process_ms = EXCLUDED.min_process_ms,
-          max_process_ms = EXCLUDED.max_process_ms
+    await this.sql.begin(async (_tx) => {
+      const tx = sql(_tx);
+      // Aggregate minute buckets into hour buckets
+      const minuteRows = await tx`
+        SELECT queue_name, job_name,
+          date_trunc('hour', period_start) AS hour_start,
+          SUM(completed_count)::int AS completed_count,
+          SUM(failed_count)::int AS failed_count,
+          SUM(total_process_ms)::bigint AS total_process_ms,
+          MIN(min_process_ms)::int AS min_process_ms,
+          MAX(max_process_ms)::int AS max_process_ms
+        FROM conveyor_metrics
+        WHERE granularity = 'minute'
+        GROUP BY queue_name, job_name, date_trunc('hour', period_start)
       `;
-    }
 
-    // Purge expired minute buckets (older than 24 hours)
-    const minuteCutoff = new Date(Date.now() - 24 * 60 * 60 * 1_000);
-    await this.sql`
-      DELETE FROM conveyor_metrics
-      WHERE granularity = 'minute' AND period_start < ${minuteCutoff}
-    `;
+      for (const row of minuteRows) {
+        await tx`
+          INSERT INTO conveyor_metrics (queue_name, job_name, period_start, granularity, completed_count, failed_count, total_process_ms, min_process_ms, max_process_ms)
+          VALUES (${row.queue_name}, ${row.job_name}, ${row.hour_start}, 'hour', ${row.completed_count}, ${row.failed_count}, ${row.total_process_ms}, ${row.min_process_ms}, ${row.max_process_ms})
+          ON CONFLICT (queue_name, job_name, period_start, granularity) DO UPDATE SET
+            completed_count = conveyor_metrics.completed_count + EXCLUDED.completed_count,
+            failed_count = conveyor_metrics.failed_count + EXCLUDED.failed_count,
+            total_process_ms = conveyor_metrics.total_process_ms + EXCLUDED.total_process_ms,
+            min_process_ms = LEAST(conveyor_metrics.min_process_ms, EXCLUDED.min_process_ms),
+            max_process_ms = GREATEST(conveyor_metrics.max_process_ms, EXCLUDED.max_process_ms)
+        `;
+      }
 
-    // Purge expired hour buckets (older than 30 days)
-    const hourCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1_000);
-    await this.sql`
-      DELETE FROM conveyor_metrics
-      WHERE granularity = 'hour' AND period_start < ${hourCutoff}
-    `;
+      // Purge expired minute buckets (older than 24 hours)
+      const minuteCutoff = new Date(Date.now() - 24 * 60 * 60 * 1_000);
+      await tx`
+        DELETE FROM conveyor_metrics
+        WHERE granularity = 'minute' AND period_start < ${minuteCutoff}
+      `;
+
+      // Purge expired hour buckets (older than 30 days)
+      const hourCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1_000);
+      await tx`
+        DELETE FROM conveyor_metrics
+        WHERE granularity = 'hour' AND period_start < ${hourCutoff}
+      `;
+    });
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────

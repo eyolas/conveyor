@@ -263,3 +263,8 @@ export async function getMetrics(
   );
   return res.data;
 }
+
+export async function getSparklines(): Promise<Record<string, number[]>> {
+  const res = await request<DataResponse<Record<string, number[]>>>('/metrics/sparklines');
+  return res.data;
+}

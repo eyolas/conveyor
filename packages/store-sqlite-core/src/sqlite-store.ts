@@ -341,8 +341,11 @@ export class BaseSqliteStore implements StoreInterface {
         const startTs = job.processedAt?.getTime();
         if (endTs !== undefined && startTs !== undefined) {
           const processMs = endTs - startTs;
-          const periodStart = new Date();
-          periodStart.setSeconds(0, 0);
+          const now = new Date();
+          const periodStart = new Date(Date.UTC(
+            now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
+            now.getUTCHours(), now.getUTCMinutes(), 0, 0,
+          ));
           const periodMs = periodStart.getTime();
 
           const completedCount = updates.state === 'completed' ? 1 : 0;
@@ -359,16 +362,18 @@ export class BaseSqliteStore implements StoreInterface {
               max_process_ms = MAX(COALESCE(max_process_ms, excluded.max_process_ms), excluded.max_process_ms)
           `;
 
-          // Upsert for the specific job name
-          this.db.prepare(upsertSql).run(
-            queueName, job.name, periodMs, completedCount, failedCount,
-            processMs, processMs, processMs,
-          );
-          // Upsert for the aggregate '__all__' bucket
-          this.db.prepare(upsertSql).run(
-            queueName, '__all__', periodMs, completedCount, failedCount,
-            processMs, processMs, processMs,
-          );
+          this.runTransaction(() => {
+            // Upsert for the specific job name
+            this.db.prepare(upsertSql).run(
+              queueName, job.name, periodMs, completedCount, failedCount,
+              processMs, processMs, processMs,
+            );
+            // Upsert for the aggregate '__all__' bucket
+            this.db.prepare(upsertSql).run(
+              queueName, '__all__', periodMs, completedCount, failedCount,
+              processMs, processMs, processMs,
+            );
+          });
         }
       }
     }
@@ -804,6 +809,7 @@ export class BaseSqliteStore implements StoreInterface {
         this.db.prepare('DELETE FROM conveyor_paused_names WHERE queue_name = ?').run(queueName);
         this.db.prepare('DELETE FROM conveyor_group_cursors WHERE queue_name = ?').run(queueName);
         this.db.prepare('DELETE FROM conveyor_rate_limits WHERE queue_name = ?').run(queueName);
+        this.db.prepare('DELETE FROM conveyor_metrics WHERE queue_name = ?').run(queueName);
       });
       return Promise.resolve();
     } catch (err) {
