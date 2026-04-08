@@ -1896,4 +1896,133 @@ export function runConformanceTests(
 
     await store.disconnect();
   });
+
+  // ─── Metrics ──────────────────────────────────────────────────────────
+
+  test(`[${storeName}] getMetrics returns empty when no data`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.getMetrics) {
+      await store.disconnect();
+      return;
+    }
+
+    const now = new Date();
+    const from = new Date(now.getTime() - 60 * 60_000);
+    const buckets = await store.getMetrics(queueName, { granularity: 'minute', from, to: now });
+    expect(buckets).toEqual([]);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] metrics recorded on job completion`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.getMetrics) {
+      await store.disconnect();
+      return;
+    }
+
+    // Create and complete a job
+    const jobData = createJobData(queueName, 'metric-job', { x: 1 });
+    await store.saveJob(queueName, jobData);
+    const jobId = jobData.id!;
+
+    // Simulate fetch (sets processedAt)
+    await store.fetchNextJob(queueName, 'worker-1', { lockDuration: 30_000 });
+
+    // Complete the job (triggers metrics recording)
+    await store.updateJob(queueName, jobId, {
+      state: 'completed',
+      completedAt: new Date(),
+    });
+
+    // Query metrics
+    const now = new Date();
+    const from = new Date(now.getTime() - 60_000);
+    const buckets = await store.getMetrics(queueName, { granularity: 'minute', from, to: now });
+
+    // Should have at least one bucket with __all__ aggregation
+    const allBucket = buckets.find((b) => b.jobName === '__all__');
+    expect(allBucket).toBeDefined();
+    expect(allBucket!.completedCount).toBeGreaterThanOrEqual(1);
+    expect(allBucket!.failedCount).toBe(0);
+    expect(allBucket!.queueName).toBe(queueName);
+    expect(allBucket!.granularity).toBe('minute');
+
+    // Should also have a bucket for the specific job name
+    const namedBucket = buckets.find((b) => b.jobName === 'metric-job');
+    expect(namedBucket).toBeDefined();
+    expect(namedBucket!.completedCount).toBeGreaterThanOrEqual(1);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] metrics recorded on job failure`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.getMetrics) {
+      await store.disconnect();
+      return;
+    }
+
+    const jobData = createJobData(queueName, 'fail-job', { x: 1 });
+    await store.saveJob(queueName, jobData);
+    const jobId = jobData.id!;
+
+    await store.fetchNextJob(queueName, 'worker-1', { lockDuration: 30_000 });
+
+    await store.updateJob(queueName, jobId, {
+      state: 'failed',
+      failedAt: new Date(),
+      failedReason: 'test error',
+    });
+
+    const now = new Date();
+    const from = new Date(now.getTime() - 60_000);
+    const buckets = await store.getMetrics(queueName, { granularity: 'minute', from, to: now });
+
+    const allBucket = buckets.find((b) => b.jobName === '__all__');
+    expect(allBucket).toBeDefined();
+    expect(allBucket!.failedCount).toBeGreaterThanOrEqual(1);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] aggregateMetrics rolls up minute to hour`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.getMetrics || !store.aggregateMetrics) {
+      await store.disconnect();
+      return;
+    }
+
+    // Create and complete a job to generate minute metrics
+    const jobData = createJobData(queueName, 'agg-job', { x: 1 });
+    await store.saveJob(queueName, jobData);
+    const jobId = jobData.id!;
+    await store.fetchNextJob(queueName, 'worker-1', { lockDuration: 30_000 });
+    await store.updateJob(queueName, jobId, {
+      state: 'completed',
+      completedAt: new Date(),
+    });
+
+    // Run aggregation
+    await store.aggregateMetrics();
+
+    // Should have hour-level buckets now
+    const now = new Date();
+    const from = new Date(now.getTime() - 2 * 60 * 60_000);
+    const hourBuckets = await store.getMetrics(queueName, { granularity: 'hour', from, to: now });
+    const allHour = hourBuckets.find((b) => b.jobName === '__all__');
+    expect(allHour).toBeDefined();
+    expect(allHour!.completedCount).toBeGreaterThanOrEqual(1);
+    expect(allHour!.granularity).toBe('hour');
+
+    await store.disconnect();
+  });
 }
