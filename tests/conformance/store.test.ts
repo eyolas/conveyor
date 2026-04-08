@@ -1929,10 +1929,9 @@ export function runConformanceTests(
     const jobData = createJobData(queueName, 'metric-job', { x: 1 });
     const jobId = await store.saveJob(queueName, jobData);
 
-    // Simulate fetch (sets processedAt)
-    await store.fetchNextJob(queueName, 'worker-1', { lockDuration: 30_000 });
-
-    // Complete the job (triggers metrics recording)
+    // Set processedAt and complete the job
+    const processedAt = new Date();
+    await store.updateJob(queueName, jobId, { state: 'active', processedAt });
     await store.updateJob(queueName, jobId, {
       state: 'completed',
       completedAt: new Date(),
@@ -1972,8 +1971,7 @@ export function runConformanceTests(
     const jobData = createJobData(queueName, 'fail-job', { x: 1 });
     const jobId = await store.saveJob(queueName, jobData);
 
-    await store.fetchNextJob(queueName, 'worker-1', { lockDuration: 30_000 });
-
+    await store.updateJob(queueName, jobId, { state: 'active', processedAt: new Date() });
     await store.updateJob(queueName, jobId, {
       state: 'failed',
       failedAt: new Date(),
@@ -2003,7 +2001,7 @@ export function runConformanceTests(
     // Create and complete a job to generate minute metrics
     const jobData = createJobData(queueName, 'agg-job', { x: 1 });
     const jobId = await store.saveJob(queueName, jobData);
-    await store.fetchNextJob(queueName, 'worker-1', { lockDuration: 30_000 });
+    await store.updateJob(queueName, jobId, { state: 'active', processedAt: new Date() });
     await store.updateJob(queueName, jobId, {
       state: 'completed',
       completedAt: new Date(),

@@ -244,9 +244,13 @@ export class PgStore implements StoreInterface {
       `;
     }
 
-    // Record metrics for completed/failed transitions
+    // Record metrics for completed/failed transitions (best-effort)
     if (updates.state === 'completed' || updates.state === 'failed') {
-      await this.recordMetrics(queueName, jobId, updates.state);
+      try {
+        await this.recordMetrics(queueName, jobId, updates.state);
+      } catch {
+        // Metrics recording is non-critical — don't fail the job update
+      }
     }
   }
 
@@ -940,7 +944,10 @@ export class PgStore implements StoreInterface {
     const endTs = state === 'completed' ? job.completed_at : job.failed_at;
     if (!job.processed_at || !endTs) return;
 
-    const processMs = new Date(endTs).getTime() - new Date(job.processed_at).getTime();
+    const endTime = new Date(endTs as Date | string).getTime();
+    const startTime = new Date(job.processed_at as Date | string).getTime();
+    if (isNaN(endTime) || isNaN(startTime)) return;
+    const processMs = endTime - startTime;
     const now = new Date();
     const periodStart = new Date(Date.UTC(
       now.getUTCFullYear(),
