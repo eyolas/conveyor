@@ -923,7 +923,12 @@ export class PgStore implements StoreInterface {
     state: 'completed' | 'failed',
   ): Promise<void> {
     const rows = await this.sql<
-      { name: string; processed_at: Date | null; completed_at: Date | null; failed_at: Date | null }[]
+      {
+        name: string;
+        processed_at: Date | null;
+        completed_at: Date | null;
+        failed_at: Date | null;
+      }[]
     >`
       SELECT name, processed_at, completed_at, failed_at
       FROM conveyor_jobs
@@ -938,8 +943,13 @@ export class PgStore implements StoreInterface {
     const processMs = new Date(endTs).getTime() - new Date(job.processed_at).getTime();
     const now = new Date();
     const periodStart = new Date(Date.UTC(
-      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
-      now.getUTCHours(), now.getUTCMinutes(), 0, 0,
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      now.getUTCHours(),
+      now.getUTCMinutes(),
+      0,
+      0,
     ));
     const isCompleted = state === 'completed';
     const completedCount = isCompleted ? 1 : 0;

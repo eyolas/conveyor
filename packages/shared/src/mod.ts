@@ -9,8 +9,6 @@
 export type {
   AttemptRecord,
   BackoffOptions,
-  MetricsBucket,
-  MetricsQueryOptions,
   BatchOptions,
   BatchResult,
   DeduplicationOptions,
@@ -26,6 +24,8 @@ export type {
   JobOptions,
   JobState,
   LimiterOptions,
+  MetricsBucket,
+  MetricsQueryOptions,
   PauseOptions,
   QueueEventType,
   QueueInfo,

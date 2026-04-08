@@ -343,8 +343,13 @@ export class BaseSqliteStore implements StoreInterface {
           const processMs = endTs - startTs;
           const now = new Date();
           const periodStart = new Date(Date.UTC(
-            now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
-            now.getUTCHours(), now.getUTCMinutes(), 0, 0,
+            now.getUTCFullYear(),
+            now.getUTCMonth(),
+            now.getUTCDate(),
+            now.getUTCHours(),
+            now.getUTCMinutes(),
+            0,
+            0,
           ));
           const periodMs = periodStart.getTime();
 
@@ -365,13 +370,25 @@ export class BaseSqliteStore implements StoreInterface {
           this.runTransaction(() => {
             // Upsert for the specific job name
             this.db.prepare(upsertSql).run(
-              queueName, job.name, periodMs, completedCount, failedCount,
-              processMs, processMs, processMs,
+              queueName,
+              job.name,
+              periodMs,
+              completedCount,
+              failedCount,
+              processMs,
+              processMs,
+              processMs,
             );
             // Upsert for the aggregate '__all__' bucket
             this.db.prepare(upsertSql).run(
-              queueName, '__all__', periodMs, completedCount, failedCount,
-              processMs, processMs, processMs,
+              queueName,
+              '__all__',
+              periodMs,
+              completedCount,
+              failedCount,
+              processMs,
+              processMs,
+              processMs,
             );
           });
         }

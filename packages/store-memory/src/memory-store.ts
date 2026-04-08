@@ -791,12 +791,16 @@ export class MemoryStore implements StoreInterface {
       // Floor to hour (UTC)
       const bp = bucket.periodStart;
       const hourStart = new Date(Date.UTC(
-        bp.getUTCFullYear(), bp.getUTCMonth(), bp.getUTCDate(),
-        bp.getUTCHours(), 0, 0, 0,
+        bp.getUTCFullYear(),
+        bp.getUTCMonth(),
+        bp.getUTCDate(),
+        bp.getUTCHours(),
+        0,
+        0,
+        0,
       ));
 
-      const hourKey =
-        `${bucket.queueName}::${bucket.jobName}::${hourStart.getTime()}::hour`;
+      const hourKey = `${bucket.queueName}::${bucket.jobName}::${hourStart.getTime()}::hour`;
       const existing = this.metrics.get(hourKey);
 
       if (existing) {
@@ -900,8 +904,13 @@ export class MemoryStore implements StoreInterface {
     // Floor to current minute (UTC)
     const t = new Date(timestamp);
     const periodStart = new Date(Date.UTC(
-      t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(),
-      t.getUTCHours(), t.getUTCMinutes(), 0, 0,
+      t.getUTCFullYear(),
+      t.getUTCMonth(),
+      t.getUTCDate(),
+      t.getUTCHours(),
+      t.getUTCMinutes(),
+      0,
+      0,
     ));
 
     const key = `${queueName}::${jobName}::${periodStart.getTime()}::minute`;

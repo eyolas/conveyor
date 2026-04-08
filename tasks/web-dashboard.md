@@ -373,8 +373,8 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 - [x] **Layout**: collapsible sidebar with queue list + search filter
 - [x] **Home page**: queue cards grid with state counts, pause/resume toggle, stat bar per queue
 - [x] **Queue detail**: tabs per state, job table with pagination, actions header, relative time
-- [x] **Job detail**: payload/options/return value tabbed viewer, metadata bar, attempt history table,
-      parent/children links, action buttons
+- [x] **Job detail**: payload/options/return value tabbed viewer, metadata bar, attempt history
+      table, parent/children links, action buttons
 - [x] **Cmd+K command palette**:
   - Queue name fuzzy search (client-side)
   - Job ID search (calls `/api/search`)
