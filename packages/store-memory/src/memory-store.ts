@@ -137,6 +137,7 @@ export class MemoryStore implements StoreInterface {
       // Record metrics on terminal state transitions (only if metrics enabled)
       if (
         this.options?.metrics?.enabled &&
+        !this.options.metrics.excludeQueues?.includes(queueName) &&
         (updates.state === 'completed' || updates.state === 'failed')
       ) {
         const endTs = updates.state === 'completed'

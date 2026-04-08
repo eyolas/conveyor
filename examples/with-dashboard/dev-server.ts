@@ -14,7 +14,9 @@ import { createDashboardHandler } from '@conveyor/dashboard-api';
 
 // ─── Store ───────────────────────────────────────────────────────────
 
-const store = new MemoryStore({ metrics: { enabled: true } });
+const store = new MemoryStore({
+  metrics: { enabled: true, excludeQueues: ['logs'] },
+});
 await store.connect();
 
 // ─── Queues ──────────────────────────────────────────────────────────
@@ -94,6 +96,23 @@ await imageQueue.cron('*/30 * * * * *', 'cleanup-thumbnails', {
   url: 'https://example.com/cleanup',
   width: 0,
 });
+
+// ─── Queue excluded from metrics ─────────────────────────────────────
+
+const logQueue = new Queue<{ message: string }>('logs', { store });
+
+const _logWorker = new Worker<{ message: string }>(
+  'logs',
+  async (job: Job<{ message: string }>) => {
+    await job.log(job.data.message);
+    await new Promise((r) => setTimeout(r, 100));
+  },
+  { store, concurrency: 3 },
+);
+
+await logQueue.add('app-log', { message: 'Server started' });
+await logQueue.add('app-log', { message: 'Request received' });
+await logQueue.add('app-log', { message: 'Cache miss' });
 
 // ─── Dashboard API (no UI — Vite serves it) ─────────────────────────
 
