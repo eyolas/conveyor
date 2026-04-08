@@ -8,7 +8,7 @@ interface MetricsChartProps {
 const RANGES = [
   { label: '1h', ms: 60 * 60_000, granularity: 'minute' as const },
   { label: '6h', ms: 6 * 60 * 60_000, granularity: 'minute' as const },
-  { label: '24h', ms: 24 * 60 * 60_000, granularity: 'hour' as const },
+  { label: '24h', ms: 24 * 60 * 60_000, granularity: 'minute' as const },
   { label: '7d', ms: 7 * 24 * 60 * 60_000, granularity: 'hour' as const },
   { label: '30d', ms: 30 * 24 * 60 * 60_000, granularity: 'hour' as const },
 ];
@@ -53,6 +53,70 @@ function niceScale(max: number): number[] {
     if (ticks.length > 6) break;
   }
   return ticks;
+}
+
+/** Fill in missing time buckets with zeroes so the chart shows the full range. */
+function zeroFill(
+  buckets: MetricsBucket[],
+  from: Date,
+  to: Date,
+  granularity: 'minute' | 'hour',
+): MetricsBucket[] {
+  const stepMs = granularity === 'minute' ? 60_000 : 3_600_000;
+  const startMs = Math.floor(from.getTime() / stepMs) * stepMs;
+  const endMs = Math.floor(to.getTime() / stepMs) * stepMs;
+
+  const map = new Map<number, MetricsBucket>();
+  for (const b of buckets) {
+    map.set(new Date(b.periodStart).getTime(), b);
+  }
+
+  const result: MetricsBucket[] = [];
+  for (let ts = startMs; ts <= endMs; ts += stepMs) {
+    const existing = map.get(ts);
+    if (existing) {
+      result.push(existing);
+    } else {
+      result.push({
+        queueName: '',
+        jobName: '__all__',
+        periodStart: new Date(ts).toISOString(),
+        granularity,
+        completedCount: 0,
+        failedCount: 0,
+        totalProcessMs: 0,
+        minProcessMs: null,
+        maxProcessMs: null,
+      });
+    }
+  }
+  return result;
+}
+
+/** Merge adjacent buckets to reduce the total count to ~maxBuckets. */
+function downsample(buckets: MetricsBucket[], maxBuckets: number): MetricsBucket[] {
+  if (buckets.length <= maxBuckets) return buckets;
+  const groupSize = Math.ceil(buckets.length / maxBuckets);
+  const result: MetricsBucket[] = [];
+  for (let i = 0; i < buckets.length; i += groupSize) {
+    const group = buckets.slice(i, i + groupSize);
+    const merged: MetricsBucket = {
+      ...group[0]!,
+      completedCount: group.reduce((s, b) => s + b.completedCount, 0),
+      failedCount: group.reduce((s, b) => s + b.failedCount, 0),
+      totalProcessMs: group.reduce((s, b) => s + b.totalProcessMs, 0),
+      minProcessMs: group.reduce(
+        (m, b) => (b.minProcessMs !== null && (m === null || b.minProcessMs < m) ? b.minProcessMs : m),
+        null as number | null,
+      ),
+      maxProcessMs: group.reduce(
+        (m, b) => (b.maxProcessMs !== null && (m === null || b.maxProcessMs > m) ? b.maxProcessMs : m),
+        null as number | null,
+      ),
+    };
+    result.push(merged);
+  }
+  return result;
 }
 
 // ─── Tooltip ─────────────────────────────────────────────────────────
@@ -426,7 +490,10 @@ export function MetricsPanel({ queueName }: MetricsChartProps) {
       const now = new Date();
       const from = new Date(now.getTime() - range.ms);
       const data = await getMetrics(queueName, range.granularity, from, now);
-      setBuckets(data.filter((b) => b.jobName === '__all__'));
+      const filtered = data.filter((b) => b.jobName === '__all__');
+      const filled = zeroFill(filtered, from, now, range.granularity);
+      // For large ranges, downsample to keep the chart performant
+      setBuckets(filled.length > 120 ? downsample(filled, 120) : filled);
     } catch {
       setBuckets([]);
     } finally {
