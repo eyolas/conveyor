@@ -477,6 +477,16 @@ export interface MetricsQueryOptions {
   to: Date;
 }
 
+/** Configuration for built-in metrics collection. */
+export interface MetricsOptions {
+  /** Enable metrics recording in updateJob (default: false). */
+  enabled: boolean;
+  /** Retention for minute-level buckets in minutes (default: 1440 = 24h). */
+  retentionMinutes?: number;
+  /** Retention for hour-level buckets in hours (default: 720 = 30d). */
+  retentionHours?: number;
+}
+
 /** Base options shared by all store implementations. */
 export interface StoreOptions {
   /** Run migrations automatically on connect() (default: true). */
@@ -484,6 +494,17 @@ export interface StoreOptions {
 
   /** Called when an event handler throws. Defaults to `console.warn`. */
   onEventHandlerError?: (error: unknown) => void;
+
+  /**
+   * Enable built-in metrics collection.
+   * Disabled by default — must be explicitly enabled.
+   *
+   * @example
+   * ```ts
+   * const store = new MemoryStore({ metrics: { enabled: true } });
+   * ```
+   */
+  metrics?: MetricsOptions;
 }
 
 /**

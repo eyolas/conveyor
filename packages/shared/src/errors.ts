@@ -50,3 +50,12 @@ export class InvalidJobStateError extends ConveyorError {
     this.expectedStates = expectedStates;
   }
 }
+
+/**
+ * Thrown when metrics are queried but not enabled on the store.
+ */
+export class MetricsDisabledError extends ConveyorError {
+  constructor() {
+    super('Metrics are not enabled. Set metrics.enabled: true in store options.');
+  }
+}

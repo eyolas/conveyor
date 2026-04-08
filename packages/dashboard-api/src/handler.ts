@@ -60,21 +60,30 @@ export function createDashboardHandler(options: DashboardOptions): DashboardHand
   registerMetricsRoutes(app, apiBase, store, filterQueues);
 
   // Start metrics aggregation timer (every 5 minutes) + run once immediately
+  // Only if metrics are enabled (aggregateMetrics throws MetricsDisabledError otherwise)
   let aggregationTimer: ReturnType<typeof setInterval> | null = null;
   if (store.aggregateMetrics) {
-    // Run once at startup so hour buckets are available immediately
-    store.aggregateMetrics().catch(() => {});
-
-    aggregationTimer = setInterval(async () => {
-      try {
-        await store.aggregateMetrics!();
-      } catch (err) {
-        console.warn('[Conveyor] Metrics aggregation error:', err);
+    const startTimer = () => {
+      aggregationTimer = setInterval(async () => {
+        try {
+          await store.aggregateMetrics!();
+        } catch (err) {
+          console.warn('[Conveyor] Metrics aggregation error:', err);
+        }
+      }, 5 * 60_000);
+      // Unref the timer so it doesn't prevent process exit
+      if (typeof aggregationTimer === 'object' && 'unref' in aggregationTimer) {
+        (aggregationTimer as { unref: () => void }).unref();
       }
-    }, 5 * 60_000);
-    // Unref the timer so it doesn't prevent process exit
-    if (typeof aggregationTimer === 'object' && 'unref' in aggregationTimer) {
-      (aggregationTimer as { unref: () => void }).unref();
+    };
+
+    // Run once at startup — if it succeeds, start the periodic timer
+    try {
+      store.aggregateMetrics().then(() => startTimer()).catch(() => {
+        // Metrics disabled or error — don't start the timer
+      });
+    } catch {
+      // aggregateMetrics threw synchronously (MetricsDisabledError)
     }
   }
 

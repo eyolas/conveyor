@@ -268,3 +268,8 @@ export async function getSparklines(): Promise<Record<string, number[]>> {
   const res = await request<DataResponse<Record<string, number[]>>>('/metrics/sparklines');
   return res.data;
 }
+
+export async function getMetricsStatus(): Promise<boolean> {
+  const res = await request<DataResponse<{ enabled: boolean }>>('/metrics/status');
+  return res.data.enabled;
+}

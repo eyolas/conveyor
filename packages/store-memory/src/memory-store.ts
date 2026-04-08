@@ -21,7 +21,7 @@ import type {
   StoreOptions,
   UpdateJobOptions,
 } from '@conveyor/shared';
-import { generateId, InvalidJobStateError } from '@conveyor/shared';
+import { generateId, InvalidJobStateError, MetricsDisabledError } from '@conveyor/shared';
 
 /** @internal */
 type EventCallback = (event: StoreEvent) => void;
@@ -51,8 +51,10 @@ export class MemoryStore implements StoreInterface {
   /** Metrics buckets: key = `${queueName}::${jobName}::${periodStart.getTime()}::${granularity}` */
   private metrics = new Map<string, MetricsBucket>();
   private readonly onEventHandlerError: (error: unknown) => void;
+  private readonly options?: StoreOptions;
 
   constructor(options?: StoreOptions) {
+    this.options = options;
     this.onEventHandlerError = options?.onEventHandlerError ??
       ((err) => console.warn('[Conveyor] Error in event handler:', err));
   }
@@ -132,8 +134,11 @@ export class MemoryStore implements StoreInterface {
       const updated = structuredClone({ ...job, ...updates });
       queue.set(jobId, updated);
 
-      // Record metrics on terminal state transitions
-      if (updates.state === 'completed' || updates.state === 'failed') {
+      // Record metrics on terminal state transitions (only if metrics enabled)
+      if (
+        this.options?.metrics?.enabled &&
+        (updates.state === 'completed' || updates.state === 'failed')
+      ) {
         const endTs = updates.state === 'completed'
           ? updated.completedAt?.getTime()
           : updated.failedAt?.getTime();
@@ -760,6 +765,8 @@ export class MemoryStore implements StoreInterface {
   // ─── Metrics ──────────────────────────────────────────────────────
 
   getMetrics(queueName: string, options: MetricsQueryOptions): Promise<MetricsBucket[]> {
+    if (!this.options?.metrics?.enabled) throw new MetricsDisabledError();
+
     const results: MetricsBucket[] = [];
     const fromMs = options.from.getTime();
     const toMs = options.to.getTime();
@@ -780,9 +787,11 @@ export class MemoryStore implements StoreInterface {
   }
 
   aggregateMetrics(): Promise<void> {
+    if (!this.options?.metrics?.enabled) throw new MetricsDisabledError();
+
     const now = Date.now();
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1_000;
-    const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1_000;
+    const retentionMinutesMs = (this.options?.metrics?.retentionMinutes ?? 1_440) * 60 * 1_000;
+    const retentionHoursMs = (this.options?.metrics?.retentionHours ?? 720) * 60 * 60 * 1_000;
 
     // Aggregate minute-level buckets into hour-level buckets
     for (const [_key, bucket] of this.metrics) {
@@ -835,9 +844,9 @@ export class MemoryStore implements StoreInterface {
     // Purge expired buckets
     for (const [key, bucket] of this.metrics) {
       const age = now - bucket.periodStart.getTime();
-      if (bucket.granularity === 'minute' && age > TWENTY_FOUR_HOURS) {
+      if (bucket.granularity === 'minute' && age > retentionMinutesMs) {
         this.metrics.delete(key);
-      } else if (bucket.granularity === 'hour' && age > THIRTY_DAYS) {
+      } else if (bucket.granularity === 'hour' && age > retentionHoursMs) {
         this.metrics.delete(key);
       }
     }

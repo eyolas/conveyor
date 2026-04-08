@@ -17,7 +17,12 @@ import type {
   StoreOptions,
   UpdateJobOptions,
 } from '@conveyor/shared';
-import { assertJobState, generateId, InvalidJobStateError } from '@conveyor/shared';
+import {
+  assertJobState,
+  generateId,
+  InvalidJobStateError,
+  MetricsDisabledError,
+} from '@conveyor/shared';
 import type { DatabaseOpener, SqliteDatabase, SqliteStatement } from './types.ts';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
@@ -333,7 +338,10 @@ export class BaseSqliteStore implements StoreInterface {
     }
 
     // ─── Metrics upsert on completion/failure ──────────────────────
-    if (updates.state === 'completed' || updates.state === 'failed') {
+    if (
+      this.options?.metrics?.enabled &&
+      (updates.state === 'completed' || updates.state === 'failed')
+    ) {
       const jobRow = this.stmts.getJob.get(queueName, jobId) as JobRow | undefined;
       if (jobRow) {
         const job = rowToJobData(jobRow);
@@ -958,6 +966,7 @@ export class BaseSqliteStore implements StoreInterface {
   // ─── Metrics ───────────────────────────────────────────────────────
 
   getMetrics(queueName: string, options: MetricsQueryOptions): Promise<MetricsBucket[]> {
+    if (!this.options?.metrics?.enabled) throw new MetricsDisabledError();
     const rows = this.db.prepare(`
       SELECT * FROM conveyor_metrics
       WHERE queue_name = ? AND granularity = ? AND period_start >= ? AND period_start <= ?
@@ -988,6 +997,7 @@ export class BaseSqliteStore implements StoreInterface {
   }
 
   aggregateMetrics(): Promise<void> {
+    if (!this.options?.metrics?.enabled) throw new MetricsDisabledError();
     this.runTransaction(() => {
       // Select minute buckets grouped by queue_name, job_name, and hour
       const minuteBuckets = this.db.prepare(`
@@ -1038,14 +1048,16 @@ export class BaseSqliteStore implements StoreInterface {
         );
       }
 
-      // Delete minute buckets older than 24 hours
-      const minuteCutoff = Date.now() - 24 * 60 * 60 * 1000;
+      // Delete minute buckets older than retention threshold (default 1440 minutes = 24h)
+      const retentionMinutes = this.options?.metrics?.retentionMinutes ?? 1440;
+      const minuteCutoff = Date.now() - retentionMinutes * 60 * 1000;
       this.db.prepare(
         "DELETE FROM conveyor_metrics WHERE granularity = 'minute' AND period_start < ?",
       ).run(minuteCutoff);
 
-      // Delete hour buckets older than 30 days
-      const hourCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      // Delete hour buckets older than retention threshold (default 720 hours = 30d)
+      const retentionHours = this.options?.metrics?.retentionHours ?? 720;
+      const hourCutoff = Date.now() - retentionHours * 60 * 60 * 1000;
       this.db.prepare(
         "DELETE FROM conveyor_metrics WHERE granularity = 'hour' AND period_start < ?",
       ).run(hourCutoff);

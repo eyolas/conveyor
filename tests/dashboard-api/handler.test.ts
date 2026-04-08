@@ -14,9 +14,13 @@ function createHandler(opts?: {
   auth?: (req: Request) => boolean | Promise<boolean>;
   queues?: string[];
   basePath?: string;
+  metricsEnabled?: boolean;
 }) {
-  const store = new MemoryStore();
-  const handler = createDashboardHandler({ store, ...opts });
+  const { metricsEnabled, ...dashboardOpts } = opts ?? {};
+  const store = new MemoryStore(
+    metricsEnabled ? { metrics: { enabled: true } } : undefined,
+  );
+  const handler = createDashboardHandler({ store, ...dashboardOpts });
   return { store, handler };
 }
 
@@ -628,8 +632,20 @@ test('GET /api/search respects queue filter for queue search', async () => {
 
 // ─── Metrics Endpoints ──────────────────────────────────────────────────
 
-test('GET /api/queues/:name/metrics returns empty when no data', async () => {
+test('GET /api/queues/:name/metrics returns METRICS_DISABLED when not enabled', async () => {
   const { store, handler } = createHandler();
+  await store.connect();
+
+  const res = await handler(new Request('http://localhost/api/queues/emails/metrics'));
+  expect(res.status).toBe(400);
+  const body = await json(res);
+  expect(body.error.code).toBe('METRICS_DISABLED');
+
+  await store.disconnect();
+});
+
+test('GET /api/queues/:name/metrics returns empty when no data', async () => {
+  const { store, handler } = createHandler({ metricsEnabled: true });
   await store.connect();
 
   const res = await handler(new Request('http://localhost/api/queues/emails/metrics'));
@@ -641,7 +657,7 @@ test('GET /api/queues/:name/metrics returns empty when no data', async () => {
 });
 
 test('GET /api/queues/:name/metrics returns data after job completion', async () => {
-  const { store, handler } = createHandler();
+  const { store, handler } = createHandler({ metricsEnabled: true });
   await store.connect();
 
   const jobData = createJobData('emails', 'send', { to: 'a@b.com' });
@@ -678,7 +694,7 @@ test('GET /api/queues/:name/metrics rejects invalid granularity', async () => {
 });
 
 test('GET /api/metrics/sparklines returns batch data', async () => {
-  const { store, handler } = createHandler();
+  const { store, handler } = createHandler({ metricsEnabled: true });
   await store.connect();
 
   const jobData = createJobData('emails', 'send', { to: 'a@b.com' });

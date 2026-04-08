@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { route } from 'preact-router';
+import { getMetricsStatus } from '../api/client';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import { MetricsPanel } from '../components/metrics-chart';
 import { showToast } from '../components/toast';
@@ -40,6 +41,11 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
   const [total, setTotal] = useState(0);
   const [start, setStart] = useState(0);
   const [confirmDrain, setConfirmDrain] = useState(false);
+  const [metricsEnabled, setMetricsEnabled] = useState(false);
+
+  useEffect(() => {
+    getMetricsStatus().then(setMetricsEnabled).catch(() => setMetricsEnabled(false));
+  }, []);
 
   const loadQueue = useCallback(async () => {
     if (!queueName) return;
@@ -173,19 +179,21 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
             </button>
           );
         })}
-        <button
-          onClick={() => setActiveTab('metrics')}
-          class={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 font-display text-xs font-medium transition-all duration-150 ${
-            activeTab === 'metrics'
-              ? 'bg-accent/10 text-accent shadow-sm dark:bg-accent-glow-strong dark:text-accent-bright'
-              : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700 dark:text-text-muted dark:hover:bg-surface-2 dark:hover:text-text-secondary'
-          }`}
-        >
-          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          Metrics
-        </button>
+        {metricsEnabled && (
+          <button
+            onClick={() => setActiveTab('metrics')}
+            class={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 font-display text-xs font-medium transition-all duration-150 ${
+              activeTab === 'metrics'
+                ? 'bg-accent/10 text-accent shadow-sm dark:bg-accent-glow-strong dark:text-accent-bright'
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700 dark:text-text-muted dark:hover:bg-surface-2 dark:hover:text-text-secondary'
+            }`}
+          >
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            Metrics
+          </button>
+        )}
       </div>
 
       {/* Metrics panel */}

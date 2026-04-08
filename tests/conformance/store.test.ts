@@ -11,7 +11,22 @@
 
 import { expect, test } from 'vitest';
 import type { StoreEvent, StoreInterface } from '@conveyor/shared';
-import { createJobData, hashPayload } from '@conveyor/shared';
+import { createJobData, hashPayload, MetricsDisabledError } from '@conveyor/shared';
+
+async function isMetricsEnabled(store: StoreInterface): Promise<boolean> {
+  if (!store.getMetrics) return false;
+  try {
+    await store.getMetrics('__probe__', {
+      granularity: 'minute',
+      from: new Date(),
+      to: new Date(),
+    });
+    return true;
+  } catch (err) {
+    if (err instanceof MetricsDisabledError) return false;
+    throw err;
+  }
+}
 
 export function runConformanceTests(
   storeName: string,
@@ -1903,7 +1918,7 @@ export function runConformanceTests(
     store = factory();
     await store.connect();
 
-    if (!store.getMetrics) {
+    if (!await isMetricsEnabled(store)) {
       await store.disconnect();
       return;
     }
@@ -1920,7 +1935,7 @@ export function runConformanceTests(
     store = factory();
     await store.connect();
 
-    if (!store.getMetrics) {
+    if (!await isMetricsEnabled(store)) {
       await store.disconnect();
       return;
     }
@@ -1963,7 +1978,7 @@ export function runConformanceTests(
     store = factory();
     await store.connect();
 
-    if (!store.getMetrics) {
+    if (!await isMetricsEnabled(store)) {
       await store.disconnect();
       return;
     }
@@ -1993,7 +2008,7 @@ export function runConformanceTests(
     store = factory();
     await store.connect();
 
-    if (!store.getMetrics || !store.aggregateMetrics) {
+    if (!store.getMetrics || !store.aggregateMetrics || !await isMetricsEnabled(store)) {
       await store.disconnect();
       return;
     }

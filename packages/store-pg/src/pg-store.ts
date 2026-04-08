@@ -10,7 +10,12 @@ import type {
   StoreOptions,
   UpdateJobOptions,
 } from '@conveyor/shared';
-import { assertJobState, generateId, InvalidJobStateError } from '@conveyor/shared';
+import {
+  assertJobState,
+  generateId,
+  InvalidJobStateError,
+  MetricsDisabledError,
+} from '@conveyor/shared';
 import postgres from 'postgres';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
@@ -245,7 +250,10 @@ export class PgStore implements StoreInterface {
     }
 
     // Record metrics for completed/failed transitions (best-effort)
-    if (updates.state === 'completed' || updates.state === 'failed') {
+    if (
+      this.options?.metrics?.enabled &&
+      (updates.state === 'completed' || updates.state === 'failed')
+    ) {
       try {
         await this.recordMetrics(queueName, jobId, updates.state);
       } catch {
@@ -982,6 +990,7 @@ export class PgStore implements StoreInterface {
   }
 
   async getMetrics(queueName: string, options: MetricsQueryOptions): Promise<MetricsBucket[]> {
+    if (!this.options?.metrics?.enabled) throw new MetricsDisabledError();
     const rows = await this.sql`
       SELECT * FROM conveyor_metrics
       WHERE queue_name = ${queueName} AND granularity = ${options.granularity}
@@ -1002,6 +1011,7 @@ export class PgStore implements StoreInterface {
   }
 
   async aggregateMetrics(): Promise<void> {
+    if (!this.options?.metrics?.enabled) throw new MetricsDisabledError();
     await this.sql.begin(async (_tx) => {
       const tx = sql(_tx);
       // Aggregate minute buckets into hour buckets
@@ -1031,15 +1041,17 @@ export class PgStore implements StoreInterface {
         `;
       }
 
-      // Purge expired minute buckets (older than 24 hours)
-      const minuteCutoff = new Date(Date.now() - 24 * 60 * 60 * 1_000);
+      // Purge expired minute buckets (default 1440 minutes = 24h)
+      const retentionMinutes = this.options?.metrics?.retentionMinutes ?? 1440;
+      const minuteCutoff = new Date(Date.now() - retentionMinutes * 60 * 1_000);
       await tx`
         DELETE FROM conveyor_metrics
         WHERE granularity = 'minute' AND period_start < ${minuteCutoff}
       `;
 
-      // Purge expired hour buckets (older than 30 days)
-      const hourCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1_000);
+      // Purge expired hour buckets (default 720 hours = 30d)
+      const retentionHours = this.options?.metrics?.retentionHours ?? 720;
+      const hourCutoff = new Date(Date.now() - retentionHours * 60 * 60 * 1_000);
       await tx`
         DELETE FROM conveyor_metrics
         WHERE granularity = 'hour' AND period_start < ${hourCutoff}

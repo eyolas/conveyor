@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { route } from 'preact-router';
-import { getSparklines, listQueues, pauseQueue, resumeQueue, type QueueInfo } from '../api/client';
+import {
+  getMetricsStatus,
+  getSparklines,
+  listQueues,
+  pauseQueue,
+  resumeQueue,
+  type QueueInfo,
+} from '../api/client';
 import { useSSE } from '../hooks/use-sse';
 import { Badge } from '../components/badge';
 import { Sparkline } from '../components/sparkline';
@@ -58,20 +65,26 @@ export function HomePage() {
     loadQueues();
   }, [loadQueues]);
 
-  // Sparkline data per queue (last 1h, single batch request)
+  // Sparkline data per queue (only if metrics enabled)
   const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
+  const [metricsEnabled, setMetricsEnabled] = useState(false);
+
+  useEffect(() => {
+    getMetricsStatus().then(setMetricsEnabled).catch(() => setMetricsEnabled(false));
+  }, []);
 
   const loadSparklines = useCallback(async () => {
+    if (!metricsEnabled) return;
     try {
       setSparklines(await getSparklines());
     } catch {
       // Metrics may not be available
     }
-  }, []);
+  }, [metricsEnabled]);
 
   useEffect(() => {
-    if (queues.length > 0) loadSparklines();
-  }, [queues, loadSparklines]);
+    if (queues.length > 0 && metricsEnabled) loadSparklines();
+  }, [queues, metricsEnabled, loadSparklines]);
 
   useSSE({ onEvent: () => loadQueues() });
 

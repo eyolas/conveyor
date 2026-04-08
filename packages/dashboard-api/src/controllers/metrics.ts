@@ -6,6 +6,7 @@
 
 import type { Hono } from 'hono';
 import type { StoreInterface } from '@conveyor/shared';
+import { MetricsDisabledError } from '@conveyor/shared';
 import { jsonData, jsonError } from '../helpers.ts';
 
 export function registerMetricsRoutes(
@@ -22,7 +23,7 @@ export function registerMetricsRoutes(
     }
 
     if (!store.getMetrics) {
-      return jsonData(c, []);
+      return jsonError(c, 'METRICS_DISABLED', 'Metrics are not supported by this store');
     }
 
     const granularity = c.req.query('granularity') ?? 'minute';
@@ -40,29 +41,64 @@ export function registerMetricsRoutes(
       return jsonError(c, 'BAD_REQUEST', 'Invalid from/to date');
     }
 
-    const metrics = await store.getMetrics(name, { granularity, from, to });
-    return jsonData(c, metrics);
+    try {
+      const metrics = await store.getMetrics(name, { granularity, from, to });
+      return jsonData(c, metrics);
+    } catch (err) {
+      if (err instanceof MetricsDisabledError) {
+        return jsonError(c, 'METRICS_DISABLED', err.message);
+      }
+      throw err;
+    }
   });
 
   // GET /api/metrics/sparklines — batch sparklines for all queues (avoids N+1)
   app.get(`${apiBase}/metrics/sparklines`, async (c) => {
     if (!store.getMetrics) {
-      return jsonData(c, {});
+      return jsonError(c, 'METRICS_DISABLED', 'Metrics are not supported by this store');
     }
 
-    const now = new Date();
-    const from = new Date(now.getTime() - 60 * 60_000);
-    const queues = await store.listQueues();
-    const filtered = filterQueues ? queues.filter((q) => filterQueues.includes(q.name)) : queues;
+    try {
+      const now = new Date();
+      const from = new Date(now.getTime() - 60 * 60_000);
+      const queues = await store.listQueues();
+      const filtered = filterQueues ? queues.filter((q) => filterQueues.includes(q.name)) : queues;
 
-    const result: Record<string, number[]> = {};
-    await Promise.all(filtered.map(async (q) => {
-      const buckets = await store.getMetrics!(q.name, { granularity: 'minute', from, to: now });
-      result[q.name] = buckets
-        .filter((b) => b.jobName === '__all__')
-        .map((b) => b.completedCount + b.failedCount);
-    }));
+      const result: Record<string, number[]> = {};
+      await Promise.all(filtered.map(async (q) => {
+        const buckets = await store.getMetrics!(q.name, {
+          granularity: 'minute',
+          from,
+          to: now,
+        });
+        result[q.name] = buckets
+          .filter((b) => b.jobName === '__all__')
+          .map((b) => b.completedCount + b.failedCount);
+      }));
 
-    return jsonData(c, result);
+      return jsonData(c, result);
+    } catch (err) {
+      if (err instanceof MetricsDisabledError) {
+        return jsonError(c, 'METRICS_DISABLED', err.message);
+      }
+      throw err;
+    }
+  });
+
+  // GET /api/metrics/status — check if metrics are enabled
+  app.get(`${apiBase}/metrics/status`, async (c) => {
+    if (!store.getMetrics) return jsonData(c, { enabled: false });
+    try {
+      await store.getMetrics('__probe__', {
+        granularity: 'minute',
+        from: new Date(),
+        to: new Date(),
+      });
+      return jsonData(c, { enabled: true });
+    } catch (err) {
+      if (err instanceof MetricsDisabledError) return jsonData(c, { enabled: false });
+      // getMetrics worked (returned empty) — metrics are enabled
+      return jsonData(c, { enabled: true });
+    }
   });
 }
