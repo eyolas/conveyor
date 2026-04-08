@@ -9,9 +9,11 @@
     "./packages/store-sqlite-node",
     "./packages/store-sqlite-bun",
     "./packages/store-sqlite-deno",
-    "./packages/dashboard-api"
+    "./packages/dashboard-api",
+    "./packages/dashboard"
   ],
   "imports": {
+    "@conveyor/dashboard": "./packages/dashboard/src/mod.ts",
     "@conveyor/dashboard-api": "./packages/dashboard-api/src/mod.ts",
     "@conveyor/core": "./packages/core/src/mod.ts",
     "@conveyor/shared": "./packages/shared/src/mod.ts",
@@ -40,6 +42,10 @@
     "fmt": "deno fmt",
     "check": "deno check packages/*/src/mod.ts",
     "setup": "git config core.hooksPath .githooks",
+    "build:ui": "cd packages/dashboard/ui && npx vite build",
+    "dev:ui": "cd packages/dashboard/ui && npx vite",
+    "dev:api": "deno run --allow-all --watch examples/with-dashboard/dev-server.ts",
+    "dev:dashboard": "deno run --allow-all --watch examples/with-dashboard/dev-server.ts & cd packages/dashboard/ui && npx vite",
     "docs:dev": "cd docs && npx vitepress dev",
     "docs:build": "cd docs && npx vitepress build",
     "docs:preview": "cd docs && npx vitepress preview"
@@ -48,13 +54,19 @@
     "lineWidth": 100,
     "indentWidth": 2,
     "singleQuote": true,
-    "exclude": ["docs/"]
+    "exclude": ["docs/", "packages/dashboard/ui/", "packages/dashboard/dist/"]
   },
   "lint": {
     "rules": {
       "tags": ["recommended"]
     },
-    "exclude": ["tests/bun-vitest-shim.ts", "bunfig.toml", "docs/"]
+    "exclude": [
+      "tests/bun-vitest-shim.ts",
+      "bunfig.toml",
+      "docs/",
+      "packages/dashboard/ui/",
+      "packages/dashboard/dist/"
+    ]
   },
   "compilerOptions": {
     "strict": true,

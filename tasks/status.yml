@@ -121,8 +121,9 @@ roadmap:
     status: next-release-candidate
     items:
       web-dashboard:
-        status: planned
+        status: in-progress
         file: tasks/web-dashboard.md
+        notes: Phase 1 (API) and Phase 2 (UI) done. Phase 3 (metrics) not started.
       decoupled-notifications:
         status: next-release-candidate
       sandboxed-workers:

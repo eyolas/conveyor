@@ -1,0 +1,122 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ─── Design Tokens (aligned with docs site) ───────────────────────── */
+
+@theme {
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'Fira Code', ui-monospace, monospace;
+
+  /* Dark surfaces — from docs */
+  --color-surface-0: #0C1018;
+  --color-surface-1: #111827;
+  --color-surface-2: #151D2B;
+  --color-surface-3: #1C2433;
+  --color-surface-4: #1E2838;
+  --color-border-dim: #21262D;
+  --color-border-default: #2D3A4E;
+  --color-border-bright: #3D4F66;
+  --color-text-muted: #94A3B8;
+  --color-text-secondary: #94A3B8;
+  --color-text-primary: #CBD5E1;
+  --color-text-bright: #E2E8F0;
+
+  /* Brand — warm orange from docs */
+  --color-accent: #F07623;
+  --color-accent-bright: #FF9A52;
+  --color-accent-dim: #E85D04;
+  --color-accent-glow: rgba(240, 118, 35, 0.12);
+  --color-accent-glow-strong: rgba(240, 118, 35, 0.25);
+
+  /* Semantic — from docs */
+  --color-teal: #34D399;
+  --color-teal-dim: #059669;
+  --color-teal-glow: rgba(52, 211, 153, 0.15);
+
+  --color-rose: #F85149;
+  --color-rose-dim: #DA3633;
+  --color-rose-glow: rgba(248, 81, 73, 0.15);
+
+  --color-amber: #FFBD2E;
+  --color-amber-dim: #D4940A;
+  --color-amber-glow: rgba(255, 189, 46, 0.15);
+
+  --color-sky: #22D3EE;
+  --color-sky-glow: rgba(34, 211, 238, 0.15);
+
+  --color-violet: #A78BFA;
+  --color-violet-glow: rgba(167, 139, 250, 0.15);
+
+  /* Border radius — docs uses 10px/14px */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────── */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #2D3A4E;
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #3D4F66;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ─── Animations ────────────────────────────────────────────────────── */
+
+@keyframes fade-in-scale {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.animate-fade-in-scale {
+  animation: fade-in-scale 0.2s ease-out both;
+}
+
+/* ─── Glass Effect (from docs navbar) ────────────────────────────────── */
+
+.glass {
+  background: rgba(12, 16, 24, 0.85);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+
+.glass-light {
+  background: rgba(255, 251, 245, 0.85);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}

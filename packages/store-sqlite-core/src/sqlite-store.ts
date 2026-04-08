@@ -117,14 +117,14 @@ export class BaseSqliteStore implements StoreInterface {
           priority, seq, created_at, processed_at, completed_at, failed_at,
           delay_until, lock_until, locked_by,
           parent_id, parent_queue_name, pending_children_count, cancelled_at,
-          group_id, stacktrace, discarded
+          group_id, stacktrace, discarded, attempt_logs
         ) VALUES (
           :id, :queue_name, :name, :data, :state, :attempts_made, :progress,
           :returnvalue, :failed_reason, :opts, :deduplication_key, :logs,
           :priority, :seq, :created_at, :processed_at, :completed_at, :failed_at,
           :delay_until, :lock_until, :locked_by,
           :parent_id, :parent_queue_name, :pending_children_count, :cancelled_at,
-          :group_id, :stacktrace, :discarded
+          :group_id, :stacktrace, :discarded, :attempt_logs
         )
       `),
       getJob: this.db.prepare(
@@ -278,12 +278,13 @@ export class BaseSqliteStore implements StoreInterface {
       groupId: 'group_id',
       stacktrace: 'stacktrace',
       discarded: 'discarded',
+      attemptLogs: 'attempt_logs',
     };
 
     for (const [key, col] of Object.entries(columnMap)) {
       if (key in updates) {
         const val = (updates as Record<string, unknown>)[key];
-        if (['returnvalue', 'opts', 'logs', 'data', 'stacktrace'].includes(key)) {
+        if (['returnvalue', 'opts', 'logs', 'data', 'stacktrace', 'attemptLogs'].includes(key)) {
           sets.push(`${col} = ?`);
           values.push(val !== null && val !== undefined ? JSON.stringify(val) : null);
         } else if (
@@ -819,10 +820,18 @@ export class BaseSqliteStore implements StoreInterface {
       WHERE job_name = '__all__'
     `).all() as Array<{ queue_name: string }>;
 
+    const scheduledRows = this.db.prepare(`
+      SELECT queue_name, COUNT(*) AS count
+      FROM conveyor_jobs
+      WHERE json_extract(opts, '$.repeat') IS NOT NULL
+      GROUP BY queue_name
+    `).all() as Array<{ queue_name: string; count: number | bigint }>;
+
     const latestMap = new Map(
       latestRows.map((r) => [r.queue_name, r.latest ? new Date(r.latest) : null]),
     );
     const pausedSet = new Set(pausedRows.map((r) => r.queue_name));
+    const scheduledMap = new Map(scheduledRows.map((r) => [r.queue_name, Number(r.count)]));
 
     const queueMap = new Map<string, Record<JobState, number>>();
     for (const row of rows) {
@@ -846,6 +855,7 @@ export class BaseSqliteStore implements StoreInterface {
         counts,
         isPaused: pausedSet.has(name),
         latestActivity: latestMap.get(name) ?? null,
+        scheduledCount: scheduledMap.get(name) ?? 0,
       });
     }
     return Promise.resolve(result);

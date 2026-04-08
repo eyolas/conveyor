@@ -579,9 +579,11 @@ export class MemoryStore implements StoreInterface {
       };
 
       let latestActivity: Date | null = null;
+      let scheduledCount = 0;
 
       for (const job of queue.values()) {
         counts[job.state]++;
+        if (job.opts.repeat) scheduledCount++;
         const ts = job.completedAt ?? job.failedAt ?? job.processedAt ?? job.createdAt;
         if (ts && (latestActivity === null || ts.getTime() > latestActivity.getTime())) {
           latestActivity = ts;
@@ -591,7 +593,7 @@ export class MemoryStore implements StoreInterface {
       const pausedSet = this.pausedNames.get(queueName);
       const isPaused = pausedSet?.has('__all__') ?? false;
 
-      result.push({ name: queueName, counts, isPaused, latestActivity });
+      result.push({ name: queueName, counts, isPaused, latestActivity, scheduledCount });
     }
 
     return Promise.resolve(result);

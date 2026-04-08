@@ -7,6 +7,7 @@
  */
 
 export type {
+  AttemptRecord,
   BackoffOptions,
   BatchOptions,
   BatchResult,

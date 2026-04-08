@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+in-progress
 
 ---
 
@@ -327,61 +327,75 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 
 ---
 
-## Phase 1: `@conveyor/dashboard-api` + StoreInterface (Foundation)
+## Phase 1: `@conveyor/dashboard-api` + StoreInterface (Foundation) ✓
 
 **StoreInterface additions (in `@conveyor/shared`):**
 
-- [ ] Add `QueueInfo` type to `types.ts`
-- [ ] Add `listQueues(): Promise<QueueInfo[]>` to `StoreInterface`
-- [ ] Add `findJobById(jobId: string): Promise<JobData | null>` to `StoreInterface`
-- [ ] Add `cancelJob(queueName: string, jobId: string): Promise<boolean>` to `StoreInterface`
-- [ ] Implement in MemoryStore, PgStore, BaseSqliteStore
-- [ ] Add conformance tests for `listQueues()`, `findJobById()`, `cancelJob()`
+- [x] Add `QueueInfo` type to `types.ts`
+- [x] Add `listQueues(): Promise<QueueInfo[]>` to `StoreInterface`
+- [x] Add `findJobById(jobId: string): Promise<JobData | null>` to `StoreInterface`
+- [x] Add `cancelJob(queueName: string, jobId: string): Promise<boolean>` to `StoreInterface`
+- [x] Implement in MemoryStore, PgStore, BaseSqliteStore
+- [x] Add conformance tests for `listQueues()`, `findJobById()`, `cancelJob()`
 
 **dashboard-api package:**
 
-- [ ] Package setup (`deno.json`, workspace config, `mod.ts`)
-- [ ] `createDashboardHandler()` with Hono internal router
-- [ ] Queue controllers (list, detail, pause/resume/drain/clean/retry/promote/obliterate)
-- [ ] Job controllers (list, detail, children, retry/promote/remove/cancel/edit)
-- [ ] Job add controller (`POST /api/queues/:name/jobs`) — extract logic from `Queue.add()` into
+- [x] Package setup (`deno.json`, workspace config, `mod.ts`)
+- [x] `createDashboardHandler()` with Hono internal router
+- [x] Queue controllers (list, detail, pause/resume/drain/clean/retry/promote/obliterate)
+- [x] Job controllers (list, detail, children, retry/promote/remove/cancel/edit)
+- [x] Job add controller (`POST /api/queues/:name/jobs`) — extract logic from `Queue.add()` into
       shared utility
-- [ ] Search controller (`GET /api/search` — job by ID cross-queue, queue by name)
-- [ ] SSE streaming controller (per-queue + all-queues)
-- [ ] `toNodeHandler()` adapter with streaming support (critical for SSE)
-- [ ] Auth middleware hook
-- [ ] Read-only mode middleware
-- [ ] CORS middleware
-- [ ] Base path support
-- [ ] Response envelope helpers (data/error format)
-- [ ] Tests with MemoryStore (controllers, SSE, auth, read-only, adapter, search)
+- [x] Search controller (`GET /api/search` — job by ID cross-queue, queue by name)
+- [x] SSE streaming controller (per-queue + all-queues)
+- [x] `toNodeHandler()` adapter with streaming support (critical for SSE)
+- [x] Auth middleware hook
+- [x] Read-only mode middleware
+- [x] CORS middleware
+- [x] Base path support
+- [x] Response envelope helpers (data/error format)
+- [x] Tests with MemoryStore (controllers, SSE, auth, read-only, adapter, search)
 
-## Phase 2: `@conveyor/dashboard` (UI)
+## Phase 2: `@conveyor/dashboard` (UI) ✓
 
 **Package setup:**
 
-- [ ] `packages/dashboard/deno.json`, add to workspace
-- [ ] `src/mod.ts`: re-exports dashboard-api + serves UI assets
-- [ ] `src/assets.ts`: static file serving + SPA fallback routing
+- [x] `packages/dashboard/deno.json`, add to workspace
+- [x] `src/mod.ts`: re-exports dashboard-api + serves UI assets
+- [x] `src/assets.ts`: static file serving + SPA fallback routing
 
 **UI application:**
 
-- [ ] Preact + Vite + Tailwind CSS setup
-- [ ] API client fetch wrapper with base path support
-- [ ] SSE hook (`useSSE`) with auto-reconnection
-- [ ] Theme system: dark/light mode with system preference detection
-- [ ] **Layout**: collapsible sidebar with queue list + search filter
-- [ ] **Home page**: queue cards grid with state counts, pause/resume toggle
-- [ ] **Queue detail**: tabs per state, job table with pagination, actions header
-- [ ] **Job detail**: payload JSON viewer (collapsible tree), logs, stacktrace, timeline,
+- [x] Preact + Vite + Tailwind CSS setup
+- [x] API client fetch wrapper with base path support
+- [x] SSE hook (`useSSE`) with auto-reconnection
+- [x] Theme system: dark/light mode with system preference detection
+- [x] **Layout**: collapsible sidebar with queue list + search filter
+- [x] **Home page**: queue cards grid with state counts, pause/resume toggle, stat bar per queue
+- [x] **Queue detail**: tabs per state, job table with pagination, actions header, relative time
+- [x] **Job detail**: payload/options/return value tabbed viewer, metadata bar, attempt history table,
       parent/children links, action buttons
-- [ ] **Cmd+K command palette**:
+- [x] **Cmd+K command palette**:
   - Queue name fuzzy search (client-side)
   - Job ID search (calls `/api/search`)
   - Quick actions (pause, resume, retry all failed, drain)
   - Keyboard shortcut: `Cmd+K` / `Ctrl+K`
-- [ ] Job mutation UI: retry, promote, remove, cancel buttons
-- [ ] Build pipeline: `vite build` → `dist/`
+- [x] Job mutation UI: retry, promote, remove, cancel buttons
+- [x] Build pipeline: `vite build` → `dist/`
+
+**Added beyond original plan:**
+
+- [x] Per-attempt tracking (`AttemptRecord` type on `JobData`) — structured logs, error, stacktrace
+      per attempt with timestamps and duration (migration v8 for SQLite + PG)
+- [x] Attempt history table in job detail — expandable rows with per-attempt logs and stacktrace
+- [x] Confirmation dialogs for destructive actions (drain queue, remove job)
+- [x] Toast notifications for all actions (pause, resume, retry, promote, drain, remove, cancel)
+- [x] Design system aligned with docs site (Bricolage Grotesque, Plus Jakarta Sans, Fira Code,
+      orange `#F07623` accent, matching surfaces/borders/semantic colors)
+- [x] Conveyor logo in header
+- [x] Summary stat cards on home page (total jobs, active, completed, failed)
+- [x] `deno task build:ui` convenience task
+- [x] Example app (`examples/with-dashboard/`)
 
 ## Phase 3: Metrics
 
@@ -414,6 +428,32 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 - [ ] Bulk actions (multi-select checkbox + bulk retry/remove)
 - [ ] Group visualization (per-group counts and active/waiting)
 - [ ] Job search by payload (PG only, `jsonb @>`)
+
+## Phase 5: Documentation & Client
+
+**Package READMEs (JSR):**
+
+- [ ] `@conveyor/dashboard` README — quick start, framework examples, options
+- [ ] `@conveyor/dashboard-api` README — headless API usage, custom UI integration
+- [ ] Review other packages for missing/outdated READMEs
+
+**VitePress documentation site:**
+
+- [ ] Dashboard guide page — setup, auth, readOnly, basePath, framework examples
+- [ ] Dashboard screenshots / live demo link
+- [ ] Add dashboard section to site navigation
+
+**OpenAPI spec:**
+
+- [ ] Auto-generate OpenAPI spec from Hono routes (`@hono/zod-openapi` or manual spec export)
+- [ ] Serve spec at `GET /api/openapi.json`
+- [ ] Add Swagger/Scalar UI page (optional, at `/api/docs`)
+
+**`@conveyor/dashboard-client` (nice-to-have):**
+
+- [ ] Extract typed API client from `ui/src/api/client.ts` into standalone package
+- [ ] Include SSE subscription helpers
+- [ ] Publish on JSR
 
 ---
 

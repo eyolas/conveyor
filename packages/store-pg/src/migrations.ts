@@ -155,6 +155,16 @@ export const migrations: Migration[] = [
       `;
     },
   },
+  {
+    version: 8,
+    name: 'add_attempt_logs',
+    async up(sql) {
+      await sql`
+        ALTER TABLE conveyor_jobs
+        ADD COLUMN attempt_logs JSONB NOT NULL DEFAULT '[]'::jsonb
+      `;
+    },
+  },
 ];
 
 /**

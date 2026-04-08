@@ -353,11 +353,9 @@ test('Worker emits error when handleFailure throws', async () => {
 
   // Override updateJob to throw on failure path to simulate handleFailure error
   const origUpdateJob = store.updateJob.bind(store);
-  let callCount = 0;
   store.updateJob = (qn: string, jid: string, updates: Record<string, unknown>) => {
-    callCount++;
-    // On the failure update (after the processJob catch), throw
-    if (callCount === 1 && updates.state === 'failed') {
+    // Throw when handleFailure tries to persist the failed state
+    if (updates.state === 'failed') {
       throw new Error('store update failed');
     }
     return origUpdateJob(qn, jid, updates);
