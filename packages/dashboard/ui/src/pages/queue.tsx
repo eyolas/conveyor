@@ -51,7 +51,7 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
   }, [queueName]);
 
   const loadJobs = useCallback(async () => {
-    if (!queueName) return;
+    if (!queueName || activeTab === 'metrics') return;
     try {
       const res = await listJobs(queueName, activeTab, start, start + PAGE_SIZE);
       setJobs(res.data);
