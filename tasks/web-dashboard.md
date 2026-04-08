@@ -429,6 +429,32 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 - [ ] Group visualization (per-group counts and active/waiting)
 - [ ] Job search by payload (PG only, `jsonb @>`)
 
+## Phase 5: Documentation & Client
+
+**Package READMEs (JSR):**
+
+- [ ] `@conveyor/dashboard` README — quick start, framework examples, options
+- [ ] `@conveyor/dashboard-api` README — headless API usage, custom UI integration
+- [ ] Review other packages for missing/outdated READMEs
+
+**VitePress documentation site:**
+
+- [ ] Dashboard guide page — setup, auth, readOnly, basePath, framework examples
+- [ ] Dashboard screenshots / live demo link
+- [ ] Add dashboard section to site navigation
+
+**OpenAPI spec:**
+
+- [ ] Auto-generate OpenAPI spec from Hono routes (`@hono/zod-openapi` or manual spec export)
+- [ ] Serve spec at `GET /api/openapi.json`
+- [ ] Add Swagger/Scalar UI page (optional, at `/api/docs`)
+
+**`@conveyor/dashboard-client` (nice-to-have):**
+
+- [ ] Extract typed API client from `ui/src/api/client.ts` into standalone package
+- [ ] Include SSE subscription helpers
+- [ ] Publish on JSR
+
 ---
 
 ## Key Files to Modify
