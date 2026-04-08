@@ -437,6 +437,9 @@ export interface QueueInfo {
 
   /** Timestamp of the most recent job activity, or `null` if no jobs exist. */
   latestActivity: Date | null;
+
+  /** Number of jobs with a repeat/cron schedule. */
+  scheduledCount: number;
 }
 
 /** Base options shared by all store implementations. */

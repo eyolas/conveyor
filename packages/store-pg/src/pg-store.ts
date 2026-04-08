@@ -777,8 +777,16 @@ export class PgStore implements StoreInterface {
       WHERE job_name = '__all__'
     `;
 
+    const scheduledRows = await this.sql<{ queue_name: string; count: number }[]>`
+      SELECT queue_name, COUNT(*)::int AS count
+      FROM conveyor_jobs
+      WHERE opts->>'repeat' IS NOT NULL
+      GROUP BY queue_name
+    `;
+
     const latestMap = new Map(latestRows.map((r) => [r.queue_name, new Date(r.latest)]));
     const pausedSet = new Set(pausedRows.map((r) => r.queue_name));
+    const scheduledMap = new Map(scheduledRows.map((r) => [r.queue_name, r.count]));
 
     const queueMap = new Map<string, Record<JobState, number>>();
     for (const row of rows) {
@@ -802,6 +810,7 @@ export class PgStore implements StoreInterface {
         counts,
         isPaused: pausedSet.has(name),
         latestActivity: latestMap.get(name) ?? null,
+        scheduledCount: scheduledMap.get(name) ?? 0,
       });
     }
     return result;

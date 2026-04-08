@@ -83,6 +83,18 @@ await emailQueue.every('15s', 'send-digest', {
   subject: 'Activity digest',
 });
 
+// Cron: every minute at :00
+await emailQueue.cron('* * * * *', 'hourly-report', {
+  to: 'reports@example.com',
+  subject: 'Hourly activity report',
+});
+
+// Cron: every 30 seconds
+await imageQueue.cron('*/30 * * * * *', 'cleanup-thumbnails', {
+  url: 'https://example.com/cleanup',
+  width: 0,
+});
+
 // ─── Dashboard API (no UI — Vite serves it) ─────────────────────────
 
 const dashboard = createDashboardHandler({ store });

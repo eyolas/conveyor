@@ -18,6 +18,7 @@ export interface QueueInfo {
   counts: Record<string, number>;
   isPaused: boolean;
   latestActivity: string | null;
+  scheduledCount: number;
 }
 
 export interface QueueDetail {

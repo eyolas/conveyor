@@ -45,7 +45,7 @@ export function Layout({ children, url }: LayoutProps) {
       <div class="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
         <header class="flex h-14 items-center justify-between border-b border-slate-200 px-5 dark:border-border-dim">
-          <div class="flex items-center gap-3">
+          <a href="/" class="flex items-center gap-3 transition-opacity hover:opacity-80">
             {/* Logo */}
             <img src="/logo.jpeg" alt="Conveyor" class="h-7 w-7 rounded-lg object-cover" />
             <h1 class="font-display text-sm font-semibold tracking-tight text-slate-900 dark:text-text-bright">
@@ -54,7 +54,7 @@ export function Layout({ children, url }: LayoutProps) {
             <span class="hidden rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 sm:inline dark:bg-surface-3 dark:text-text-muted">
               dashboard
             </span>
-          </div>
+          </a>
 
           <div class="flex items-center gap-2">
             {/* Search trigger */}

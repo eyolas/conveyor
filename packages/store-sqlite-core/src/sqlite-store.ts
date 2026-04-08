@@ -820,10 +820,18 @@ export class BaseSqliteStore implements StoreInterface {
       WHERE job_name = '__all__'
     `).all() as Array<{ queue_name: string }>;
 
+    const scheduledRows = this.db.prepare(`
+      SELECT queue_name, COUNT(*) AS count
+      FROM conveyor_jobs
+      WHERE json_extract(opts, '$.repeat') IS NOT NULL
+      GROUP BY queue_name
+    `).all() as Array<{ queue_name: string; count: number | bigint }>;
+
     const latestMap = new Map(
       latestRows.map((r) => [r.queue_name, r.latest ? new Date(r.latest) : null]),
     );
     const pausedSet = new Set(pausedRows.map((r) => r.queue_name));
+    const scheduledMap = new Map(scheduledRows.map((r) => [r.queue_name, Number(r.count)]));
 
     const queueMap = new Map<string, Record<JobState, number>>();
     for (const row of rows) {
@@ -847,6 +855,7 @@ export class BaseSqliteStore implements StoreInterface {
         counts,
         isPaused: pausedSet.has(name),
         latestActivity: latestMap.get(name) ?? null,
+        scheduledCount: scheduledMap.get(name) ?? 0,
       });
     }
     return Promise.resolve(result);

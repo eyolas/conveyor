@@ -181,8 +181,16 @@ export function HomePage() {
                     <h3 class="font-display text-sm font-semibold text-slate-900 transition-colors group-hover:text-accent dark:text-text-bright dark:group-hover:text-accent-bright">
                       {q.name}
                     </h3>
-                    <p class="font-mono text-[11px] tabular-nums text-slate-400 dark:text-text-muted">
-                      {total} job{total !== 1 ? 's' : ''}
+                    <p class="flex items-center gap-2 font-mono text-[11px] tabular-nums text-slate-400 dark:text-text-muted">
+                      <span>{total} job{total !== 1 ? 's' : ''}</span>
+                      {q.scheduledCount > 0 && (
+                        <span class="inline-flex items-center gap-1 rounded-md bg-violet-glow px-1.5 py-0.5 font-mono text-[10px] font-medium text-violet dark:bg-violet-glow dark:text-violet">
+                          <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          {q.scheduledCount}
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
