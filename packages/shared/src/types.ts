@@ -485,8 +485,6 @@ export interface MetricsOptions {
   retentionMinutes?: number;
   /** Retention for hour-level buckets in hours (default: 720 = 30d). */
   retentionHours?: number;
-  /** Queue names to exclude from metrics recording. */
-  excludeQueues?: string[];
 }
 
 /** Base options shared by all store implementations. */

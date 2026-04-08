@@ -340,7 +340,6 @@ export class BaseSqliteStore implements StoreInterface {
     // ─── Metrics upsert on completion/failure ──────────────────────
     if (
       this.options?.metrics?.enabled &&
-      !this.options.metrics.excludeQueues?.includes(queueName) &&
       (updates.state === 'completed' || updates.state === 'failed')
     ) {
       const jobRow = this.stmts.getJob.get(queueName, jobId) as JobRow | undefined;

@@ -252,7 +252,6 @@ export class PgStore implements StoreInterface {
     // Record metrics for completed/failed transitions (best-effort)
     if (
       this.options?.metrics?.enabled &&
-      !this.options.metrics.excludeQueues?.includes(queueName) &&
       (updates.state === 'completed' || updates.state === 'failed')
     ) {
       try {
