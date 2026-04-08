@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { route } from 'preact-router';
-import { listQueues, pauseQueue, resumeQueue, type QueueInfo } from '../api/client';
+import { getMetrics, listQueues, type MetricsBucket, pauseQueue, resumeQueue, type QueueInfo } from '../api/client';
 import { useSSE } from '../hooks/use-sse';
 import { Badge } from '../components/badge';
+import { Sparkline } from '../components/sparkline';
 
 const STATES = ['waiting', 'active', 'completed', 'failed', 'delayed', 'waiting-children'] as const;
 
@@ -56,6 +57,29 @@ export function HomePage() {
   useEffect(() => {
     loadQueues();
   }, [loadQueues]);
+
+  // Sparkline data per queue (last 1h, minute granularity)
+  const [sparklines, setSparklines] = useState<Record<string, number[]>>({});
+
+  const loadSparklines = useCallback(async (queueNames: string[]) => {
+    const now = new Date();
+    const from = new Date(now.getTime() - 60 * 60_000);
+    const results: Record<string, number[]> = {};
+    await Promise.all(queueNames.map(async (name) => {
+      try {
+        const buckets = await getMetrics(name, 'minute', from, now);
+        const allBuckets = buckets.filter((b: MetricsBucket) => b.jobName === '__all__');
+        results[name] = allBuckets.map((b: MetricsBucket) => b.completedCount + b.failedCount);
+      } catch {
+        results[name] = [];
+      }
+    }));
+    setSparklines(results);
+  }, []);
+
+  useEffect(() => {
+    if (queues.length > 0) loadSparklines(queues.map((q) => q.name));
+  }, [queues, loadSparklines]);
 
   useSSE({ onEvent: () => loadQueues() });
 
@@ -214,9 +238,16 @@ export function HomePage() {
                 </div>
               </div>
 
-              {/* Progress bar */}
-              <div class="mb-3">
-                <StatBar counts={q.counts} />
+              {/* Progress bar + sparkline */}
+              <div class="mb-3 flex items-end justify-between gap-3">
+                <div class="flex-1">
+                  <StatBar counts={q.counts} />
+                </div>
+                {sparklines[q.name] && sparklines[q.name]!.length >= 2 && (
+                  <div class="text-teal dark:text-teal">
+                    <Sparkline data={sparklines[q.name]!} width={64} height={20} />
+                  </div>
+                )}
               </div>
 
               {/* State badges */}

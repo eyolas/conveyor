@@ -9,6 +9,8 @@ import type {
   FetchOptions,
   JobData,
   JobState,
+  MetricsBucket,
+  MetricsQueryOptions,
   QueueInfo,
   StoreEvent,
   StoreInterface,
@@ -329,6 +331,48 @@ export class BaseSqliteStore implements StoreInterface {
       const query = `UPDATE conveyor_jobs SET ${sets.join(', ')} WHERE queue_name = ? AND id = ?`;
       this.db.prepare(query).run(...values as unknown[]);
     }
+
+    // ─── Metrics upsert on completion/failure ──────────────────────
+    if (updates.state === 'completed' || updates.state === 'failed') {
+      const jobRow = this.stmts.getJob.get(queueName, jobId) as JobRow | undefined;
+      if (jobRow) {
+        const job = rowToJobData(jobRow);
+        const endTs = (job.completedAt || job.failedAt)?.getTime();
+        const startTs = job.processedAt?.getTime();
+        if (endTs !== undefined && startTs !== undefined) {
+          const processMs = endTs - startTs;
+          const periodStart = new Date();
+          periodStart.setSeconds(0, 0);
+          const periodMs = periodStart.getTime();
+
+          const completedCount = updates.state === 'completed' ? 1 : 0;
+          const failedCount = updates.state === 'failed' ? 1 : 0;
+
+          const upsertSql = `
+            INSERT INTO conveyor_metrics (queue_name, job_name, period_start, granularity, completed_count, failed_count, total_process_ms, min_process_ms, max_process_ms)
+            VALUES (?, ?, ?, 'minute', ?, ?, ?, ?, ?)
+            ON CONFLICT (queue_name, job_name, period_start, granularity) DO UPDATE SET
+              completed_count = completed_count + excluded.completed_count,
+              failed_count = failed_count + excluded.failed_count,
+              total_process_ms = total_process_ms + excluded.total_process_ms,
+              min_process_ms = MIN(COALESCE(min_process_ms, excluded.min_process_ms), excluded.min_process_ms),
+              max_process_ms = MAX(COALESCE(max_process_ms, excluded.max_process_ms), excluded.max_process_ms)
+          `;
+
+          // Upsert for the specific job name
+          this.db.prepare(upsertSql).run(
+            queueName, job.name, periodMs, completedCount, failedCount,
+            processMs, processMs, processMs,
+          );
+          // Upsert for the aggregate '__all__' bucket
+          this.db.prepare(upsertSql).run(
+            queueName, '__all__', periodMs, completedCount, failedCount,
+            processMs, processMs, processMs,
+          );
+        }
+      }
+    }
+
     return Promise.resolve();
   }
 
@@ -886,6 +930,105 @@ export class BaseSqliteStore implements StoreInterface {
       timestamp: new Date(now),
     });
     return true;
+  }
+
+  // ─── Metrics ───────────────────────────────────────────────────────
+
+  getMetrics(queueName: string, options: MetricsQueryOptions): Promise<MetricsBucket[]> {
+    const rows = this.db.prepare(`
+      SELECT * FROM conveyor_metrics
+      WHERE queue_name = ? AND granularity = ? AND period_start >= ? AND period_start <= ?
+      ORDER BY period_start
+    `).all(queueName, options.granularity, options.from.getTime(), options.to.getTime()) as Array<{
+      queue_name: string;
+      job_name: string;
+      period_start: number;
+      granularity: string;
+      completed_count: number | bigint;
+      failed_count: number | bigint;
+      total_process_ms: number | bigint;
+      min_process_ms: number | bigint | null;
+      max_process_ms: number | bigint | null;
+    }>;
+
+    return Promise.resolve(rows.map((row) => ({
+      queueName: row.queue_name,
+      jobName: row.job_name,
+      periodStart: new Date(row.period_start),
+      granularity: row.granularity as 'minute' | 'hour',
+      completedCount: Number(row.completed_count),
+      failedCount: Number(row.failed_count),
+      totalProcessMs: Number(row.total_process_ms),
+      minProcessMs: row.min_process_ms !== null ? Number(row.min_process_ms) : null,
+      maxProcessMs: row.max_process_ms !== null ? Number(row.max_process_ms) : null,
+    })));
+  }
+
+  aggregateMetrics(): Promise<void> {
+    this.runTransaction(() => {
+      // Select minute buckets grouped by queue_name, job_name, and hour
+      const minuteBuckets = this.db.prepare(`
+        SELECT
+          queue_name,
+          job_name,
+          (period_start / 3600000) * 3600000 AS hour_start,
+          SUM(completed_count) AS completed_count,
+          SUM(failed_count) AS failed_count,
+          SUM(total_process_ms) AS total_process_ms,
+          MIN(min_process_ms) AS min_process_ms,
+          MAX(max_process_ms) AS max_process_ms
+        FROM conveyor_metrics
+        WHERE granularity = 'minute'
+        GROUP BY queue_name, job_name, hour_start
+      `).all() as Array<{
+        queue_name: string;
+        job_name: string;
+        hour_start: number | bigint;
+        completed_count: number | bigint;
+        failed_count: number | bigint;
+        total_process_ms: number | bigint;
+        min_process_ms: number | bigint | null;
+        max_process_ms: number | bigint | null;
+      }>;
+
+      const upsertHourSql = `
+        INSERT INTO conveyor_metrics (queue_name, job_name, period_start, granularity, completed_count, failed_count, total_process_ms, min_process_ms, max_process_ms)
+        VALUES (?, ?, ?, 'hour', ?, ?, ?, ?, ?)
+        ON CONFLICT (queue_name, job_name, period_start, granularity) DO UPDATE SET
+          completed_count = excluded.completed_count,
+          failed_count = excluded.failed_count,
+          total_process_ms = excluded.total_process_ms,
+          min_process_ms = excluded.min_process_ms,
+          max_process_ms = excluded.max_process_ms
+      `;
+
+      for (const bucket of minuteBuckets) {
+        this.db.prepare(upsertHourSql).run(
+          bucket.queue_name,
+          bucket.job_name,
+          Number(bucket.hour_start),
+          Number(bucket.completed_count),
+          Number(bucket.failed_count),
+          Number(bucket.total_process_ms),
+          bucket.min_process_ms !== null ? Number(bucket.min_process_ms) : null,
+          bucket.max_process_ms !== null ? Number(bucket.max_process_ms) : null,
+        );
+      }
+
+      // Delete minute buckets older than 24 hours
+      const minuteCutoff = Date.now() - 24 * 60 * 60 * 1000;
+      this.db.prepare(
+        "DELETE FROM conveyor_metrics WHERE granularity = 'minute' AND period_start < ?",
+      ).run(minuteCutoff);
+
+      // Delete hour buckets older than 30 days
+      const hourCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      this.db.prepare(
+        "DELETE FROM conveyor_metrics WHERE granularity = 'hour' AND period_start < ?",
+      ).run(hourCutoff);
+    });
+
+    return Promise.resolve();
   }
 
   // ─── Flow (Parent-Child) ─────────────────────────────────────────

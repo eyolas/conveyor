@@ -9,6 +9,8 @@
 export type {
   AttemptRecord,
   BackoffOptions,
+  MetricsBucket,
+  MetricsQueryOptions,
   BatchOptions,
   BatchResult,
   DeduplicationOptions,

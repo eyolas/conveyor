@@ -14,6 +14,7 @@ import { registerQueueRoutes } from './controllers/queues.ts';
 import { registerJobRoutes } from './controllers/jobs.ts';
 import { registerEventRoutes } from './controllers/events.ts';
 import { registerSearchRoutes } from './controllers/search.ts';
+import { registerMetricsRoutes } from './controllers/metrics.ts';
 
 /**
  * Create a dashboard API handler.
@@ -56,6 +57,22 @@ export function createDashboardHandler(options: DashboardOptions): DashboardHand
   registerJobRoutes(app, apiBase, store);
   registerEventRoutes(app, apiBase, store, filterQueues);
   registerSearchRoutes(app, apiBase, store, filterQueues);
+  registerMetricsRoutes(app, apiBase, store, filterQueues);
+
+  // Start metrics aggregation timer (every 5 minutes)
+  if (store.aggregateMetrics) {
+    const timer = setInterval(async () => {
+      try {
+        await store.aggregateMetrics!();
+      } catch {
+        // Aggregation errors are non-critical
+      }
+    }, 5 * 60_000);
+    // Unref the timer so it doesn't prevent process exit
+    if (typeof timer === 'object' && 'unref' in timer) {
+      (timer as { unref: () => void }).unref();
+    }
+  }
 
   return (request: Request) => app.fetch(request);
 }

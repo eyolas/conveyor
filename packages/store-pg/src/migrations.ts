@@ -165,6 +165,30 @@ export const migrations: Migration[] = [
       `;
     },
   },
+  {
+    version: 9,
+    name: 'add_metrics',
+    async up(sql) {
+      await sql`
+        CREATE TABLE IF NOT EXISTS conveyor_metrics (
+          queue_name       TEXT NOT NULL,
+          job_name         TEXT NOT NULL DEFAULT '__all__',
+          period_start     TIMESTAMPTZ NOT NULL,
+          granularity      TEXT NOT NULL,
+          completed_count  INTEGER NOT NULL DEFAULT 0,
+          failed_count     INTEGER NOT NULL DEFAULT 0,
+          total_process_ms BIGINT NOT NULL DEFAULT 0,
+          min_process_ms   INTEGER,
+          max_process_ms   INTEGER,
+          PRIMARY KEY (queue_name, job_name, period_start, granularity)
+        )
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_metrics_query
+          ON conveyor_metrics (queue_name, granularity, period_start)
+      `;
+    },
+  },
 ];
 
 /**
