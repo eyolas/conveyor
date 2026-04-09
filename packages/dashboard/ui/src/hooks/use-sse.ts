@@ -9,19 +9,23 @@ export interface SSEOptions {
   onEvent: (event: { type: string; data: Record<string, unknown> }) => void;
   /** Called on connection error. */
   onError?: (error: Event) => void;
+  /** When true, SSE connection is closed and events are ignored. */
+  paused?: boolean;
 }
 
 /**
  * Hook that subscribes to SSE events from the dashboard API.
- * Auto-reconnects on disconnection.
+ * Auto-reconnects on disconnection. Disconnects when paused.
  */
-export function useSSE({ queueName, onEvent, onError }: SSEOptions): void {
+export function useSSE({ queueName, onEvent, onError, paused }: SSEOptions): void {
   const onEventRef = useRef(onEvent);
   const onErrorRef = useRef(onError);
   onEventRef.current = onEvent;
   onErrorRef.current = onError;
 
   useEffect(() => {
+    if (paused) return;
+
     const path = queueName
       ? `${BASE}/api/queues/${encodeURIComponent(queueName)}/events`
       : `${BASE}/api/events`;
@@ -67,5 +71,5 @@ export function useSSE({ queueName, onEvent, onError }: SSEOptions): void {
       es?.close();
       if (reconnectTimer) clearTimeout(reconnectTimer);
     };
-  }, [queueName]);
+  }, [queueName, paused]);
 }

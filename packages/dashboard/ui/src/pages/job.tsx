@@ -9,6 +9,7 @@ import {
   removeJob,
   retryJob,
 } from '../api/client';
+import { useLiveUpdatesContext } from '../hooks/live-updates-context';
 import { useSSE } from '../hooks/use-sse';
 import { AttemptHistory } from '../components/attempt-history';
 import { Badge } from '../components/badge';
@@ -67,10 +68,13 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
 
   useEffect(() => { loadJob(); }, [loadJob]);
 
+  const { liveUpdates, onRefresh } = useLiveUpdatesContext();
   useSSE({
     queueName,
     onEvent: (e) => { if (e.data.jobId === jobId) loadJob(); },
+    paused: !liveUpdates,
   });
+  useEffect(() => onRefresh(loadJob), [onRefresh, loadJob]);
 
   if (loading) {
     return (

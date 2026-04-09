@@ -16,6 +16,7 @@ import {
   retryAllJobs,
   resumeQueue,
 } from '../api/client';
+import { useLiveUpdatesContext } from '../hooks/live-updates-context';
 import { useSSE } from '../hooks/use-sse';
 import { Badge } from '../components/badge';
 import { Pagination } from '../components/pagination';
@@ -84,10 +85,13 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
   }, [activeTab]);
   useEffect(() => { loadJobs(); }, [loadJobs]);
 
+  const { liveUpdates, onRefresh } = useLiveUpdatesContext();
   useSSE({
     queueName,
     onEvent: () => { loadQueue(); loadJobs(); },
+    paused: !liveUpdates,
   });
+  useEffect(() => onRefresh(() => { loadQueue(); loadJobs(); }), [onRefresh, loadQueue, loadJobs]);
 
   if (!queue) {
     return (

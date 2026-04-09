@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { route } from 'preact-router';
 import { listQueues, type QueueInfo } from '../api/client';
+import { useLiveUpdatesContext } from '../hooks/live-updates-context';
 import { useSSE } from '../hooks/use-sse';
 
 interface SidebarProps {
@@ -25,7 +26,8 @@ export function Sidebar({ collapsed, onToggle, activeQueue }: SidebarProps) {
     loadQueues();
   }, [loadQueues]);
 
-  useSSE({ onEvent: () => loadQueues() });
+  const { liveUpdates } = useLiveUpdatesContext();
+  useSSE({ onEvent: () => loadQueues(), paused: !liveUpdates });
 
   const filtered = search
     ? queues.filter((q) => q.name.toLowerCase().includes(search.toLowerCase()))
