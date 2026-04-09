@@ -449,6 +449,15 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 - [ ] Serve spec at `GET /api/openapi.json`
 - [ ] Add Swagger/Scalar UI page (optional, at `/api/docs`)
 
+**Configurable logger:**
+
+- [ ] Add `Logger` interface to `@conveyor/shared` (`debug`, `info`, `warn`, `error`)
+- [ ] Add `logger?: Logger` to `StoreOptions` (replaces `onEventHandlerError`)
+- [ ] Default: no-op (silent) — users opt-in to logging
+- [ ] Wire through core (`events.ts`, `queue.ts`), all stores, and `dashboard-api`
+- [ ] Remove all hardcoded `console.warn`/`console.error` calls
+- [ ] Uncomment TODO logging in dashboard handler
+
 **`@conveyor/dashboard-client` (nice-to-have):**
 
 - [ ] Extract typed API client from `ui/src/api/client.ts` into standalone package
