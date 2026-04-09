@@ -124,7 +124,7 @@ roadmap:
       web-dashboard:
         status: in-progress
         file: tasks/web-dashboard.md
-        notes: 'Phases 1 (API), 2 (UI), 3 (metrics) done. Phase 4 (enhanced) and 5 (docs/logger) remaining.'
+        notes: 'Phases 1-3 done. Phase 4 partial (add/edit forms done, flow/bulk/groups remaining). Phase 5 (docs/logger) todo.'
       decoupled-notifications:
         status: next-release-candidate
       sandboxed-workers:
