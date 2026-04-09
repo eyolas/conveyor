@@ -13,6 +13,7 @@ import { useSSE } from '../hooks/use-sse';
 import { AttemptHistory } from '../components/attempt-history';
 import { Badge } from '../components/badge';
 import { ConfirmDialog } from '../components/confirm-dialog';
+import { JobEditDialog } from '../components/job-edit-dialog';
 import { JsonViewer } from '../components/json-viewer';
 import { showToast } from '../components/toast';
 
@@ -46,6 +47,7 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
   const [loading, setLoading] = useState(true);
   const [dataTab, setDataTab] = useState<'payload' | 'return' | 'options'>('payload');
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const loadJob = useCallback(async () => {
     if (!queueName || !jobId) return;
@@ -107,7 +109,7 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
           <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <button
-                onClick={() => route(`/queues/${encodeURIComponent(queueName)}`)}
+                onClick={() => history.back()}
                 class="mb-2 flex items-center gap-1.5 text-sm text-slate-400 transition-colors hover:text-accent dark:text-text-muted dark:hover:text-accent"
               >
                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -125,6 +127,13 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
             </div>
             {/* Actions */}
             <div class="flex items-center gap-2">
+              {(job.state === 'waiting' || job.state === 'delayed' || job.state === 'failed') && (
+                <ActionBtn
+                  onClick={() => setShowEdit(true)}
+                  label="Edit"
+                  icon="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
+              )}
               {(job.state === 'failed' || job.state === 'completed') && (
                 <ActionBtn
                   onClick={async () => { await retryJob(queueName, jobId); showToast('Job queued for retry'); loadJob(); }}
@@ -246,6 +255,13 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
           route(`/queues/${encodeURIComponent(queueName)}`);
         }}
         onCancel={() => setConfirmRemove(false)}
+      />
+      <JobEditDialog
+        open={showEdit}
+        job={job}
+        queueName={queueName}
+        onClose={() => setShowEdit(false)}
+        onSaved={loadJob}
       />
     </div>
   );

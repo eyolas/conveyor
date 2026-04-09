@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'preact/hooks';
 import { route } from 'preact-router';
 import { getMetricsStatus } from '../api/client';
 import { ConfirmDialog } from '../components/confirm-dialog';
+import { JobAddDialog } from '../components/job-add-dialog';
 import { MetricsPanel } from '../components/metrics-chart';
 import { showToast } from '../components/toast';
 import {
@@ -36,11 +37,16 @@ function timeAgo(dateStr: string): string {
 export function QueuePage({ name }: { name?: string; path?: string }) {
   const queueName = name ? decodeURIComponent(name) : '';
   const [queue, setQueue] = useState<QueueDetail | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('waiting');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (typeof location === 'undefined') return 'waiting';
+    const params = new URLSearchParams(location.search);
+    return params.get('tab') || 'waiting';
+  });
   const [jobs, setJobs] = useState<JobData[]>([]);
   const [total, setTotal] = useState(0);
   const [start, setStart] = useState(0);
   const [confirmDrain, setConfirmDrain] = useState(false);
+  const [showAddJob, setShowAddJob] = useState(false);
   const [metricsEnabled, setMetricsEnabled] = useState(false);
 
   useEffect(() => {
@@ -68,7 +74,14 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
   }, [queueName, activeTab, start]);
 
   useEffect(() => { loadQueue(); }, [loadQueue]);
-  useEffect(() => { setStart(0); }, [activeTab]);
+  useEffect(() => {
+    setStart(0);
+    if (typeof history !== 'undefined') {
+      const url = new URL(location.href);
+      url.searchParams.set('tab', activeTab);
+      history.replaceState(null, '', url.pathname + url.search);
+    }
+  }, [activeTab]);
   useEffect(() => { loadJobs(); }, [loadJobs]);
 
   useSSE({
@@ -115,6 +128,11 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
 
         {/* Actions */}
         <div class="flex items-center gap-2">
+          <ActionButton
+            onClick={() => setShowAddJob(true)}
+            icon="M12 4v16m8-8H4"
+            label="Add Job"
+          />
           <ActionButton
             onClick={async () => {
               isPaused ? await resumeQueue(queueName) : await pauseQueue(queueName);
@@ -294,6 +312,12 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
           loadJobs();
         }}
         onCancel={() => setConfirmDrain(false)}
+      />
+      <JobAddDialog
+        open={showAddJob}
+        queueName={queueName}
+        onClose={() => setShowAddJob(false)}
+        onAdded={() => { loadQueue(); loadJobs(); }}
       />
     </div>
   );

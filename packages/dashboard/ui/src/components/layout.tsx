@@ -7,7 +7,7 @@ import { CommandPalette } from './command-palette';
 import { ToastContainer } from './toast';
 
 function extractQueue(url: string): string | undefined {
-  const match = url.match(/^\/queues\/([^/]+)/);
+  const match = url.match(/^\/queues\/([^/?#]+)/);
   return match ? decodeURIComponent(match[1]!) : undefined;
 }
 
