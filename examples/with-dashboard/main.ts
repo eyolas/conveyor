@@ -12,9 +12,7 @@ import { createDashboardHandler } from '@conveyor/dashboard';
 
 // ─── Store ───────────────────────────────────────────────────────────
 
-// Metrics are opt-in. Uncomment to enable dashboard metrics charts:
-// const store = new MemoryStore({ metrics: { enabled: true } });
-const store = new MemoryStore();
+const store = new MemoryStore({ metrics: { enabled: true } });
 await store.connect();
 
 // ─── Queues ──────────────────────────────────────────────────────────
@@ -97,10 +95,22 @@ await emailQueue.schedule('10s', 'send-reminder', {
   subject: 'Meeting in 5 minutes',
 });
 
-// Add recurring job
+// Add recurring jobs
 await emailQueue.every('15s', 'send-digest', {
   to: 'digest@example.com',
   subject: 'Activity digest',
+});
+
+// Cron: every minute
+await emailQueue.cron('* * * * *', 'hourly-report', {
+  to: 'reports@example.com',
+  subject: 'Hourly activity report',
+});
+
+// Cron: every 30 seconds
+await imageQueue.cron('*/30 * * * * *', 'cleanup-thumbnails', {
+  url: 'https://example.com/cleanup',
+  width: 0,
 });
 
 // ─── Dashboard ───────────────────────────────────────────────────────
