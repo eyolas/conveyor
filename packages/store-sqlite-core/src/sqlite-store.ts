@@ -693,10 +693,15 @@ export class BaseSqliteStore implements StoreInterface {
     end = 100,
   ): Promise<JobData[]> {
     const limit = Math.max(0, end - start);
+    const orderBy = state === 'completed'
+      ? 'completed_at DESC'
+      : state === 'failed'
+      ? 'failed_at DESC'
+      : 'created_at ASC';
     const rows = this.db.prepare(`
       SELECT * FROM conveyor_jobs
       WHERE queue_name = ? AND state = ?
-      ORDER BY created_at ASC
+      ORDER BY ${orderBy}
       LIMIT ? OFFSET ?
     `).all(queueName, state, limit, start) as unknown as JobRow[];
     return Promise.resolve(rows.map(rowToJobData));

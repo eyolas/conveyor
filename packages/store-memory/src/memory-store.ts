@@ -380,7 +380,15 @@ export class MemoryStore implements StoreInterface {
     const queue = this.getQueue(queueName);
     const filtered = Array.from(queue.values())
       .filter((job) => job.state === state)
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      .sort((a, b) => {
+        if (state === 'completed') {
+          return (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0);
+        }
+        if (state === 'failed') {
+          return (b.failedAt?.getTime() ?? 0) - (a.failedAt?.getTime() ?? 0);
+        }
+        return a.createdAt.getTime() - b.createdAt.getTime();
+      });
 
     return Promise.resolve(filtered.slice(start, end).map((j) => structuredClone(j)));
   }

@@ -592,10 +592,15 @@ export class PgStore implements StoreInterface {
     end = 100,
   ): Promise<JobData[]> {
     const limit = Math.max(0, end - start);
+    const orderFrag = state === 'completed'
+      ? this.sql`completed_at DESC`
+      : state === 'failed'
+      ? this.sql`failed_at DESC`
+      : this.sql`created_at ASC`;
     const rows = await this.sql<JobRow[]>`
       SELECT * FROM conveyor_jobs
       WHERE queue_name = ${queueName} AND state = ${state}
-      ORDER BY created_at ASC
+      ORDER BY ${orderFrag}
       LIMIT ${limit} OFFSET ${start}
     `;
     return rows.map(rowToJobData);
