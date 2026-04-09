@@ -80,10 +80,10 @@ export function createDashboardHandler(options: DashboardOptions): DashboardHand
     // Run once at startup — if it succeeds, start the periodic timer
     try {
       store.aggregateMetrics().then(() => startTimer()).catch(() => {
-        // Metrics disabled or error — don't start the timer
+        console.info('[Conveyor] Metrics disabled — aggregation timer not started');
       });
     } catch {
-      // aggregateMetrics threw synchronously (MetricsDisabledError)
+      console.info('[Conveyor] Metrics disabled — aggregation timer not started');
     }
   }
 

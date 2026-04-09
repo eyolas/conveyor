@@ -337,34 +337,35 @@ export class BaseSqliteStore implements StoreInterface {
       this.db.prepare(query).run(...values as unknown[]);
     }
 
-    // ─── Metrics upsert on completion/failure ──────────────────────
+    // ─── Metrics upsert on completion/failure (best-effort) ────────
     if (
       this.options?.metrics?.enabled &&
       (updates.state === 'completed' || updates.state === 'failed')
     ) {
-      const jobRow = this.stmts.getJob.get(queueName, jobId) as JobRow | undefined;
-      if (jobRow) {
-        const job = rowToJobData(jobRow);
-        const endTs = (job.completedAt || job.failedAt)?.getTime();
-        const startTs = job.processedAt?.getTime();
-        if (endTs !== undefined && startTs !== undefined) {
-          const processMs = endTs - startTs;
-          const now = new Date();
-          const periodStart = new Date(Date.UTC(
-            now.getUTCFullYear(),
-            now.getUTCMonth(),
-            now.getUTCDate(),
-            now.getUTCHours(),
-            now.getUTCMinutes(),
-            0,
-            0,
-          ));
-          const periodMs = periodStart.getTime();
+      try {
+        const jobRow = this.stmts.getJob.get(queueName, jobId) as JobRow | undefined;
+        if (jobRow) {
+          const job = rowToJobData(jobRow);
+          const endTs = (job.completedAt || job.failedAt)?.getTime();
+          const startTs = job.processedAt?.getTime();
+          if (endTs !== undefined && startTs !== undefined) {
+            const processMs = endTs - startTs;
+            const now = new Date();
+            const periodStart = new Date(Date.UTC(
+              now.getUTCFullYear(),
+              now.getUTCMonth(),
+              now.getUTCDate(),
+              now.getUTCHours(),
+              now.getUTCMinutes(),
+              0,
+              0,
+            ));
+            const periodMs = periodStart.getTime();
 
-          const completedCount = updates.state === 'completed' ? 1 : 0;
-          const failedCount = updates.state === 'failed' ? 1 : 0;
+            const completedCount = updates.state === 'completed' ? 1 : 0;
+            const failedCount = updates.state === 'failed' ? 1 : 0;
 
-          const upsertSql = `
+            const upsertSql = `
             INSERT INTO conveyor_metrics (queue_name, job_name, period_start, granularity, completed_count, failed_count, total_process_ms, min_process_ms, max_process_ms)
             VALUES (?, ?, ?, 'minute', ?, ?, ?, ?, ?)
             ON CONFLICT (queue_name, job_name, period_start, granularity) DO UPDATE SET
@@ -375,31 +376,34 @@ export class BaseSqliteStore implements StoreInterface {
               max_process_ms = MAX(COALESCE(max_process_ms, excluded.max_process_ms), excluded.max_process_ms)
           `;
 
-          this.runTransaction(() => {
-            // Upsert for the specific job name
-            this.db.prepare(upsertSql).run(
-              queueName,
-              job.name,
-              periodMs,
-              completedCount,
-              failedCount,
-              processMs,
-              processMs,
-              processMs,
-            );
-            // Upsert for the aggregate '__all__' bucket
-            this.db.prepare(upsertSql).run(
-              queueName,
-              '__all__',
-              periodMs,
-              completedCount,
-              failedCount,
-              processMs,
-              processMs,
-              processMs,
-            );
-          });
+            this.runTransaction(() => {
+              // Upsert for the specific job name
+              this.db.prepare(upsertSql).run(
+                queueName,
+                job.name,
+                periodMs,
+                completedCount,
+                failedCount,
+                processMs,
+                processMs,
+                processMs,
+              );
+              // Upsert for the aggregate '__all__' bucket
+              this.db.prepare(upsertSql).run(
+                queueName,
+                '__all__',
+                periodMs,
+                completedCount,
+                failedCount,
+                processMs,
+                processMs,
+                processMs,
+              );
+            });
+          }
         }
+      } catch {
+        // Metrics recording is non-critical — don't fail the job update
       }
     }
 

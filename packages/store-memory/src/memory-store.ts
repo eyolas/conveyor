@@ -134,19 +134,23 @@ export class MemoryStore implements StoreInterface {
       const updated = structuredClone({ ...job, ...updates });
       queue.set(jobId, updated);
 
-      // Record metrics on terminal state transitions (only if metrics enabled)
+      // Record metrics on terminal state transitions (best-effort)
       if (
         this.options?.metrics?.enabled &&
         (updates.state === 'completed' || updates.state === 'failed')
       ) {
-        const endTs = updates.state === 'completed'
-          ? updated.completedAt?.getTime()
-          : updated.failedAt?.getTime();
-        const startTs = updated.processedAt?.getTime();
-        const processMs = endTs && startTs ? endTs - startTs : 0;
+        try {
+          const endTs = updates.state === 'completed'
+            ? updated.completedAt?.getTime()
+            : updated.failedAt?.getTime();
+          const startTs = updated.processedAt?.getTime();
+          const processMs = endTs && startTs ? endTs - startTs : 0;
 
-        this.recordMetric(queueName, updated.name, new Date(), updates.state, processMs);
-        this.recordMetric(queueName, '__all__', new Date(), updates.state, processMs);
+          this.recordMetric(queueName, updated.name, new Date(), updates.state, processMs);
+          this.recordMetric(queueName, '__all__', new Date(), updates.state, processMs);
+        } catch {
+          // Metrics recording is non-critical — don't fail the job update
+        }
       }
     }
     return Promise.resolve();

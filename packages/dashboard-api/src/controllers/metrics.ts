@@ -97,7 +97,7 @@ export function registerMetricsRoutes(
       return jsonData(c, { enabled: true });
     } catch (err) {
       if (err instanceof MetricsDisabledError) return jsonData(c, { enabled: false });
-      // getMetrics worked (returned empty) — metrics are enabled
+      // Unknown error from getMetrics — assume enabled (method exists and didn't throw disabled)
       return jsonData(c, { enabled: true });
     }
   });
