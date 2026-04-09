@@ -25,11 +25,10 @@ export function JobEditDialog({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      setPayload(JSON.stringify(job.data, null, 2));
-      setPriority(String(job.opts.priority ?? 0));
-      setJsonError(null);
-    }
+    if (!open) return;
+    setPayload(JSON.stringify(job.data, null, 2));
+    setPriority(String(job.opts.priority ?? 0));
+    setJsonError(null);
   }, [open, job]);
 
   const validateJson = useCallback((value: string) => {

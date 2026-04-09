@@ -21,15 +21,15 @@ export function JobAddDialog({ open, queueName, onClose, onAdded }: JobAddDialog
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) {
-      setName('');
-      setPayload('{}');
-      setDelay('');
-      setPriority('');
-      setAttempts('');
-      setJsonError(null);
-      setTimeout(() => nameRef.current?.focus(), 50);
-    }
+    if (!open) return;
+    setName('');
+    setPayload('{}');
+    setDelay('');
+    setPriority('');
+    setAttempts('');
+    setJsonError(null);
+    const timer = setTimeout(() => nameRef.current?.focus(), 50);
+    return () => clearTimeout(timer);
   }, [open]);
 
   const validateJson = useCallback((value: string) => {
@@ -63,8 +63,14 @@ export function JobAddDialog({ open, queueName, onClose, onAdded }: JobAddDialog
     const data = JSON.parse(payload);
     const opts: Record<string, unknown> = {};
     if (delay.trim()) opts.delay = delay.trim();
-    if (priority.trim()) opts.priority = parseInt(priority, 10);
-    if (attempts.trim()) opts.attempts = parseInt(attempts, 10);
+    if (priority.trim()) {
+      const p = parseInt(priority, 10);
+      if (!isNaN(p)) opts.priority = p;
+    }
+    if (attempts.trim()) {
+      const a = parseInt(attempts, 10);
+      if (!isNaN(a) && a >= 1) opts.attempts = a;
+    }
 
     setSubmitting(true);
     try {
