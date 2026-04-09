@@ -234,3 +234,42 @@ export async function searchQueues(query: string): Promise<QueueInfo[]> {
   );
   return res.data;
 }
+
+// ─── Metrics ────────────────────────────────────────────────────────
+
+export interface MetricsBucket {
+  queueName: string;
+  jobName: string;
+  periodStart: string;
+  granularity: 'minute' | 'hour';
+  completedCount: number;
+  failedCount: number;
+  totalProcessMs: number;
+  minProcessMs: number | null;
+  maxProcessMs: number | null;
+}
+
+export async function getMetrics(
+  queueName: string,
+  granularity: 'minute' | 'hour' = 'minute',
+  from?: Date,
+  to?: Date,
+): Promise<MetricsBucket[]> {
+  const params = new URLSearchParams({ granularity });
+  if (from) params.set('from', from.toISOString());
+  if (to) params.set('to', to.toISOString());
+  const res = await request<DataResponse<MetricsBucket[]>>(
+    `/queues/${encodeURIComponent(queueName)}/metrics?${params}`,
+  );
+  return res.data;
+}
+
+export async function getSparklines(): Promise<Record<string, number[]>> {
+  const res = await request<DataResponse<Record<string, number[]>>>('/metrics/sparklines');
+  return res.data;
+}
+
+export async function getMetricsStatus(): Promise<boolean> {
+  const res = await request<DataResponse<{ enabled: boolean }>>('/metrics/status');
+  return res.data.enabled;
+}

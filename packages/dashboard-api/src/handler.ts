@@ -14,6 +14,7 @@ import { registerQueueRoutes } from './controllers/queues.ts';
 import { registerJobRoutes } from './controllers/jobs.ts';
 import { registerEventRoutes } from './controllers/events.ts';
 import { registerSearchRoutes } from './controllers/search.ts';
+import { registerMetricsRoutes } from './controllers/metrics.ts';
 
 /**
  * Create a dashboard API handler.
@@ -56,6 +57,44 @@ export function createDashboardHandler(options: DashboardOptions): DashboardHand
   registerJobRoutes(app, apiBase, store);
   registerEventRoutes(app, apiBase, store, filterQueues);
   registerSearchRoutes(app, apiBase, store, filterQueues);
+  registerMetricsRoutes(app, apiBase, store, filterQueues);
 
-  return (request: Request) => app.fetch(request);
+  // Start metrics aggregation timer (every 5 minutes) + run once immediately
+  // Only if metrics are enabled (aggregateMetrics throws MetricsDisabledError otherwise)
+  let aggregationTimer: ReturnType<typeof setInterval> | null = null;
+  if (store.aggregateMetrics) {
+    const startTimer = () => {
+      aggregationTimer = setInterval(async () => {
+        try {
+          await store.aggregateMetrics!();
+        } catch (err) {
+          console.warn('[Conveyor] Metrics aggregation error:', err);
+        }
+      }, 5 * 60_000);
+      // Unref the timer so it doesn't prevent process exit
+      if (typeof aggregationTimer === 'object' && 'unref' in aggregationTimer) {
+        (aggregationTimer as { unref: () => void }).unref();
+      }
+    };
+
+    // Run once at startup — if it succeeds, start the periodic timer
+    try {
+      store.aggregateMetrics().then(() => startTimer()).catch(() => {
+        // TODO: use a configurable logger instead of console
+        // console.info('[Conveyor] Metrics disabled — aggregation timer not started');
+      });
+    } catch {
+      // TODO: use a configurable logger instead of console
+      // console.info('[Conveyor] Metrics disabled — aggregation timer not started');
+    }
+  }
+
+  const handler: DashboardHandler = (request: Request) => app.fetch(request);
+  handler.close = () => {
+    if (aggregationTimer !== null) {
+      clearInterval(aggregationTimer);
+      aggregationTimer = null;
+    }
+  };
+  return handler;
 }

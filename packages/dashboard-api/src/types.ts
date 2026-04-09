@@ -24,5 +24,9 @@ export interface DashboardOptions {
   auth?: (req: Request) => boolean | Promise<boolean>;
 }
 
-/** A Web Standard request handler. */
-export type DashboardHandler = (request: Request) => Response | Promise<Response>;
+/** A Web Standard request handler with optional cleanup. */
+export interface DashboardHandler {
+  (request: Request): Response | Promise<Response>;
+  /** Stop the metrics aggregation timer. Call on shutdown. */
+  close?: () => void;
+}

@@ -373,8 +373,8 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 - [x] **Layout**: collapsible sidebar with queue list + search filter
 - [x] **Home page**: queue cards grid with state counts, pause/resume toggle, stat bar per queue
 - [x] **Queue detail**: tabs per state, job table with pagination, actions header, relative time
-- [x] **Job detail**: payload/options/return value tabbed viewer, metadata bar, attempt history table,
-      parent/children links, action buttons
+- [x] **Job detail**: payload/options/return value tabbed viewer, metadata bar, attempt history
+      table, parent/children links, action buttons
 - [x] **Cmd+K command palette**:
   - Queue name fuzzy search (client-side)
   - Job ID search (calls `/api/search`)
@@ -397,28 +397,46 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 - [x] `deno task build:ui` convenience task
 - [x] Example app (`examples/with-dashboard/`)
 
-## Phase 3: Metrics
+## Phase 3: Metrics ✓
 
 **StoreInterface:**
 
-- [ ] Add `MetricsBucket`, `MetricsQueryOptions` types
-- [ ] Add optional `getMetrics()` and `aggregateMetrics()` to `StoreInterface`
-- [ ] Migration v8: create `conveyor_metrics` table (PG + SQLite)
-- [ ] Implement metrics recording in `updateJob()` for PG, SQLite, Memory
-- [ ] Implement `getMetrics()` + `aggregateMetrics()` in all stores
-- [ ] Conformance tests for metrics
+- [x] Add `MetricsBucket`, `MetricsQueryOptions`, `MetricsOptions` types
+- [x] Add optional `getMetrics()` and `aggregateMetrics()` to `StoreInterface`
+- [x] Migration v9: create `conveyor_metrics` table (PG + SQLite)
+- [x] Implement metrics recording in `updateJob()` for PG, SQLite, Memory
+- [x] Implement `getMetrics()` + `aggregateMetrics()` in all stores
+- [x] Conformance tests for metrics (4 tests) + API controller tests (4 tests)
 
 **dashboard-api:**
 
-- [ ] Metrics controller: `GET /api/queues/:name/metrics`
-- [ ] Aggregation timer in `createDashboardHandler()` (5min interval)
+- [x] Metrics controller: `GET /api/queues/:name/metrics`
+- [x] Batch sparklines endpoint: `GET /api/metrics/sparklines`
+- [x] Metrics status endpoint: `GET /api/metrics/status`
+- [x] Aggregation timer in `createDashboardHandler()` (5min interval + run at startup)
 
 **UI:**
 
-- [ ] Sparkline component (inline on queue cards)
-- [ ] Queue detail metrics tab: throughput + processing time charts
-- [ ] Time range selector (1h, 6h, 24h, 7d, 30d)
-- [ ] Chart library: custom SVG sparklines or uPlot (~35KB)
+- [x] Sparkline SVG component (inline on queue cards, 1h throughput)
+- [x] Queue detail Metrics tab: throughput bar chart + processing time area chart
+- [x] Y-axis scale with gridlines, X-axis time labels, colored legend
+- [x] Rich HTML tooltips on hover (both charts)
+- [x] Time range selector (1h, 6h, 24h, 7d, 30d)
+- [x] Summary stat pills (completed, failed, avg/min/max processing time)
+- [x] Zero-fill time gaps + downsample for large ranges
+- [x] Auto-refresh every 30s
+
+**Added beyond original plan:**
+
+- [x] Metrics opt-in via `StoreOptions.metrics.enabled` (disabled by default)
+- [x] `MetricsDisabledError` thrown when querying disabled metrics
+- [x] Configurable retention (`retentionMinutes`, `retentionHours`)
+- [x] UI hides metrics tab/sparklines when store has metrics disabled
+- [x] Best-effort metrics recording in all stores (try/catch, non-critical)
+- [x] `handler.close()` for aggregation timer cleanup
+- [x] PG aggregation uses summation (not replacement) on conflict
+- [x] UTC-consistent periodStart in all stores
+- [x] Transactions for metrics upserts (PG + SQLite)
 
 ## Phase 4: Enhanced
 
@@ -448,6 +466,15 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 - [ ] Auto-generate OpenAPI spec from Hono routes (`@hono/zod-openapi` or manual spec export)
 - [ ] Serve spec at `GET /api/openapi.json`
 - [ ] Add Swagger/Scalar UI page (optional, at `/api/docs`)
+
+**Configurable logger:**
+
+- [ ] Add `Logger` interface to `@conveyor/shared` (`debug`, `info`, `warn`, `error`)
+- [ ] Add `logger?: Logger` to `StoreOptions` (replaces `onEventHandlerError`)
+- [ ] Default: no-op (silent) — users opt-in to logging
+- [ ] Wire through core (`events.ts`, `queue.ts`), all stores, and `dashboard-api`
+- [ ] Remove all hardcoded `console.warn`/`console.error` calls
+- [ ] Uncomment TODO logging in dashboard handler
 
 **`@conveyor/dashboard-client` (nice-to-have):**
 

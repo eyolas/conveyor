@@ -12,6 +12,8 @@ import { createDashboardHandler } from '@conveyor/dashboard';
 
 // ─── Store ───────────────────────────────────────────────────────────
 
+// Metrics are opt-in. Uncomment to enable dashboard metrics charts:
+// const store = new MemoryStore({ metrics: { enabled: true } });
 const store = new MemoryStore();
 await store.connect();
 

@@ -14,9 +14,13 @@ function createHandler(opts?: {
   auth?: (req: Request) => boolean | Promise<boolean>;
   queues?: string[];
   basePath?: string;
+  metricsEnabled?: boolean;
 }) {
-  const store = new MemoryStore();
-  const handler = createDashboardHandler({ store, ...opts });
+  const { metricsEnabled, ...dashboardOpts } = opts ?? {};
+  const store = new MemoryStore(
+    metricsEnabled ? { metrics: { enabled: true } } : undefined,
+  );
+  const handler = createDashboardHandler({ store, ...dashboardOpts });
   return { store, handler };
 }
 
@@ -622,6 +626,88 @@ test('GET /api/search respects queue filter for queue search', async () => {
   const body = await json(res);
   expect(body.data.length).toBe(1);
   expect(body.data[0].name).toBe('allowed');
+
+  await store.disconnect();
+});
+
+// ─── Metrics Endpoints ──────────────────────────────────────────────────
+
+test('GET /api/queues/:name/metrics returns METRICS_DISABLED when not enabled', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const res = await handler(new Request('http://localhost/api/queues/emails/metrics'));
+  expect(res.status).toBe(400);
+  const body = await json(res);
+  expect(body.error.code).toBe('METRICS_DISABLED');
+
+  await store.disconnect();
+});
+
+test('GET /api/queues/:name/metrics returns empty when no data', async () => {
+  const { store, handler } = createHandler({ metricsEnabled: true });
+  await store.connect();
+
+  const res = await handler(new Request('http://localhost/api/queues/emails/metrics'));
+  expect(res.status).toBe(200);
+  const body = await json(res);
+  expect(body.data).toEqual([]);
+
+  await store.disconnect();
+});
+
+test('GET /api/queues/:name/metrics returns data after job completion', async () => {
+  const { store, handler } = createHandler({ metricsEnabled: true });
+  await store.connect();
+
+  const jobData = createJobData('emails', 'send', { to: 'a@b.com' });
+  const jobId = await store.saveJob('emails', jobData);
+  await store.updateJob('emails', jobId, { state: 'active', processedAt: new Date() });
+  await store.updateJob('emails', jobId, { state: 'completed', completedAt: new Date() });
+
+  const res = await handler(
+    new Request('http://localhost/api/queues/emails/metrics?granularity=minute'),
+  );
+  expect(res.status).toBe(200);
+  const body = await json(res);
+  expect(body.data.length).toBeGreaterThanOrEqual(1);
+
+  const allBucket = body.data.find((b: Record<string, unknown>) => b.jobName === '__all__');
+  expect(allBucket).toBeDefined();
+  expect(allBucket.completedCount).toBeGreaterThanOrEqual(1);
+
+  await store.disconnect();
+});
+
+test('GET /api/queues/:name/metrics rejects invalid granularity', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const res = await handler(
+    new Request('http://localhost/api/queues/emails/metrics?granularity=second'),
+  );
+  expect(res.status).toBe(400);
+  const body = await json(res);
+  expect(body.error.code).toBe('BAD_REQUEST');
+
+  await store.disconnect();
+});
+
+test('GET /api/metrics/sparklines returns batch data', async () => {
+  const { store, handler } = createHandler({ metricsEnabled: true });
+  await store.connect();
+
+  const jobData = createJobData('emails', 'send', { to: 'a@b.com' });
+  const jobId = await store.saveJob('emails', jobData);
+  await store.updateJob('emails', jobId, { state: 'active', processedAt: new Date() });
+  await store.updateJob('emails', jobId, { state: 'completed', completedAt: new Date() });
+
+  const res = await handler(new Request('http://localhost/api/metrics/sparklines'));
+  expect(res.status).toBe(200);
+  const body = await json(res);
+  expect(body.data).toBeDefined();
+  expect(body.data.emails).toBeDefined();
+  expect(Array.isArray(body.data.emails)).toBe(true);
 
   await store.disconnect();
 });

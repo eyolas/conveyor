@@ -82,8 +82,8 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    // Should still have exactly seven migration entries
-    expect(rows.length).toBe(7);
+    // Should have exactly nine migration entries
+    expect(rows.length).toBe(9);
     expect(rows[0]!.version).toBe(1);
     expect(rows[1]!.version).toBe(2);
     expect(rows[2]!.version).toBe(3);
@@ -91,6 +91,8 @@ describe('[PgStore] migrations', () => {
     expect(rows[4]!.version).toBe(5);
     expect(rows[5]!.version).toBe(6);
     expect(rows[6]!.version).toBe(7);
+    expect(rows[7]!.version).toBe(8);
+    expect(rows[8]!.version).toBe(9);
   });
 
   it('skips already applied migrations', async () => {
@@ -105,14 +107,16 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBe(7);
+    expect(rows.length).toBe(9);
     expect(rows[0]!.version).toBe(1);
     expect(rows[1]!.version).toBe(2);
     expect(rows[2]!.version).toBe(3);
     expect(rows[3]!.version).toBe(4);
     expect(rows[4]!.version).toBe(5);
     expect(rows[5]!.version).toBe(6);
-    expect(rows[6]!.version).toBe(999);
+    expect(rows[6]!.version).toBe(8);
+    expect(rows[7]!.version).toBe(9);
+    expect(rows[8]!.version).toBe(999);
   });
 
   it('concurrent calls do not conflict (advisory lock)', async () => {
@@ -126,7 +130,7 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBe(7);
+    expect(rows.length).toBe(9);
     expect(rows[0]!.version).toBe(1);
     expect(rows[1]!.version).toBe(2);
     expect(rows[2]!.version).toBe(3);
@@ -134,5 +138,7 @@ describe('[PgStore] migrations', () => {
     expect(rows[4]!.version).toBe(5);
     expect(rows[5]!.version).toBe(6);
     expect(rows[6]!.version).toBe(7);
+    expect(rows[7]!.version).toBe(8);
+    expect(rows[8]!.version).toBe(9);
   });
 });

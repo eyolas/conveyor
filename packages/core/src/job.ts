@@ -6,7 +6,13 @@
  * and returned by Worker processing.
  */
 
-import type { AttemptRecord, JobData, JobOptions, JobState, StoreInterface } from '@conveyor/shared';
+import type {
+  AttemptRecord,
+  JobData,
+  JobOptions,
+  JobState,
+  StoreInterface,
+} from '@conveyor/shared';
 import { JobNotFoundError } from '@conveyor/shared';
 import { JobObservable } from './job-observable.ts';
 

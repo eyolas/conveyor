@@ -14,7 +14,7 @@ import { createDashboardHandler } from '@conveyor/dashboard-api';
 
 // ─── Store ───────────────────────────────────────────────────────────
 
-const store = new MemoryStore();
+const store = new MemoryStore({ metrics: { enabled: true } });
 await store.connect();
 
 // ─── Queues ──────────────────────────────────────────────────────────

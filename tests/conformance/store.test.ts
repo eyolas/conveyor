@@ -11,7 +11,22 @@
 
 import { expect, test } from 'vitest';
 import type { StoreEvent, StoreInterface } from '@conveyor/shared';
-import { createJobData, hashPayload } from '@conveyor/shared';
+import { createJobData, hashPayload, MetricsDisabledError } from '@conveyor/shared';
+
+async function isMetricsEnabled(store: StoreInterface): Promise<boolean> {
+  if (!store.getMetrics) return false;
+  try {
+    await store.getMetrics('__probe__', {
+      granularity: 'minute',
+      from: new Date(),
+      to: new Date(),
+    });
+    return true;
+  } catch (err) {
+    if (err instanceof MetricsDisabledError) return false;
+    throw err;
+  }
+}
 
 export function runConformanceTests(
   storeName: string,
@@ -1893,6 +1908,131 @@ export function runConformanceTests(
 
     const result = await store.cancelJob('cancel-q', 'non-existent');
     expect(result).toEqual(false);
+
+    await store.disconnect();
+  });
+
+  // ─── Metrics ──────────────────────────────────────────────────────────
+
+  test(`[${storeName}] getMetrics returns empty when no data`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!await isMetricsEnabled(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    const now = new Date();
+    const from = new Date(now.getTime() - 60 * 60_000);
+    const buckets = await store.getMetrics(queueName, { granularity: 'minute', from, to: now });
+    expect(buckets).toEqual([]);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] metrics recorded on job completion`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!await isMetricsEnabled(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    // Create and complete a job
+    const jobData = createJobData(queueName, 'metric-job', { x: 1 });
+    const jobId = await store.saveJob(queueName, jobData);
+
+    // Set processedAt and complete the job
+    const processedAt = new Date();
+    await store.updateJob(queueName, jobId, { state: 'active', processedAt });
+    await store.updateJob(queueName, jobId, {
+      state: 'completed',
+      completedAt: new Date(),
+    });
+
+    // Query metrics
+    const now = new Date();
+    const from = new Date(now.getTime() - 5 * 60_000);
+    const to = new Date(now.getTime() + 5 * 60_000);
+    const buckets = await store.getMetrics(queueName, { granularity: 'minute', from, to });
+
+    // Should have at least one bucket with __all__ aggregation
+    const allBucket = buckets.find((b) => b.jobName === '__all__');
+    expect(allBucket).toBeDefined();
+    expect(allBucket!.completedCount).toBeGreaterThanOrEqual(1);
+    expect(allBucket!.failedCount).toBe(0);
+    expect(allBucket!.queueName).toBe(queueName);
+    expect(allBucket!.granularity).toBe('minute');
+
+    // Should also have a bucket for the specific job name
+    const namedBucket = buckets.find((b) => b.jobName === 'metric-job');
+    expect(namedBucket).toBeDefined();
+    expect(namedBucket!.completedCount).toBeGreaterThanOrEqual(1);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] metrics recorded on job failure`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!await isMetricsEnabled(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    const jobData = createJobData(queueName, 'fail-job', { x: 1 });
+    const jobId = await store.saveJob(queueName, jobData);
+
+    await store.updateJob(queueName, jobId, { state: 'active', processedAt: new Date() });
+    await store.updateJob(queueName, jobId, {
+      state: 'failed',
+      failedAt: new Date(),
+      failedReason: 'test error',
+    });
+
+    const now = new Date();
+    const from = new Date(now.getTime() - 60_000);
+    const buckets = await store.getMetrics(queueName, { granularity: 'minute', from, to: now });
+
+    const allBucket = buckets.find((b) => b.jobName === '__all__');
+    expect(allBucket).toBeDefined();
+    expect(allBucket!.failedCount).toBeGreaterThanOrEqual(1);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] aggregateMetrics rolls up minute to hour`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.getMetrics || !store.aggregateMetrics || !await isMetricsEnabled(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    // Create and complete a job to generate minute metrics
+    const jobData = createJobData(queueName, 'agg-job', { x: 1 });
+    const jobId = await store.saveJob(queueName, jobData);
+    await store.updateJob(queueName, jobId, { state: 'active', processedAt: new Date() });
+    await store.updateJob(queueName, jobId, {
+      state: 'completed',
+      completedAt: new Date(),
+    });
+
+    // Run aggregation
+    await store.aggregateMetrics();
+
+    // Should have hour-level buckets now
+    const now = new Date();
+    const from = new Date(now.getTime() - 2 * 60 * 60_000);
+    const hourBuckets = await store.getMetrics(queueName, { granularity: 'hour', from, to: now });
+    const allHour = hourBuckets.find((b) => b.jobName === '__all__');
+    expect(allHour).toBeDefined();
+    expect(allHour!.completedCount).toBeGreaterThanOrEqual(1);
+    expect(allHour!.granularity).toBe('hour');
 
     await store.disconnect();
   });

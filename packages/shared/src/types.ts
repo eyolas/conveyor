@@ -442,6 +442,51 @@ export interface QueueInfo {
   scheduledCount: number;
 }
 
+/**
+ * A single aggregated metrics bucket for a queue/job combination.
+ * Stores counts and processing time stats over a time period.
+ */
+export interface MetricsBucket {
+  /** Queue name. */
+  queueName: string;
+  /** Job name, or `'__all__'` for queue-wide aggregation. */
+  jobName: string;
+  /** Start of the time bucket. */
+  periodStart: Date;
+  /** Aggregation granularity. */
+  granularity: 'minute' | 'hour';
+  /** Number of completed jobs in this bucket. */
+  completedCount: number;
+  /** Number of failed jobs in this bucket. */
+  failedCount: number;
+  /** Sum of processing durations in milliseconds. */
+  totalProcessMs: number;
+  /** Shortest processing duration in this bucket. */
+  minProcessMs: number | null;
+  /** Longest processing duration in this bucket. */
+  maxProcessMs: number | null;
+}
+
+/** Options for querying metrics. */
+export interface MetricsQueryOptions {
+  /** Aggregation granularity. */
+  granularity: 'minute' | 'hour';
+  /** Start of query range (inclusive). */
+  from: Date;
+  /** End of query range (inclusive). */
+  to: Date;
+}
+
+/** Configuration for built-in metrics collection. */
+export interface MetricsOptions {
+  /** Enable metrics recording in updateJob (default: false). */
+  enabled: boolean;
+  /** Retention for minute-level buckets in minutes (default: 1440 = 24h). */
+  retentionMinutes?: number;
+  /** Retention for hour-level buckets in hours (default: 720 = 30d). */
+  retentionHours?: number;
+}
+
 /** Base options shared by all store implementations. */
 export interface StoreOptions {
   /** Run migrations automatically on connect() (default: true). */
@@ -449,6 +494,17 @@ export interface StoreOptions {
 
   /** Called when an event handler throws. Defaults to `console.warn`. */
   onEventHandlerError?: (error: unknown) => void;
+
+  /**
+   * Enable built-in metrics collection.
+   * Disabled by default — must be explicitly enabled.
+   *
+   * @example
+   * ```ts
+   * const store = new MemoryStore({ metrics: { enabled: true } });
+   * ```
+   */
+  metrics?: MetricsOptions;
 }
 
 /**
@@ -811,6 +867,23 @@ export interface StoreInterface {
    * @returns `true` if the job was found and cancelled, `false` otherwise.
    */
   cancelJob(queueName: string, jobId: string): Promise<boolean>;
+
+  /**
+   * Query aggregated metrics for a queue.
+   * Optional — stores without metrics support may omit this method.
+   *
+   * @param queueName - The queue to query metrics for.
+   * @param options - Granularity and time range.
+   * @returns Aggregated metric buckets.
+   */
+  getMetrics?(queueName: string, options: MetricsQueryOptions): Promise<MetricsBucket[]>;
+
+  /**
+   * Aggregate minute-level metrics into hour-level and purge expired data.
+   * Called periodically by the dashboard API.
+   * Optional — stores without metrics support may omit this method.
+   */
+  aggregateMetrics?(): Promise<void>;
 }
 
 /**

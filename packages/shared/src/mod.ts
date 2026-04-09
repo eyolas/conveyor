@@ -24,6 +24,9 @@ export type {
   JobOptions,
   JobState,
   LimiterOptions,
+  MetricsBucket,
+  MetricsOptions,
+  MetricsQueryOptions,
   PauseOptions,
   QueueEventType,
   QueueInfo,
@@ -51,4 +54,9 @@ export {
   validateQueueName,
 } from './utils.ts';
 
-export { ConveyorError, InvalidJobStateError, JobNotFoundError } from './errors.ts';
+export {
+  ConveyorError,
+  InvalidJobStateError,
+  JobNotFoundError,
+  MetricsDisabledError,
+} from './errors.ts';

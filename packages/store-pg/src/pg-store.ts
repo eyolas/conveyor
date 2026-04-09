@@ -2,13 +2,20 @@ import type {
   FetchOptions,
   JobData,
   JobState,
+  MetricsBucket,
+  MetricsQueryOptions,
   QueueInfo,
   StoreEvent,
   StoreInterface,
   StoreOptions,
   UpdateJobOptions,
 } from '@conveyor/shared';
-import { assertJobState, generateId, InvalidJobStateError } from '@conveyor/shared';
+import {
+  assertJobState,
+  generateId,
+  InvalidJobStateError,
+  MetricsDisabledError,
+} from '@conveyor/shared';
 import postgres from 'postgres';
 import type { JobRow } from './mapping.ts';
 import { jobDataToRow, rowToJobData } from './mapping.ts';
@@ -240,6 +247,18 @@ export class PgStore implements StoreInterface {
         UPDATE conveyor_jobs SET ${this.sql(row, ...keys)}
         WHERE queue_name = ${queueName} AND id = ${jobId}
       `;
+    }
+
+    // Record metrics for completed/failed transitions (best-effort)
+    if (
+      this.options?.metrics?.enabled &&
+      (updates.state === 'completed' || updates.state === 'failed')
+    ) {
+      try {
+        await this.recordMetrics(queueName, jobId, updates.state);
+      } catch {
+        // Metrics recording is non-critical — don't fail the job update
+      }
     }
   }
 
@@ -725,6 +744,7 @@ export class PgStore implements StoreInterface {
       await tx`DELETE FROM conveyor_paused_names WHERE queue_name = ${queueName}`;
       await tx`DELETE FROM conveyor_group_cursors WHERE queue_name = ${queueName}`;
       await tx`DELETE FROM conveyor_rate_limits WHERE queue_name = ${queueName}`;
+      await tx`DELETE FROM conveyor_metrics WHERE queue_name = ${queueName}`;
     });
   }
 
@@ -903,6 +923,142 @@ export class PgStore implements StoreInterface {
     return rows.map(rowToJobData);
   }
 
+  // ─── Metrics ────────────────────────────────────────────────────────
+
+  /**
+   * Record a metrics data point after a job completes or fails.
+   * Upserts into minute-level buckets for both the specific job name and `'__all__'`.
+   */
+  private async recordMetrics(
+    queueName: string,
+    jobId: string,
+    state: 'completed' | 'failed',
+  ): Promise<void> {
+    const rows = await this.sql<
+      {
+        name: string;
+        processed_at: Date | null;
+        completed_at: Date | null;
+        failed_at: Date | null;
+      }[]
+    >`
+      SELECT name, processed_at, completed_at, failed_at
+      FROM conveyor_jobs
+      WHERE queue_name = ${queueName} AND id = ${jobId}
+    `;
+    if (rows.length === 0) return;
+
+    const job = rows[0]!;
+    const endTs = state === 'completed' ? job.completed_at : job.failed_at;
+    if (!job.processed_at || !endTs) return;
+
+    const endTime = new Date(endTs as Date | string).getTime();
+    const startTime = new Date(job.processed_at as Date | string).getTime();
+    if (isNaN(endTime) || isNaN(startTime)) return;
+    const processMs = endTime - startTime;
+    const now = new Date();
+    const periodStart = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      now.getUTCHours(),
+      now.getUTCMinutes(),
+      0,
+      0,
+    ));
+    const isCompleted = state === 'completed';
+    const completedCount = isCompleted ? 1 : 0;
+    const failedCount = isCompleted ? 0 : 1;
+    const jobName = job.name;
+
+    // Upsert for specific job name and '__all__' in a single transaction
+    await this.sql.begin(async (_tx) => {
+      const tx = sql(_tx);
+      for (const name of [jobName, '__all__']) {
+        await tx`
+          INSERT INTO conveyor_metrics (queue_name, job_name, period_start, granularity, completed_count, failed_count, total_process_ms, min_process_ms, max_process_ms)
+          VALUES (${queueName}, ${name}, ${periodStart}, 'minute', ${completedCount}, ${failedCount}, ${processMs}, ${processMs}, ${processMs})
+          ON CONFLICT (queue_name, job_name, period_start, granularity) DO UPDATE SET
+            completed_count = conveyor_metrics.completed_count + EXCLUDED.completed_count,
+            failed_count = conveyor_metrics.failed_count + EXCLUDED.failed_count,
+            total_process_ms = conveyor_metrics.total_process_ms + EXCLUDED.total_process_ms,
+            min_process_ms = LEAST(conveyor_metrics.min_process_ms, EXCLUDED.min_process_ms),
+            max_process_ms = GREATEST(conveyor_metrics.max_process_ms, EXCLUDED.max_process_ms)
+        `;
+      }
+    });
+  }
+
+  async getMetrics(queueName: string, options: MetricsQueryOptions): Promise<MetricsBucket[]> {
+    if (!this.options?.metrics?.enabled) throw new MetricsDisabledError();
+    const rows = await this.sql`
+      SELECT * FROM conveyor_metrics
+      WHERE queue_name = ${queueName} AND granularity = ${options.granularity}
+        AND period_start >= ${options.from} AND period_start <= ${options.to}
+      ORDER BY period_start
+    `;
+    return rows.map((row) => ({
+      queueName: row.queue_name as string,
+      jobName: row.job_name as string,
+      periodStart: new Date(row.period_start as string | Date),
+      granularity: row.granularity as 'minute' | 'hour',
+      completedCount: Number(row.completed_count),
+      failedCount: Number(row.failed_count),
+      totalProcessMs: Number(row.total_process_ms),
+      minProcessMs: row.min_process_ms != null ? Number(row.min_process_ms) : null,
+      maxProcessMs: row.max_process_ms != null ? Number(row.max_process_ms) : null,
+    }));
+  }
+
+  async aggregateMetrics(): Promise<void> {
+    if (!this.options?.metrics?.enabled) throw new MetricsDisabledError();
+    await this.sql.begin(async (_tx) => {
+      const tx = sql(_tx);
+      // Aggregate minute buckets into hour buckets
+      const minuteRows = await tx`
+        SELECT queue_name, job_name,
+          date_trunc('hour', period_start) AS hour_start,
+          SUM(completed_count)::int AS completed_count,
+          SUM(failed_count)::int AS failed_count,
+          SUM(total_process_ms)::bigint AS total_process_ms,
+          MIN(min_process_ms)::int AS min_process_ms,
+          MAX(max_process_ms)::int AS max_process_ms
+        FROM conveyor_metrics
+        WHERE granularity = 'minute'
+        GROUP BY queue_name, job_name, date_trunc('hour', period_start)
+      `;
+
+      for (const row of minuteRows) {
+        await tx`
+          INSERT INTO conveyor_metrics (queue_name, job_name, period_start, granularity, completed_count, failed_count, total_process_ms, min_process_ms, max_process_ms)
+          VALUES (${row.queue_name}, ${row.job_name}, ${row.hour_start}, 'hour', ${row.completed_count}, ${row.failed_count}, ${row.total_process_ms}, ${row.min_process_ms}, ${row.max_process_ms})
+          ON CONFLICT (queue_name, job_name, period_start, granularity) DO UPDATE SET
+            completed_count = conveyor_metrics.completed_count + EXCLUDED.completed_count,
+            failed_count = conveyor_metrics.failed_count + EXCLUDED.failed_count,
+            total_process_ms = conveyor_metrics.total_process_ms + EXCLUDED.total_process_ms,
+            min_process_ms = LEAST(conveyor_metrics.min_process_ms, EXCLUDED.min_process_ms),
+            max_process_ms = GREATEST(conveyor_metrics.max_process_ms, EXCLUDED.max_process_ms)
+        `;
+      }
+
+      // Purge expired minute buckets (default 1440 minutes = 24h)
+      const retentionMinutes = this.options?.metrics?.retentionMinutes ?? 1440;
+      const minuteCutoff = new Date(Date.now() - retentionMinutes * 60 * 1_000);
+      await tx`
+        DELETE FROM conveyor_metrics
+        WHERE granularity = 'minute' AND period_start < ${minuteCutoff}
+      `;
+
+      // Purge expired hour buckets (default 720 hours = 30d)
+      const retentionHours = this.options?.metrics?.retentionHours ?? 720;
+      const hourCutoff = new Date(Date.now() - retentionHours * 60 * 60 * 1_000);
+      await tx`
+        DELETE FROM conveyor_metrics
+        WHERE granularity = 'hour' AND period_start < ${hourCutoff}
+      `;
+    });
+  }
+
   // ─── Helpers ────────────────────────────────────────────────────────
 
   /**
@@ -1027,6 +1183,6 @@ export class PgStore implements StoreInterface {
   /** Truncate all Conveyor tables. Intended for test cleanup only. */
   async truncateAll(): Promise<void> {
     await this
-      .sql`TRUNCATE conveyor_jobs, conveyor_paused_names, conveyor_group_cursors, conveyor_rate_limits`;
+      .sql`TRUNCATE conveyor_jobs, conveyor_paused_names, conveyor_group_cursors, conveyor_rate_limits, conveyor_metrics`;
   }
 }

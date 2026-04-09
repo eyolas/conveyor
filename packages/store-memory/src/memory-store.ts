@@ -13,13 +13,15 @@ import type {
   FetchOptions,
   JobData,
   JobState,
+  MetricsBucket,
+  MetricsQueryOptions,
   QueueInfo,
   StoreEvent,
   StoreInterface,
   StoreOptions,
   UpdateJobOptions,
 } from '@conveyor/shared';
-import { generateId, InvalidJobStateError } from '@conveyor/shared';
+import { generateId, InvalidJobStateError, MetricsDisabledError } from '@conveyor/shared';
 
 /** @internal */
 type EventCallback = (event: StoreEvent) => void;
@@ -46,9 +48,13 @@ export class MemoryStore implements StoreInterface {
   private groupCursors = new Map<string, Map<string, number>>();
   /** Global rate limit tracking: queueName → fetch timestamps */
   private rateLimitTimestamps = new Map<string, number[]>();
+  /** Metrics buckets: key = `${queueName}::${jobName}::${periodStart.getTime()}::${granularity}` */
+  private metrics = new Map<string, MetricsBucket>();
   private readonly onEventHandlerError: (error: unknown) => void;
+  private readonly options?: StoreOptions;
 
   constructor(options?: StoreOptions) {
+    this.options = options;
     this.onEventHandlerError = options?.onEventHandlerError ??
       ((err) => console.warn('[Conveyor] Error in event handler:', err));
   }
@@ -69,6 +75,7 @@ export class MemoryStore implements StoreInterface {
     this.subscribers.clear();
     this.groupCursors.clear();
     this.rateLimitTimestamps.clear();
+    this.metrics.clear();
     return Promise.resolve();
   }
 
@@ -124,7 +131,27 @@ export class MemoryStore implements StoreInterface {
           throw new InvalidJobStateError(jobId, job.state, expected);
         }
       }
-      queue.set(jobId, structuredClone({ ...job, ...updates }));
+      const updated = structuredClone({ ...job, ...updates });
+      queue.set(jobId, updated);
+
+      // Record metrics on terminal state transitions (best-effort)
+      if (
+        this.options?.metrics?.enabled &&
+        (updates.state === 'completed' || updates.state === 'failed')
+      ) {
+        try {
+          const endTs = updates.state === 'completed'
+            ? updated.completedAt?.getTime()
+            : updated.failedAt?.getTime();
+          const startTs = updated.processedAt?.getTime();
+          const processMs = endTs && startTs ? endTs - startTs : 0;
+
+          this.recordMetric(queueName, updated.name, new Date(), updates.state, processMs);
+          this.recordMetric(queueName, '__all__', new Date(), updates.state, processMs);
+        } catch {
+          // Metrics recording is non-critical — don't fail the job update
+        }
+      }
     }
     return Promise.resolve();
   }
@@ -525,6 +552,10 @@ export class MemoryStore implements StoreInterface {
     this.pausedNames.delete(queueName);
     this.groupCursors.delete(queueName);
     this.rateLimitTimestamps.delete(queueName);
+    // Remove metrics for this queue
+    for (const [key, bucket] of this.metrics) {
+      if (bucket.queueName === queueName) this.metrics.delete(key);
+    }
     return Promise.resolve();
   }
 
@@ -735,6 +766,98 @@ export class MemoryStore implements StoreInterface {
     return Promise.resolve();
   }
 
+  // ─── Metrics ──────────────────────────────────────────────────────
+
+  getMetrics(queueName: string, options: MetricsQueryOptions): Promise<MetricsBucket[]> {
+    if (!this.options?.metrics?.enabled) throw new MetricsDisabledError();
+
+    const results: MetricsBucket[] = [];
+    const fromMs = options.from.getTime();
+    const toMs = options.to.getTime();
+
+    for (const bucket of this.metrics.values()) {
+      if (
+        bucket.queueName === queueName &&
+        bucket.granularity === options.granularity &&
+        bucket.periodStart.getTime() >= fromMs &&
+        bucket.periodStart.getTime() <= toMs
+      ) {
+        results.push(structuredClone(bucket));
+      }
+    }
+
+    results.sort((a, b) => a.periodStart.getTime() - b.periodStart.getTime());
+    return Promise.resolve(results);
+  }
+
+  aggregateMetrics(): Promise<void> {
+    if (!this.options?.metrics?.enabled) throw new MetricsDisabledError();
+
+    const now = Date.now();
+    const retentionMinutesMs = (this.options?.metrics?.retentionMinutes ?? 1_440) * 60 * 1_000;
+    const retentionHoursMs = (this.options?.metrics?.retentionHours ?? 720) * 60 * 60 * 1_000;
+
+    // Aggregate minute-level buckets into hour-level buckets
+    for (const [_key, bucket] of this.metrics) {
+      if (bucket.granularity !== 'minute') continue;
+
+      // Floor to hour (UTC)
+      const bp = bucket.periodStart;
+      const hourStart = new Date(Date.UTC(
+        bp.getUTCFullYear(),
+        bp.getUTCMonth(),
+        bp.getUTCDate(),
+        bp.getUTCHours(),
+        0,
+        0,
+        0,
+      ));
+
+      const hourKey = `${bucket.queueName}::${bucket.jobName}::${hourStart.getTime()}::hour`;
+      const existing = this.metrics.get(hourKey);
+
+      if (existing) {
+        existing.completedCount += bucket.completedCount;
+        existing.failedCount += bucket.failedCount;
+        existing.totalProcessMs += bucket.totalProcessMs;
+        existing.minProcessMs = bucket.minProcessMs !== null
+          ? (existing.minProcessMs !== null
+            ? Math.min(existing.minProcessMs, bucket.minProcessMs)
+            : bucket.minProcessMs)
+          : existing.minProcessMs;
+        existing.maxProcessMs = bucket.maxProcessMs !== null
+          ? (existing.maxProcessMs !== null
+            ? Math.max(existing.maxProcessMs, bucket.maxProcessMs)
+            : bucket.maxProcessMs)
+          : existing.maxProcessMs;
+      } else {
+        this.metrics.set(hourKey, {
+          queueName: bucket.queueName,
+          jobName: bucket.jobName,
+          periodStart: hourStart,
+          granularity: 'hour',
+          completedCount: bucket.completedCount,
+          failedCount: bucket.failedCount,
+          totalProcessMs: bucket.totalProcessMs,
+          minProcessMs: bucket.minProcessMs,
+          maxProcessMs: bucket.maxProcessMs,
+        });
+      }
+    }
+
+    // Purge expired buckets
+    for (const [key, bucket] of this.metrics) {
+      const age = now - bucket.periodStart.getTime();
+      if (bucket.granularity === 'minute' && age > retentionMinutesMs) {
+        this.metrics.delete(key);
+      } else if (bucket.granularity === 'hour' && age > retentionHoursMs) {
+        this.metrics.delete(key);
+      }
+    }
+
+    return Promise.resolve();
+  }
+
   // ─── Helpers ───────────────────────────────────────────────────────
 
   /**
@@ -778,5 +901,59 @@ export class MemoryStore implements StoreInterface {
       this.groupCursors.set(queueName, new Map());
     }
     return this.groupCursors.get(queueName)!;
+  }
+
+  /**
+   * Record a metric data point into the minute-level bucket.
+   * Upserts: creates the bucket if it doesn't exist, otherwise merges.
+   */
+  private recordMetric(
+    queueName: string,
+    jobName: string,
+    timestamp: Date,
+    state: 'completed' | 'failed',
+    processMs: number,
+  ): void {
+    // Floor to current minute (UTC)
+    const t = new Date(timestamp);
+    const periodStart = new Date(Date.UTC(
+      t.getUTCFullYear(),
+      t.getUTCMonth(),
+      t.getUTCDate(),
+      t.getUTCHours(),
+      t.getUTCMinutes(),
+      0,
+      0,
+    ));
+
+    const key = `${queueName}::${jobName}::${periodStart.getTime()}::minute`;
+    const existing = this.metrics.get(key);
+
+    if (existing) {
+      if (state === 'completed') {
+        existing.completedCount++;
+      } else {
+        existing.failedCount++;
+      }
+      existing.totalProcessMs += processMs;
+      existing.minProcessMs = existing.minProcessMs !== null
+        ? Math.min(existing.minProcessMs, processMs)
+        : processMs;
+      existing.maxProcessMs = existing.maxProcessMs !== null
+        ? Math.max(existing.maxProcessMs, processMs)
+        : processMs;
+    } else {
+      this.metrics.set(key, {
+        queueName,
+        jobName,
+        periodStart,
+        granularity: 'minute',
+        completedCount: state === 'completed' ? 1 : 0,
+        failedCount: state === 'failed' ? 1 : 0,
+        totalProcessMs: processMs,
+        minProcessMs: processMs,
+        maxProcessMs: processMs,
+      });
+    }
   }
 }
