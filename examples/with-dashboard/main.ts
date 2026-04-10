@@ -6,15 +6,13 @@
  * Then open: http://localhost:8080
  */
 
-import { type Job, Queue, Worker } from '@conveyor/core';
+import { FlowProducer, type Job, Queue, Worker } from '@conveyor/core';
 import { MemoryStore } from '@conveyor/store-memory';
 import { createDashboardHandler } from '@conveyor/dashboard';
 
 // ─── Store ───────────────────────────────────────────────────────────
 
-// Metrics are opt-in. Uncomment to enable dashboard metrics charts:
-// const store = new MemoryStore({ metrics: { enabled: true } });
-const store = new MemoryStore();
+const store = new MemoryStore({ metrics: { enabled: true } });
 await store.connect();
 
 // ─── Queues ──────────────────────────────────────────────────────────
@@ -97,11 +95,110 @@ await emailQueue.schedule('10s', 'send-reminder', {
   subject: 'Meeting in 5 minutes',
 });
 
-// Add recurring job
+// Add recurring jobs
 await emailQueue.every('15s', 'send-digest', {
   to: 'digest@example.com',
   subject: 'Activity digest',
 });
+
+// Cron: every minute
+await emailQueue.cron('* * * * *', 'hourly-report', {
+  to: 'reports@example.com',
+  subject: 'Hourly activity report',
+});
+
+// Cron: every 30 seconds
+await imageQueue.cron('*/30 * * * * *', 'cleanup-thumbnails', {
+  url: 'https://example.com/cleanup',
+  width: 0,
+});
+
+// ─── Flow (parent → children) ────────────────────────────────────────
+
+const flow = new FlowProducer({ store });
+
+// Order processing flow
+await flow.add({
+  name: 'process-order',
+  queueName: 'emails',
+  data: { to: 'orders@example.com', subject: 'Order #1234 confirmation' },
+  children: [
+    {
+      name: 'send-invoice',
+      queueName: 'emails',
+      data: { to: 'billing@example.com', subject: 'Invoice for Order #1234' },
+    },
+    {
+      name: 'thumbnail',
+      queueName: 'image-resize',
+      data: { url: 'https://example.com/order-1234.jpg', width: 150 },
+    },
+  ],
+});
+
+// User onboarding flow (deeper nesting)
+await flow.add({
+  name: 'onboard-user',
+  queueName: 'emails',
+  data: { to: 'newuser@example.com', subject: 'Welcome aboard!' },
+  children: [
+    {
+      name: 'send-welcome',
+      queueName: 'emails',
+      data: { to: 'newuser@example.com', subject: 'Getting started guide' },
+    },
+    {
+      name: 'generate-avatar',
+      queueName: 'image-resize',
+      data: { url: 'https://example.com/default-avatar.png', width: 128 },
+    },
+    {
+      name: 'send-verification',
+      queueName: 'emails',
+      data: { to: 'newuser@example.com', subject: 'Verify your email' },
+    },
+  ],
+});
+
+// Report generation flow (cross-queue)
+await flow.add({
+  name: 'generate-weekly-report',
+  queueName: 'emails',
+  data: { to: 'team@example.com', subject: 'Weekly report ready' },
+  children: [
+    {
+      name: 'render-chart-1',
+      queueName: 'image-resize',
+      data: { url: 'https://example.com/chart-revenue.svg', width: 800 },
+    },
+    {
+      name: 'render-chart-2',
+      queueName: 'image-resize',
+      data: { url: 'https://example.com/chart-users.svg', width: 800 },
+    },
+    {
+      name: 'send-to-stakeholders',
+      queueName: 'emails',
+      data: { to: 'ceo@example.com', subject: 'Weekly report attached' },
+    },
+    {
+      name: 'send-to-board',
+      queueName: 'emails',
+      data: { to: 'board@example.com', subject: 'Weekly metrics' },
+    },
+  ],
+});
+
+// ─── Groups ──────────────────────────────────────────────────────────
+
+for (const region of ['us-east', 'us-west', 'eu-central']) {
+  for (let i = 0; i < 3; i++) {
+    await emailQueue.add('send-regional', {
+      to: `user${i}@${region}.example.com`,
+      subject: `Regional update (${region})`,
+    }, { group: { id: region } });
+  }
+}
 
 // ─── Dashboard ───────────────────────────────────────────────────────
 

@@ -43,6 +43,7 @@ export interface JobRow {
   stacktrace: string;
   discarded: number;
   attempt_logs: string;
+  children_ids: string;
 }
 
 /** @internal Parse a JSON string, throwing on parse failure. */
@@ -103,6 +104,7 @@ export function rowToJobData(row: JobRow): JobData {
     stacktrace: (parseJson(row.stacktrace) ?? []) as string[],
     discarded: Boolean(row.discarded),
     attemptLogs: (parseJson(row.attempt_logs) ?? []) as AttemptRecord[],
+    childrenIds: (parseJson(row.children_ids) ?? []) as string[],
   };
 }
 
@@ -147,5 +149,6 @@ export function jobDataToRow(
     stacktrace: JSON.stringify(job.stacktrace ?? []),
     discarded: job.discarded ? 1 : 0,
     attempt_logs: JSON.stringify(job.attemptLogs ?? []),
+    children_ids: JSON.stringify(job.childrenIds ?? []),
   };
 }

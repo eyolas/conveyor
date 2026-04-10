@@ -124,14 +124,14 @@ export class BaseSqliteStore implements StoreInterface {
           priority, seq, created_at, processed_at, completed_at, failed_at,
           delay_until, lock_until, locked_by,
           parent_id, parent_queue_name, pending_children_count, cancelled_at,
-          group_id, stacktrace, discarded, attempt_logs
+          group_id, stacktrace, discarded, attempt_logs, children_ids
         ) VALUES (
           :id, :queue_name, :name, :data, :state, :attempts_made, :progress,
           :returnvalue, :failed_reason, :opts, :deduplication_key, :logs,
           :priority, :seq, :created_at, :processed_at, :completed_at, :failed_at,
           :delay_until, :lock_until, :locked_by,
           :parent_id, :parent_queue_name, :pending_children_count, :cancelled_at,
-          :group_id, :stacktrace, :discarded, :attempt_logs
+          :group_id, :stacktrace, :discarded, :attempt_logs, :children_ids
         )
       `),
       getJob: this.db.prepare(
@@ -286,12 +286,16 @@ export class BaseSqliteStore implements StoreInterface {
       stacktrace: 'stacktrace',
       discarded: 'discarded',
       attemptLogs: 'attempt_logs',
+      childrenIds: 'children_ids',
     };
 
     for (const [key, col] of Object.entries(columnMap)) {
       if (key in updates) {
         const val = (updates as Record<string, unknown>)[key];
-        if (['returnvalue', 'opts', 'logs', 'data', 'stacktrace', 'attemptLogs'].includes(key)) {
+        if (
+          ['returnvalue', 'opts', 'logs', 'data', 'stacktrace', 'attemptLogs', 'childrenIds']
+            .includes(key)
+        ) {
           sets.push(`${col} = ?`);
           values.push(val !== null && val !== undefined ? JSON.stringify(val) : null);
         } else if (
@@ -693,10 +697,15 @@ export class BaseSqliteStore implements StoreInterface {
     end = 100,
   ): Promise<JobData[]> {
     const limit = Math.max(0, end - start);
+    const orderBy = state === 'completed'
+      ? 'completed_at DESC'
+      : state === 'failed'
+      ? 'failed_at DESC'
+      : 'created_at ASC';
     const rows = this.db.prepare(`
       SELECT * FROM conveyor_jobs
       WHERE queue_name = ? AND state = ?
-      ORDER BY created_at ASC
+      ORDER BY ${orderBy}
       LIMIT ? OFFSET ?
     `).all(queueName, state, limit, start) as unknown as JobRow[];
     return Promise.resolve(rows.map(rowToJobData));
@@ -946,6 +955,23 @@ export class BaseSqliteStore implements StoreInterface {
     ).get(jobId) as JobRow | undefined;
     if (!row) return Promise.resolve(null);
     return Promise.resolve(rowToJobData(row));
+  }
+
+  searchByPayload(queueName: string, query: string, limit = 50): Promise<JobData[]> {
+    const escaped = query.replace(/[%_\\]/g, '\\$&');
+    const rows = this.db.prepare(
+      "SELECT * FROM conveyor_jobs WHERE queue_name = ? AND data LIKE ? ESCAPE '\\' LIMIT ?",
+    ).all(queueName, `%${escaped}%`, limit) as unknown as JobRow[];
+    return Promise.resolve(rows.map(rowToJobData));
+  }
+
+  listFlowParents(state?: JobState, limit = 100): Promise<JobData[]> {
+    const sql = state
+      ? "SELECT * FROM conveyor_jobs WHERE children_ids != '[]' AND state = ? ORDER BY created_at DESC LIMIT ?"
+      : "SELECT * FROM conveyor_jobs WHERE children_ids != '[]' ORDER BY created_at DESC LIMIT ?";
+    const params = state ? [state, limit] : [limit];
+    const rows = this.db.prepare(sql).all(...params) as unknown as JobRow[];
+    return Promise.resolve(rows.map(rowToJobData));
   }
 
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {

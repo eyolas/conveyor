@@ -209,6 +209,7 @@ export class PgStore implements StoreInterface {
       stacktrace: 'stacktrace',
       discarded: 'discarded',
       attemptLogs: 'attempt_logs',
+      childrenIds: 'children_ids',
     };
 
     const row: Record<string, unknown> = {};
@@ -592,10 +593,15 @@ export class PgStore implements StoreInterface {
     end = 100,
   ): Promise<JobData[]> {
     const limit = Math.max(0, end - start);
+    const orderFrag = state === 'completed'
+      ? this.sql`completed_at DESC`
+      : state === 'failed'
+      ? this.sql`failed_at DESC`
+      : this.sql`created_at ASC`;
     const rows = await this.sql<JobRow[]>`
       SELECT * FROM conveyor_jobs
       WHERE queue_name = ${queueName} AND state = ${state}
-      ORDER BY created_at ASC
+      ORDER BY ${orderFrag}
       LIMIT ${limit} OFFSET ${start}
     `;
     return rows.map(rowToJobData);
@@ -842,6 +848,33 @@ export class PgStore implements StoreInterface {
     `;
     if (rows.length === 0) return null;
     return rowToJobData(rows[0]!);
+  }
+
+  async searchByPayload(queueName: string, query: string, limit = 50): Promise<JobData[]> {
+    const escaped = query.replace(/[%_\\]/g, '\\$&');
+    const pattern = `%${escaped}%`;
+    const rows = await this.sql<JobRow[]>`
+      SELECT * FROM conveyor_jobs
+      WHERE queue_name = ${queueName}
+        AND data::text ILIKE ${pattern} ESCAPE '\\'
+      LIMIT ${limit}
+    `;
+    return rows.map(rowToJobData);
+  }
+
+  async listFlowParents(state?: JobState, limit = 100): Promise<JobData[]> {
+    const rows = state
+      ? await this.sql<JobRow[]>`
+          SELECT * FROM conveyor_jobs
+          WHERE children_ids != '[]'::jsonb AND state = ${state}
+          ORDER BY created_at DESC LIMIT ${limit}
+        `
+      : await this.sql<JobRow[]>`
+          SELECT * FROM conveyor_jobs
+          WHERE children_ids != '[]'::jsonb
+          ORDER BY created_at DESC LIMIT ${limit}
+        `;
+    return rows.map(rowToJobData);
   }
 
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {

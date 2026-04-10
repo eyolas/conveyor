@@ -41,6 +41,7 @@ export interface JobRow {
   stacktrace: string[];
   discarded: boolean;
   attempt_logs: unknown;
+  children_ids: unknown;
 }
 
 /** Parse a value that may already be a JS object (driver auto-parsed) or a JSON string. */
@@ -93,6 +94,7 @@ export function rowToJobData(row: JobRow): JobData {
     stacktrace: ensureParsed<string[]>(row.stacktrace) ?? [],
     discarded: row.discarded ?? false,
     attemptLogs: ensureParsed<AttemptRecord[]>(row.attempt_logs) ?? [],
+    childrenIds: ensureParsed<string[]>(row.children_ids) ?? [],
   };
 }
 
@@ -135,5 +137,6 @@ export function jobDataToRow(
     stacktrace: job.stacktrace ?? [],
     discarded: job.discarded ?? false,
     attempt_logs: job.attemptLogs ?? [],
+    children_ids: job.childrenIds ?? [],
   };
 }

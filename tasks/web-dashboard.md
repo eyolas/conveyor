@@ -438,14 +438,40 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 - [x] UTC-consistent periodStart in all stores
 - [x] Transactions for metrics upserts (PG + SQLite)
 
-## Phase 4: Enhanced
+## Phase 4: Enhanced ✓
 
-- [ ] Job add UI: form to add a job (future integration with `@conveyor/schema` for form generation)
-- [ ] Job edit UI: edit payload/priority for waiting/delayed/failed jobs
-- [ ] Flow visualization (parent/children tree view)
-- [ ] Bulk actions (multi-select checkbox + bulk retry/remove)
-- [ ] Group visualization (per-group counts and active/waiting)
-- [ ] Job search by payload (PG only, `jsonb @>`)
+- [x] Job add UI: form dialog with name, JSON payload, delay, priority, attempts
+- [x] Job edit UI: edit payload/priority for waiting/delayed/failed jobs
+- [x] Flow visualization: dedicated flow detail page with two-column layout (tree + job detail)
+- [x] Bulk actions: checkbox multi-select in job table + parallel retry/remove with error feedback
+- [x] Group visualization: `GET /api/queues/:name/groups` endpoint + grid panel with per-group
+      active/waiting counts via `getGroupActiveCount`/`getWaitingGroupCount`
+- [x] Job search by payload: `searchByPayload()` on all stores (Memory JS filter, SQLite LIKE with
+      ESCAPE, PG ILIKE with ESCAPE) + Cmd+K "Search payload" command
+
+**Added beyond original plan:**
+
+- [x] "Fix JSON" button — auto-corrects unquoted keys, single quotes, missing commas, trailing
+      commas with ReDoS-safe regex (100KB input limit)
+- [x] Pause/play live updates — SSE can be paused/resumed, state persisted in localStorage, play
+      (green) / pause (amber) / refresh buttons in header
+- [x] Tab persistence — active tab stored in `?tab=` query param on queue and flows pages, back
+      button uses `history.back()` to restore exact state
+- [x] Sort completed jobs by `completed_at DESC`, failed by `failed_at DESC` (all 3 stores)
+- [x] Fix sidebar active queue extraction with query params/hash in URL
+- [x] SSE disposed flag to prevent reconnection race on rapid pause/play
+- [x] Consolidated dev-server.ts into main.ts example
+- [x] `childrenIds: string[]` field on `JobData` (migration v10) — set once by FlowProducer, enables
+      reliable flow parent detection even after children complete
+- [x] `listFlowParents()` on StoreInterface + `GET /api/flows?state=` endpoint — SQL-level query on
+      `children_ids != '[]'` instead of client-side filtering
+- [x] Flows page with Active/Completed tabs, expandable cards, children cache (useRef)
+- [x] Flow detail page: progress ring, per-state counters, state icons per child, parent/child
+      distinction, queue links, "Open job page" link, responsive layout
+- [x] Sidebar Queues/Flows navigation tabs
+- [x] Flow/child/group tags (`JobTypeTags` shared component) in queue table and job detail
+- [x] `JobDrawer` reusable component for inline job preview
+- [x] Flow examples in sample (order processing, user onboarding, weekly report)
 
 ## Phase 5: Documentation & Client
 

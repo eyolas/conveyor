@@ -189,6 +189,16 @@ export const migrations: Migration[] = [
       `;
     },
   },
+  {
+    version: 10,
+    name: 'add_children_ids',
+    async up(sql) {
+      await sql`
+        ALTER TABLE conveyor_jobs
+        ADD COLUMN children_ids JSONB NOT NULL DEFAULT '[]'::jsonb
+      `;
+    },
+  },
 ];
 
 /**

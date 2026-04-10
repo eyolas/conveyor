@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { route } from 'preact-router';
+import { useLiveUpdatesContext } from '../hooks/live-updates-context';
 import {
   getMetricsStatus,
   getSparklines,
@@ -86,7 +87,11 @@ export function HomePage() {
     if (queues.length > 0 && metricsEnabled) loadSparklines();
   }, [queues, metricsEnabled, loadSparklines]);
 
-  useSSE({ onEvent: () => loadQueues() });
+  const { liveUpdates, onRefresh } = useLiveUpdatesContext();
+  useSSE({ onEvent: () => loadQueues(), paused: !liveUpdates });
+
+  // Manual refresh support
+  useEffect(() => onRefresh(() => { loadQueues(); loadSparklines(); }), [onRefresh, loadQueues, loadSparklines]);
 
   const togglePause = async (q: QueueInfo, e: Event) => {
     e.stopPropagation();

@@ -63,6 +63,7 @@ export class Job<T = unknown> {
   private _stacktrace: string[];
   private _discarded: boolean;
   private _attemptLogs: AttemptRecord[];
+  private readonly _childrenIds: string[];
 
   private readonly store: StoreInterface;
 
@@ -100,6 +101,7 @@ export class Job<T = unknown> {
     this._stacktrace = [...(jobData.stacktrace ?? [])];
     this._discarded = jobData.discarded ?? false;
     this._attemptLogs = [...(jobData.attemptLogs ?? [])];
+    this._childrenIds = [...(jobData.childrenIds ?? [])];
 
     this.store = store;
   }
@@ -184,6 +186,11 @@ export class Job<T = unknown> {
   /** Per-attempt processing history. */
   get attemptLogs(): AttemptRecord[] {
     return [...this._attemptLogs];
+  }
+
+  /** IDs of child jobs in a flow. */
+  get childrenIds(): string[] {
+    return [...this._childrenIds];
   }
 
   // ─── Mutations ────────────────────────────────────────────────────
@@ -587,6 +594,7 @@ export class Job<T = unknown> {
       stacktrace: this._stacktrace,
       discarded: this._discarded,
       attemptLogs: this._attemptLogs,
+      childrenIds: this._childrenIds,
     };
   }
 }

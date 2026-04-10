@@ -104,11 +104,55 @@ export function registerQueueRoutes(
     return jsonData(c, { promoted });
   });
 
+  // GET /api/queues/:name/groups — list distinct groups with counts
+  app.get(`${apiBase}/queues/:name/groups`, async (c) => {
+    const name = c.req.param('name')!;
+
+    // Collect group IDs from active + waiting jobs (bounded scan)
+    const [activeJobs, waitingJobs] = await Promise.all([
+      store.listJobs(name, 'active', 0, 500),
+      store.listJobs(name, 'waiting', 0, 500),
+    ]);
+
+    const groupIds = new Set<string>();
+    for (const job of [...activeJobs, ...waitingJobs]) {
+      if (job.groupId) groupIds.add(job.groupId);
+    }
+
+    // Use store methods for accurate per-group counts
+    const data = await Promise.all(
+      [...groupIds].map(async (groupId) => {
+        const [activeCount, waitingCount] = await Promise.all([
+          store.getGroupActiveCount(name, groupId),
+          store.getWaitingGroupCount(name, groupId),
+        ]);
+        return { groupId, activeCount, waitingCount };
+      }),
+    );
+
+    return jsonData(c, data);
+  });
+
   // DELETE /api/queues/:name — obliterate
   app.delete(`${apiBase}/queues/:name`, async (c) => {
     const name = c.req.param('name')!;
     const force = c.req.query('force') === 'true';
     await store.obliterate(name, { force });
     return jsonData(c, { obliterated: true });
+  });
+
+  // GET /api/flows — list flow parent jobs
+  app.get(`${apiBase}/flows`, async (c) => {
+    if (!store.listFlowParents) {
+      return jsonData(c, { active: [], completed: [] });
+    }
+    const stateParam = c.req.query('state');
+    const state = stateParam ? assertJobState(stateParam) : undefined;
+    const jobs = await store.listFlowParents(state, 100);
+    if (filterQueues) {
+      const filtered = jobs.filter((j) => filterQueues.includes(j.queueName));
+      return jsonData(c, filtered);
+    }
+    return jsonData(c, jobs);
   });
 }

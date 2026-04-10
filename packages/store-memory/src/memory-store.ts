@@ -380,7 +380,15 @@ export class MemoryStore implements StoreInterface {
     const queue = this.getQueue(queueName);
     const filtered = Array.from(queue.values())
       .filter((job) => job.state === state)
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      .sort((a, b) => {
+        if (state === 'completed') {
+          return (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0);
+        }
+        if (state === 'failed') {
+          return (b.failedAt?.getTime() ?? 0) - (a.failedAt?.getTime() ?? 0);
+        }
+        return a.createdAt.getTime() - b.createdAt.getTime();
+      });
 
     return Promise.resolve(filtered.slice(start, end).map((j) => structuredClone(j)));
   }
@@ -636,6 +644,34 @@ export class MemoryStore implements StoreInterface {
       if (job) return Promise.resolve(structuredClone(job));
     }
     return Promise.resolve(null);
+  }
+
+  searchByPayload(queueName: string, query: string, limit = 50): Promise<JobData[]> {
+    const queue = this.getQueue(queueName);
+    const lowerQuery = query.toLowerCase();
+    const results: JobData[] = [];
+    for (const job of queue.values()) {
+      if (JSON.stringify(job.data).toLowerCase().includes(lowerQuery)) {
+        results.push(structuredClone(job));
+        if (results.length >= limit) break;
+      }
+    }
+    return Promise.resolve(results);
+  }
+
+  listFlowParents(state?: JobState, limit = 100): Promise<JobData[]> {
+    const results: JobData[] = [];
+    for (const queue of this.jobs.values()) {
+      for (const job of queue.values()) {
+        if (job.childrenIds.length === 0) continue;
+        if (state && job.state !== state) continue;
+        results.push(structuredClone(job));
+        if (results.length >= limit) break;
+      }
+      if (results.length >= limit) break;
+    }
+    results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return Promise.resolve(results);
   }
 
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {

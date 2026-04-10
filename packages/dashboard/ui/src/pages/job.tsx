@@ -9,10 +9,14 @@ import {
   removeJob,
   retryJob,
 } from '../api/client';
+import { useLiveUpdatesContext } from '../hooks/live-updates-context';
 import { useSSE } from '../hooks/use-sse';
 import { AttemptHistory } from '../components/attempt-history';
 import { Badge } from '../components/badge';
+import { FlowTree } from '../components/flow-tree';
+import { JobTypeTags } from '../components/job-type-tags';
 import { ConfirmDialog } from '../components/confirm-dialog';
+import { JobEditDialog } from '../components/job-edit-dialog';
 import { JsonViewer } from '../components/json-viewer';
 import { showToast } from '../components/toast';
 
@@ -46,6 +50,7 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
   const [loading, setLoading] = useState(true);
   const [dataTab, setDataTab] = useState<'payload' | 'return' | 'options'>('payload');
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const loadJob = useCallback(async () => {
     if (!queueName || !jobId) return;
@@ -65,10 +70,13 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
 
   useEffect(() => { loadJob(); }, [loadJob]);
 
+  const { liveUpdates, onRefresh } = useLiveUpdatesContext();
   useSSE({
     queueName,
     onEvent: (e) => { if (e.data.jobId === jobId) loadJob(); },
+    paused: !liveUpdates,
   });
+  useEffect(() => onRefresh(loadJob), [onRefresh, loadJob]);
 
   if (loading) {
     return (
@@ -107,7 +115,7 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
           <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <button
-                onClick={() => route(`/queues/${encodeURIComponent(queueName)}`)}
+                onClick={() => history.back()}
                 class="mb-2 flex items-center gap-1.5 text-sm text-slate-400 transition-colors hover:text-accent dark:text-text-muted dark:hover:text-accent"
               >
                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -120,11 +128,24 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
                   {job.name}
                 </h2>
                 <Badge state={job.state} />
+                <JobTypeTags
+                  opts={job.opts}
+                  parentId={job.parentId}
+                  childrenIds={job.childrenIds ?? []}
+                  groupId={job.groupId}
+                />
               </div>
               <p class="mt-1 font-mono text-xs text-slate-400 dark:text-text-muted">{job.id}</p>
             </div>
             {/* Actions */}
             <div class="flex items-center gap-2">
+              {(job.state === 'waiting' || job.state === 'delayed' || job.state === 'failed') && (
+                <ActionBtn
+                  onClick={() => setShowEdit(true)}
+                  label="Edit"
+                  icon="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
+              )}
               {(job.state === 'failed' || job.state === 'completed') && (
                 <ActionBtn
                   onClick={async () => { await retryJob(queueName, jobId); showToast('Job queued for retry'); loadJob(); }}
@@ -212,24 +233,16 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
         {dataTab === 'options' && <JsonViewer data={job.opts} />}
       </div>
 
-      {/* ── Children ─────────────────────────────────────────────── */}
-      {children.length > 0 && (
+      {/* ── Flow (parent/children) ──────────────────────────────── */}
+      {(children.length > 0 || job.parentId) && (
         <div>
-          <SectionLabel title={`Children (${children.length})`} icon="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-          <div class="space-y-1.5">
-            {children.map((child) => (
-              <button
-                key={child.id}
-                onClick={() => route(`/queues/${encodeURIComponent(child.queueName)}/jobs/${encodeURIComponent(child.id)}`)}
-                class="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition-all hover:border-slate-300 hover:shadow-sm dark:border-border-dim dark:bg-surface-1 dark:hover:border-border-default"
-              >
-                <span class="flex items-center gap-3">
-                  <span class="font-mono text-xs text-slate-400 dark:text-text-muted">{child.id.slice(0, 8)}</span>
-                  <span class="text-sm font-medium text-slate-700 dark:text-text-primary">{child.name}</span>
-                </span>
-                <Badge state={child.state} />
-              </button>
-            ))}
+          <SectionLabel title="Flow" icon="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-border-dim dark:bg-surface-1">
+            <FlowTree
+              currentJobId={job.id}
+              parent={job.parentId ? { id: job.parentId, queueName: job.parentQueueName ?? queueName } : null}
+              children={children}
+            />
           </div>
         </div>
       )}
@@ -246,6 +259,13 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
           route(`/queues/${encodeURIComponent(queueName)}`);
         }}
         onCancel={() => setConfirmRemove(false)}
+      />
+      <JobEditDialog
+        open={showEdit}
+        job={job}
+        queueName={queueName}
+        onClose={() => setShowEdit(false)}
+        onSaved={loadJob}
       />
     </div>
   );

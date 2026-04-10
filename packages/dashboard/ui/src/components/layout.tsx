@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { getCurrentUrl } from 'preact-router';
 import type { ComponentChildren } from 'preact';
+import { useLiveUpdatesContext } from '../hooks/live-updates-context';
 import { Sidebar } from './sidebar';
 import { ThemeToggle } from './theme-toggle';
 import { CommandPalette } from './command-palette';
 import { ToastContainer } from './toast';
 
 function extractQueue(url: string): string | undefined {
-  const match = url.match(/^\/queues\/([^/]+)/);
+  const match = url.match(/^\/queues\/([^/?#]+)/);
   return match ? decodeURIComponent(match[1]!) : undefined;
 }
 
@@ -21,6 +22,7 @@ export function Layout({ children, url }: LayoutProps) {
   const [cmdkOpen, setCmdkOpen] = useState(false);
 
   const activeQueue = extractQueue(url ?? getCurrentUrl());
+  const { liveUpdates, toggleLiveUpdates, refresh } = useLiveUpdatesContext();
 
   const onKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -57,6 +59,47 @@ export function Layout({ children, url }: LayoutProps) {
           </a>
 
           <div class="flex items-center gap-2">
+            {/* Live updates controls */}
+            <div class="flex items-center gap-0.5 rounded-lg border border-slate-200 p-0.5 dark:border-border-default">
+              {/* Play */}
+              <button
+                onClick={() => { if (!liveUpdates) toggleLiveUpdates(); }}
+                class={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+                  liveUpdates
+                    ? 'bg-teal/10 text-teal-dim dark:bg-teal-glow dark:text-teal'
+                    : 'text-slate-400 hover:bg-slate-100 dark:text-text-muted dark:hover:bg-surface-3'
+                }`}
+                title="Live updates"
+              >
+                <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </button>
+              {/* Pause */}
+              <button
+                onClick={() => { if (liveUpdates) toggleLiveUpdates(); }}
+                class={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+                  !liveUpdates
+                    ? 'bg-amber/10 text-amber-dim dark:bg-amber-glow dark:text-amber'
+                    : 'text-slate-400 hover:bg-slate-100 dark:text-text-muted dark:hover:bg-surface-3'
+                }`}
+                title="Pause updates"
+              >
+                <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+              </button>
+              {/* Refresh */}
+              <button
+                onClick={refresh}
+                class="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-text-muted dark:hover:bg-surface-3 dark:hover:text-text-secondary"
+                title="Refresh data"
+              >
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
             {/* Search trigger */}
             <button
               onClick={() => setCmdkOpen(true)}

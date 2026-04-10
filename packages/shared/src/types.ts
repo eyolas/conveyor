@@ -158,6 +158,9 @@ export interface JobData<T = unknown> {
   /** Whether this job has been discarded (no more retries). */
   discarded: boolean;
 
+  /** IDs of child jobs (set once during flow creation, never changes). */
+  childrenIds: string[];
+
   /** Per-attempt processing history. */
   attemptLogs: AttemptRecord[];
 }
@@ -884,6 +887,26 @@ export interface StoreInterface {
    * Optional — stores without metrics support may omit this method.
    */
   aggregateMetrics?(): Promise<void>;
+
+  /**
+   * Search jobs by payload content.
+   * Optional — returns matching jobs across all states.
+   *
+   * @param queueName - The queue to search in.
+   * @param query - The search string to match against serialized payload.
+   * @param limit - Maximum number of results (default 50).
+   * @returns Matching jobs.
+   */
+  searchByPayload?(queueName: string, query: string, limit?: number): Promise<JobData[]>;
+
+  /**
+   * List all flow parent jobs (jobs with childrenIds).
+   * Optional — returns flow parents across all states.
+   *
+   * @param state - Filter by state, or omit for all states.
+   * @param limit - Max results (default 100).
+   */
+  listFlowParents?(state?: JobState, limit?: number): Promise<JobData[]>;
 }
 
 /**

@@ -32,6 +32,14 @@ thinking:
     description: Dead letter queue for permanently failed jobs
     status: thinking
 
+  standalone-workflows:
+    description: 'Queue-agnostic workflow orchestrator — flows without mandatory queue binding, DAG-based execution, conditional branching'
+    status: thinking
+
+  nested-flows:
+    description: 'Multi-level flow nesting — children that are themselves parents of sub-children, cascading state management, deep dependency trees'
+    status: thinking
+
   queue-schema-definition:
     description: Declarative queue schema format (like OpenAPI for queues) — typed payloads, actions, metadata to auto-generate dashboard UI
     status: planned
@@ -124,7 +132,7 @@ roadmap:
       web-dashboard:
         status: in-progress
         file: tasks/web-dashboard.md
-        notes: 'Phases 1 (API), 2 (UI), 3 (metrics) done. Phase 4 (enhanced) and 5 (docs/logger) remaining.'
+        notes: 'Phases 1-4 done. Phase 5 (docs, logger, OpenAPI, client package) remaining.'
       decoupled-notifications:
         status: next-release-candidate
       sandboxed-workers:

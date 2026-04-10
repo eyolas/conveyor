@@ -249,6 +249,7 @@ export function createJobData<T>(
     groupId: opts.group?.id ?? null,
     discarded: false,
     attemptLogs: [],
+    childrenIds: [],
   };
 
   // If a custom jobId is provided, include it so the store can use it

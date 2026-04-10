@@ -9,27 +9,33 @@ export interface SSEOptions {
   onEvent: (event: { type: string; data: Record<string, unknown> }) => void;
   /** Called on connection error. */
   onError?: (error: Event) => void;
+  /** When true, SSE connection is closed and events are ignored. */
+  paused?: boolean;
 }
 
 /**
  * Hook that subscribes to SSE events from the dashboard API.
- * Auto-reconnects on disconnection.
+ * Auto-reconnects on disconnection. Disconnects when paused.
  */
-export function useSSE({ queueName, onEvent, onError }: SSEOptions): void {
+export function useSSE({ queueName, onEvent, onError, paused }: SSEOptions): void {
   const onEventRef = useRef(onEvent);
   const onErrorRef = useRef(onError);
   onEventRef.current = onEvent;
   onErrorRef.current = onError;
 
   useEffect(() => {
+    if (paused) return;
+
     const path = queueName
       ? `${BASE}/api/queues/${encodeURIComponent(queueName)}/events`
       : `${BASE}/api/events`;
 
+    let disposed = false;
     let es: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
     function connect() {
+      if (disposed) return;
       es = new EventSource(path);
 
       es.addEventListener('job:waiting', handleEvent);
@@ -48,11 +54,14 @@ export function useSSE({ queueName, onEvent, onError }: SSEOptions): void {
       es.onerror = (e) => {
         onErrorRef.current?.(e);
         es?.close();
-        reconnectTimer = setTimeout(connect, 3000);
+        if (!disposed) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
       };
     }
 
     function handleEvent(e: MessageEvent) {
+      if (disposed) return;
       try {
         const data = JSON.parse(e.data);
         onEventRef.current({ type: e.type, data });
@@ -64,8 +73,9 @@ export function useSSE({ queueName, onEvent, onError }: SSEOptions): void {
     connect();
 
     return () => {
+      disposed = true;
       es?.close();
       if (reconnectTimer) clearTimeout(reconnectTimer);
     };
-  }, [queueName]);
+  }, [queueName, paused]);
 }
