@@ -118,13 +118,13 @@ export class FlowProducer {
     // Override state and parent info
     if (children.length > 0) {
       jobData.state = 'waiting-children';
-      (jobData as { pendingChildrenCount: number }).pendingChildrenCount = children.length;
-      (jobData as { childrenIds: string[] }).childrenIds = childIds;
+      jobData.pendingChildrenCount = children.length;
+      jobData.childrenIds = childIds;
     }
 
-    (jobData as { parentId: string | null }).parentId = parentId;
-    (jobData as { parentQueueName: string | null }).parentQueueName = parentQueueName;
-    (jobData as { id?: string }).id = id;
+    jobData.parentId = parentId;
+    jobData.parentQueueName = parentQueueName;
+    jobData.id = id;
 
     result.push({
       queueName: node.queueName,
