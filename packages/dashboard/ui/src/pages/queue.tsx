@@ -103,32 +103,32 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
   useEffect(() => onRefresh(() => { loadQueue(); loadJobs(); }), [onRefresh, loadQueue, loadJobs]);
 
   const handleBulkRetry = async () => {
-    let count = 0;
-    for (const id of selectedIds) {
-      try {
-        await retryJob(queueName, id);
-        count++;
-      } catch {
-        /* skip */
-      }
+    const results = await Promise.allSettled(
+      Array.from(selectedIds).map((id) => retryJob(queueName, id)),
+    );
+    const count = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.length - count;
+    if (failed > 0) {
+      showToast(`${count} retried, ${failed} failed`, 'error');
+    } else {
+      showToast(`${count} job${count !== 1 ? 's' : ''} retried`);
     }
-    showToast(`${count} job${count !== 1 ? 's' : ''} retried`);
-    setSelectedIds(new Set());
+    if (count > 0) setSelectedIds(new Set());
     loadQueue();
     loadJobs();
   };
 
   const handleBulkRemove = async () => {
-    let count = 0;
-    for (const id of selectedIds) {
-      try {
-        await removeJob(queueName, id);
-        count++;
-      } catch {
-        /* skip */
-      }
+    const results = await Promise.allSettled(
+      Array.from(selectedIds).map((id) => removeJob(queueName, id)),
+    );
+    const count = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.length - count;
+    if (failed > 0) {
+      showToast(`${count} removed, ${failed} failed`, 'error');
+    } else {
+      showToast(`${count} job${count !== 1 ? 's' : ''} removed`);
     }
-    showToast(`${count} job${count !== 1 ? 's' : ''} removed`);
     setSelectedIds(new Set());
     loadQueue();
     loadJobs();

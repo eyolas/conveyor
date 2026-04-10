@@ -107,27 +107,29 @@ export function registerQueueRoutes(
   // GET /api/queues/:name/groups — list distinct groups with counts
   app.get(`${apiBase}/queues/:name/groups`, async (c) => {
     const name = c.req.param('name')!;
+
+    // Collect group IDs from active + waiting jobs (bounded scan)
     const [activeJobs, waitingJobs] = await Promise.all([
-      store.listJobs(name, 'active', 0, 10_000),
-      store.listJobs(name, 'waiting', 0, 10_000),
+      store.listJobs(name, 'active', 0, 500),
+      store.listJobs(name, 'waiting', 0, 500),
     ]);
-    const groupMap = new Map<string, { activeCount: number; waitingCount: number }>();
-    for (const job of activeJobs) {
-      if (!job.groupId) continue;
-      const entry = groupMap.get(job.groupId) ?? { activeCount: 0, waitingCount: 0 };
-      entry.activeCount++;
-      groupMap.set(job.groupId, entry);
+
+    const groupIds = new Set<string>();
+    for (const job of [...activeJobs, ...waitingJobs]) {
+      if (job.groupId) groupIds.add(job.groupId);
     }
-    for (const job of waitingJobs) {
-      if (!job.groupId) continue;
-      const entry = groupMap.get(job.groupId) ?? { activeCount: 0, waitingCount: 0 };
-      entry.waitingCount++;
-      groupMap.set(job.groupId, entry);
-    }
-    const data = [...groupMap.entries()].map(([groupId, counts]) => ({
-      groupId,
-      ...counts,
-    }));
+
+    // Use store methods for accurate per-group counts
+    const data = await Promise.all(
+      [...groupIds].map(async (groupId) => {
+        const [activeCount, waitingCount] = await Promise.all([
+          store.getGroupActiveCount(name, groupId),
+          store.getWaitingGroupCount(name, groupId),
+        ]);
+        return { groupId, activeCount, waitingCount };
+      }),
+    );
+
     return jsonData(c, data);
   });
 

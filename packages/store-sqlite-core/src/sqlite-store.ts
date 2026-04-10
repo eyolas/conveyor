@@ -954,9 +954,10 @@ export class BaseSqliteStore implements StoreInterface {
   }
 
   searchByPayload(queueName: string, query: string, limit = 50): Promise<JobData[]> {
+    const escaped = query.replace(/[%_\\]/g, '\\$&');
     const rows = this.db.prepare(
-      'SELECT * FROM conveyor_jobs WHERE queue_name = ? AND data LIKE ? LIMIT ?',
-    ).all(queueName, `%${query}%`, limit) as unknown as JobRow[];
+      "SELECT * FROM conveyor_jobs WHERE queue_name = ? AND data LIKE ? ESCAPE '\\' LIMIT ?",
+    ).all(queueName, `%${escaped}%`, limit) as unknown as JobRow[];
     return Promise.resolve(rows.map(rowToJobData));
   }
 

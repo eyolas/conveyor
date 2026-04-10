@@ -74,12 +74,15 @@ function FlowNode({
 }
 
 export function FlowTree({ currentJobId, parent, children }: FlowTreeProps) {
-  if (!parent && children.length === 0) return null;
+  // Guard against circular references
+  const safeParent = parent?.id === currentJobId ? null : parent;
+
+  if (!safeParent && children.length === 0) return null;
 
   return (
     <div class="space-y-1.5">
       {/* Parent */}
-      {parent && (
+      {safeParent && (
         <div class="flex items-center gap-2">
           <span class="font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
             Parent
@@ -87,7 +90,7 @@ export function FlowTree({ currentJobId, parent, children }: FlowTreeProps) {
           <button
             onClick={() =>
               route(
-                `/queues/${encodeURIComponent(parent.queueName)}/jobs/${encodeURIComponent(parent.id)}`,
+                `/queues/${encodeURIComponent(safeParent.queueName)}/jobs/${encodeURIComponent(safeParent.id)}`,
               )}
             class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-left transition-all hover:border-slate-300 hover:bg-slate-50 dark:border-border-dim dark:hover:border-border-default dark:hover:bg-surface-2"
           >
@@ -105,14 +108,14 @@ export function FlowTree({ currentJobId, parent, children }: FlowTreeProps) {
               />
             </svg>
             <span class="font-mono text-xs text-slate-500 dark:text-text-muted">
-              {parent.id.slice(0, 12)}
+              {safeParent.id.slice(0, 12)}
             </span>
           </button>
         </div>
       )}
 
       {/* Current job */}
-      {parent && children.length > 0 && (
+      {safeParent && children.length > 0 && (
         <div class="ml-2 border-l-2 border-slate-200 pl-4 dark:border-border-dim">
           <div class="flex items-center gap-2 py-1">
             <span class="font-display text-[10px] font-semibold uppercase tracking-wider text-accent dark:text-accent-bright">
@@ -127,7 +130,7 @@ export function FlowTree({ currentJobId, parent, children }: FlowTreeProps) {
 
       {/* Children */}
       {children.length > 0 && (
-        <div class={parent ? 'ml-2 border-l-2 border-slate-200 pl-4 dark:border-border-dim' : ''}>
+        <div class={safeParent ? 'ml-2 border-l-2 border-slate-200 pl-4 dark:border-border-dim' : ''}>
           <span class="mb-1.5 block font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
             Children ({children.length})
           </span>

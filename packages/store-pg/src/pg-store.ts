@@ -850,10 +850,12 @@ export class PgStore implements StoreInterface {
   }
 
   async searchByPayload(queueName: string, query: string, limit = 50): Promise<JobData[]> {
+    const escaped = query.replace(/[%_\\]/g, '\\$&');
+    const pattern = `%${escaped}%`;
     const rows = await this.sql<JobRow[]>`
       SELECT * FROM conveyor_jobs
       WHERE queue_name = ${queueName}
-        AND data::text ILIKE ${'%' + query + '%'}
+        AND data::text ILIKE ${pattern} ESCAPE '\\'
       LIMIT ${limit}
     `;
     return rows.map(rowToJobData);
