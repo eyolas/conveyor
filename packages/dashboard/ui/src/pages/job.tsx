@@ -14,6 +14,7 @@ import { useSSE } from '../hooks/use-sse';
 import { AttemptHistory } from '../components/attempt-history';
 import { Badge } from '../components/badge';
 import { FlowTree } from '../components/flow-tree';
+import { JobTypeTags } from '../components/job-type-tags';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import { JobEditDialog } from '../components/job-edit-dialog';
 import { JsonViewer } from '../components/json-viewer';
@@ -127,6 +128,12 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
                   {job.name}
                 </h2>
                 <Badge state={job.state} />
+                <JobTypeTags
+                  opts={job.opts}
+                  parentId={job.parentId}
+                  pendingChildrenCount={job.pendingChildrenCount}
+                  groupId={job.groupId}
+                />
               </div>
               <p class="mt-1 font-mono text-xs text-slate-400 dark:text-text-muted">{job.id}</p>
             </div>
