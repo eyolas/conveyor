@@ -898,6 +898,15 @@ export interface StoreInterface {
    * @returns Matching jobs.
    */
   searchByPayload?(queueName: string, query: string, limit?: number): Promise<JobData[]>;
+
+  /**
+   * List all flow parent jobs (jobs with childrenIds).
+   * Optional — returns flow parents across all states.
+   *
+   * @param state - Filter by state, or omit for all states.
+   * @param limit - Max results (default 100).
+   */
+  listFlowParents?(state?: JobState, limit?: number): Promise<JobData[]>;
 }
 
 /**

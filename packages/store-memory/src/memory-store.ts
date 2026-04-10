@@ -659,6 +659,21 @@ export class MemoryStore implements StoreInterface {
     return Promise.resolve(results);
   }
 
+  listFlowParents(state?: JobState, limit = 100): Promise<JobData[]> {
+    const results: JobData[] = [];
+    for (const queue of this.jobs.values()) {
+      for (const job of queue.values()) {
+        if (job.childrenIds.length === 0) continue;
+        if (state && job.state !== state) continue;
+        results.push(structuredClone(job));
+        if (results.length >= limit) break;
+      }
+      if (results.length >= limit) break;
+    }
+    results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return Promise.resolve(results);
+  }
+
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {
     const queue = this.getQueue(queueName);
     const job = queue.get(jobId);

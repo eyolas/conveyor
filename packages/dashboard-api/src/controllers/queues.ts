@@ -140,4 +140,19 @@ export function registerQueueRoutes(
     await store.obliterate(name, { force });
     return jsonData(c, { obliterated: true });
   });
+
+  // GET /api/flows — list flow parent jobs
+  app.get(`${apiBase}/flows`, async (c) => {
+    if (!store.listFlowParents) {
+      return jsonData(c, { active: [], completed: [] });
+    }
+    const stateParam = c.req.query('state');
+    const state = stateParam ? assertJobState(stateParam) : undefined;
+    const jobs = await store.listFlowParents(state, 100);
+    if (filterQueues) {
+      const filtered = jobs.filter((j) => filterQueues.includes(j.queueName));
+      return jsonData(c, filtered);
+    }
+    return jsonData(c, jobs);
+  });
 }

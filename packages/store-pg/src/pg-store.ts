@@ -862,6 +862,21 @@ export class PgStore implements StoreInterface {
     return rows.map(rowToJobData);
   }
 
+  async listFlowParents(state?: JobState, limit = 100): Promise<JobData[]> {
+    const rows = state
+      ? await this.sql<JobRow[]>`
+          SELECT * FROM conveyor_jobs
+          WHERE children_ids != '[]'::jsonb AND state = ${state}
+          ORDER BY created_at DESC LIMIT ${limit}
+        `
+      : await this.sql<JobRow[]>`
+          SELECT * FROM conveyor_jobs
+          WHERE children_ids != '[]'::jsonb
+          ORDER BY created_at DESC LIMIT ${limit}
+        `;
+    return rows.map(rowToJobData);
+  }
+
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {
     const now = new Date();
     const rows = await this.sql`

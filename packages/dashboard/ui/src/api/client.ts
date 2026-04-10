@@ -251,6 +251,16 @@ export async function searchByPayload(queueName: string, query: string): Promise
   return res.data;
 }
 
+// ─── Flows ──────────────────────────────────────────────────────────
+
+export async function listFlowParents(
+  state?: string,
+): Promise<JobData[]> {
+  const params = state ? `?state=${encodeURIComponent(state)}` : '';
+  const res = await request<DataResponse<JobData[]>>(`/flows${params}`);
+  return res.data;
+}
+
 export async function searchQueues(query: string): Promise<QueueInfo[]> {
   const res = await request<DataResponse<QueueInfo[]>>(
     `/search?type=queue&q=${encodeURIComponent(query)}`,

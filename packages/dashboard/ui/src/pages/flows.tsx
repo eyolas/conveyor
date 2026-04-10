@@ -2,10 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { route } from 'preact-router';
 import {
   getJobChildren,
-  listJobs,
-  listQueues,
+  listFlowParents,
   type JobData,
-  type QueueInfo,
 } from '../api/client';
 import { useLiveUpdatesContext } from '../hooks/live-updates-context';
 import { useSSE } from '../hooks/use-sse';
@@ -159,35 +157,10 @@ export function FlowsPage() {
 
   const loadFlows = useCallback(async () => {
     try {
-      const queues = await listQueues();
-      const active: JobData[] = [];
-      const completed: JobData[] = [];
-
-      await Promise.all(
-        queues.map(async (q: QueueInfo) => {
-          if ((q.counts['waiting-children'] ?? 0) > 0) {
-            const res = await listJobs(q.name, 'waiting-children', 0, 100);
-            active.push(...res.data);
-          }
-          if ((q.counts.completed ?? 0) > 0) {
-            const res = await listJobs(q.name, 'completed', 0, 100);
-            completed.push(
-              ...res.data.filter((j) => (j.childrenIds ?? []).length > 0),
-            );
-          }
-        }),
-      );
-
-      active.sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
-      completed.sort(
-        (a, b) =>
-          new Date(b.completedAt ?? b.createdAt).getTime() -
-          new Date(a.completedAt ?? a.createdAt).getTime(),
-      );
-
+      const [active, completed] = await Promise.all([
+        listFlowParents('waiting-children'),
+        listFlowParents('completed'),
+      ]);
       setActiveFlows(active);
       setCompletedFlows(completed);
     } catch {

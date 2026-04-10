@@ -965,6 +965,15 @@ export class BaseSqliteStore implements StoreInterface {
     return Promise.resolve(rows.map(rowToJobData));
   }
 
+  listFlowParents(state?: JobState, limit = 100): Promise<JobData[]> {
+    const sql = state
+      ? "SELECT * FROM conveyor_jobs WHERE children_ids != '[]' AND state = ? ORDER BY created_at DESC LIMIT ?"
+      : "SELECT * FROM conveyor_jobs WHERE children_ids != '[]' ORDER BY created_at DESC LIMIT ?";
+    const params = state ? [state, limit] : [limit];
+    const rows = this.db.prepare(sql).all(...params) as unknown as JobRow[];
+    return Promise.resolve(rows.map(rowToJobData));
+  }
+
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {
     const now = Date.now();
     const result = this.db.prepare(`
