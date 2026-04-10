@@ -392,7 +392,7 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
                 <td class="px-5 py-3.5">
                   <div class="flex items-center gap-2">
                     <span class="font-medium text-slate-700 dark:text-text-primary">{job.name}</span>
-                    <JobTypeTags opts={job.opts} parentId={job.parentId} />
+                    <JobTypeTags opts={job.opts} parentId={job.parentId} pendingChildrenCount={job.pendingChildrenCount} groupId={job.groupId} />
                   </div>
                 </td>
                 <td class="px-5 py-3.5">
@@ -486,13 +486,25 @@ function ActionButton({
   );
 }
 
-function JobTypeTags({ opts, parentId }: { opts: Record<string, unknown>; parentId: string | null }) {
+function JobTypeTags({
+  opts,
+  parentId,
+  pendingChildrenCount,
+  groupId,
+}: {
+  opts: Record<string, unknown>;
+  parentId: string | null;
+  pendingChildrenCount: number;
+  groupId: string | null;
+}) {
   const repeat = opts.repeat as Record<string, unknown> | undefined;
   const isCron = repeat?.cron !== undefined;
   const isEvery = !isCron && repeat?.every !== undefined;
   const isChild = parentId !== null;
+  const isParent = pendingChildrenCount > 0 || (opts as Record<string, unknown>).__hasChildren === true;
+  const hasGroup = groupId !== null;
 
-  if (!isCron && !isEvery && !isChild) return null;
+  if (!isCron && !isEvery && !isChild && !isParent && !hasGroup) return null;
 
   return (
     <span class="flex items-center gap-1">
@@ -518,6 +530,17 @@ function JobTypeTags({ opts, parentId }: { opts: Record<string, unknown>; parent
           repeat
         </span>
       )}
+      {isParent && (
+        <span
+          class="inline-flex items-center gap-1 rounded-md bg-accent-glow px-1.5 py-0.5 font-mono text-[10px] font-medium text-accent dark:bg-accent-glow dark:text-accent"
+          title="Parent job (flow)"
+        >
+          <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z" />
+          </svg>
+          flow
+        </span>
+      )}
       {isChild && (
         <span
           class="inline-flex items-center gap-1 rounded-md bg-teal-glow px-1.5 py-0.5 font-mono text-[10px] font-medium text-teal dark:bg-teal-glow dark:text-teal"
@@ -527,6 +550,17 @@ function JobTypeTags({ opts, parentId }: { opts: Record<string, unknown>; parent
             <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
           </svg>
           child
+        </span>
+      )}
+      {hasGroup && (
+        <span
+          class="inline-flex items-center gap-1 rounded-md bg-amber-glow px-1.5 py-0.5 font-mono text-[10px] font-medium text-amber dark:bg-amber-glow dark:text-amber"
+          title={`group: ${groupId}`}
+        >
+          <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          {groupId}
         </span>
       )}
     </span>
