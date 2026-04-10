@@ -85,22 +85,50 @@ export function Sidebar({ collapsed, onToggle, activeQueue }: SidebarProps) {
       {/* Sidebar header */}
       <div class="flex h-14 items-center justify-between border-b border-slate-200 px-4 dark:border-border-dim">
         <span class="font-display text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
-          Queues
+          Navigation
         </span>
-        <div class="flex items-center gap-1">
-          <span class="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] tabular-nums text-slate-500 dark:bg-surface-3 dark:text-text-muted">
+        <button
+          onClick={onToggle}
+          class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600 dark:text-text-muted dark:hover:bg-surface-3 dark:hover:text-text-secondary"
+          title="Collapse sidebar"
+        >
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Nav tabs */}
+      <div class="flex gap-1 border-b border-slate-200 px-3 py-2 dark:border-border-dim">
+        <a
+          href="/"
+          class={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-display text-xs font-semibold transition-colors ${
+            typeof location !== 'undefined' && location.pathname !== '/flows'
+              ? 'bg-accent/10 text-accent dark:bg-accent-glow-strong dark:text-accent-bright'
+              : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600 dark:text-text-muted dark:hover:bg-surface-2'
+          }`}
+        >
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+          </svg>
+          Queues
+          <span class="rounded-full bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-slate-500 dark:bg-surface-3 dark:text-text-muted">
             {queues.length}
           </span>
-          <button
-            onClick={onToggle}
-            class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600 dark:text-text-muted dark:hover:bg-surface-3 dark:hover:text-text-secondary"
-            title="Collapse sidebar"
-          >
-            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-        </div>
+        </a>
+        <a
+          href="/flows"
+          class={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-display text-xs font-semibold transition-colors ${
+            typeof location !== 'undefined' && location.pathname === '/flows'
+              ? 'bg-accent/10 text-accent dark:bg-accent-glow-strong dark:text-accent-bright'
+              : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600 dark:text-text-muted dark:hover:bg-surface-2'
+          }`}
+        >
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z" />
+          </svg>
+          Flows
+        </a>
       </div>
 
       {/* Search */}
@@ -195,28 +223,6 @@ export function Sidebar({ collapsed, onToggle, activeQueue }: SidebarProps) {
         )}
       </nav>
 
-      {/* Flows link */}
-      <div class="border-t border-slate-200 px-3 py-3 dark:border-border-dim">
-        <button
-          onClick={() => route('/flows')}
-          class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition-all hover:bg-slate-50 dark:text-text-secondary dark:hover:bg-surface-2"
-        >
-          <svg
-            class="h-4 w-4 text-slate-400 dark:text-text-muted"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z"
-            />
-          </svg>
-          <span class="font-medium">Flows</span>
-        </button>
-      </div>
     </aside>
   );
 }
