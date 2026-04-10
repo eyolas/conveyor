@@ -209,6 +209,7 @@ export class PgStore implements StoreInterface {
       stacktrace: 'stacktrace',
       discarded: 'discarded',
       attemptLogs: 'attempt_logs',
+      childrenIds: 'children_ids',
     };
 
     const row: Record<string, unknown> = {};

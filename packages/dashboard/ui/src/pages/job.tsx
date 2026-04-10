@@ -131,7 +131,7 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
                 <JobTypeTags
                   opts={job.opts}
                   parentId={job.parentId}
-                  pendingChildrenCount={job.pendingChildrenCount}
+                  childrenIds={job.childrenIds ?? []}
                   groupId={job.groupId}
                 />
               </div>

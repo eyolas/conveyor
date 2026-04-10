@@ -393,7 +393,7 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
                 <td class="px-5 py-3.5">
                   <div class="flex items-center gap-2">
                     <span class="font-medium text-slate-700 dark:text-text-primary">{job.name}</span>
-                    <JobTypeTags opts={job.opts} parentId={job.parentId} pendingChildrenCount={job.pendingChildrenCount} groupId={job.groupId} />
+                    <JobTypeTags opts={job.opts} parentId={job.parentId} childrenIds={job.childrenIds ?? []} groupId={job.groupId} />
                   </div>
                 </td>
                 <td class="px-5 py-3.5">

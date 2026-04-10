@@ -158,6 +158,9 @@ export interface JobData<T = unknown> {
   /** Whether this job has been discarded (no more retries). */
   discarded: boolean;
 
+  /** IDs of child jobs (set once during flow creation, never changes). */
+  childrenIds: string[];
+
   /** Per-attempt processing history. */
   attemptLogs: AttemptRecord[];
 }

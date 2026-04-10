@@ -152,6 +152,11 @@ export const migrations: Migration[] = [
         ON conveyor_metrics (queue_name, granularity, period_start);
     `,
   },
+  {
+    version: 10,
+    name: 'add_children_ids',
+    up: `ALTER TABLE conveyor_jobs ADD COLUMN children_ids TEXT NOT NULL DEFAULT '[]'`,
+  },
 ];
 
 /**

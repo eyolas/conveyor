@@ -119,6 +119,7 @@ export class FlowProducer {
     if (children.length > 0) {
       jobData.state = 'waiting-children';
       (jobData as { pendingChildrenCount: number }).pendingChildrenCount = children.length;
+      (jobData as { childrenIds: string[] }).childrenIds = childIds;
     }
 
     (jobData as { parentId: string | null }).parentId = parentId;

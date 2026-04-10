@@ -124,14 +124,14 @@ export class BaseSqliteStore implements StoreInterface {
           priority, seq, created_at, processed_at, completed_at, failed_at,
           delay_until, lock_until, locked_by,
           parent_id, parent_queue_name, pending_children_count, cancelled_at,
-          group_id, stacktrace, discarded, attempt_logs
+          group_id, stacktrace, discarded, attempt_logs, children_ids
         ) VALUES (
           :id, :queue_name, :name, :data, :state, :attempts_made, :progress,
           :returnvalue, :failed_reason, :opts, :deduplication_key, :logs,
           :priority, :seq, :created_at, :processed_at, :completed_at, :failed_at,
           :delay_until, :lock_until, :locked_by,
           :parent_id, :parent_queue_name, :pending_children_count, :cancelled_at,
-          :group_id, :stacktrace, :discarded, :attempt_logs
+          :group_id, :stacktrace, :discarded, :attempt_logs, :children_ids
         )
       `),
       getJob: this.db.prepare(
@@ -286,12 +286,16 @@ export class BaseSqliteStore implements StoreInterface {
       stacktrace: 'stacktrace',
       discarded: 'discarded',
       attemptLogs: 'attempt_logs',
+      childrenIds: 'children_ids',
     };
 
     for (const [key, col] of Object.entries(columnMap)) {
       if (key in updates) {
         const val = (updates as Record<string, unknown>)[key];
-        if (['returnvalue', 'opts', 'logs', 'data', 'stacktrace', 'attemptLogs'].includes(key)) {
+        if (
+          ['returnvalue', 'opts', 'logs', 'data', 'stacktrace', 'attemptLogs', 'childrenIds']
+            .includes(key)
+        ) {
           sets.push(`${col} = ?`);
           values.push(val !== null && val !== undefined ? JSON.stringify(val) : null);
         } else if (

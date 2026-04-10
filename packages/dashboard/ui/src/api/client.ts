@@ -51,6 +51,7 @@ export interface JobData {
   cancelledAt: string | null;
   groupId: string | null;
   discarded: boolean;
+  childrenIds: string[];
   attemptLogs?: Array<{
     attempt: number;
     startedAt: string;
