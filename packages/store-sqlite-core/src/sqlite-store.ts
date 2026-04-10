@@ -22,6 +22,7 @@ import {
   generateId,
   InvalidJobStateError,
   MetricsDisabledError,
+  noopLogger,
 } from '@conveyor/shared';
 import type { DatabaseOpener, SqliteDatabase, SqliteStatement } from './types.ts';
 import type { JobRow } from './mapping.ts';
@@ -54,6 +55,7 @@ export class BaseSqliteStore implements StoreInterface {
   private subscribers = new Map<string, Set<EventCallback>>();
   private seqCounter = 0;
   private readonly onEventHandlerError: (error: unknown) => void;
+  private readonly logger;
 
   // Prepared statement cache
   private stmts!: {
@@ -70,8 +72,9 @@ export class BaseSqliteStore implements StoreInterface {
   /** @param options - SQLite database path, opener, and store options. */
   constructor(options: BaseSqliteStoreOptions) {
     this.options = options;
+    this.logger = options.logger ?? noopLogger;
     this.onEventHandlerError = options.onEventHandlerError ??
-      ((err) => console.warn('[Conveyor] Error in event handler:', err));
+      ((err) => this.logger.warn('[Conveyor] Error in event handler:', err));
   }
 
   /**

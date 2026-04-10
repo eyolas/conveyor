@@ -278,6 +278,7 @@ export class Queue<T = unknown> {
             timestamp: new Date(),
           });
         } else {
+          // TODO: use logger when Queue accepts logger option
           console.warn(
             `[Conveyor] Job ${id} not found after saveBulk — possible store inconsistency`,
           );

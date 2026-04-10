@@ -490,13 +490,27 @@ export interface MetricsOptions {
   retentionHours?: number;
 }
 
+/** Logger interface for Conveyor. All methods are optional-use (no-op by default). */
+export interface Logger {
+  debug(message: string, ...args: unknown[]): void;
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
+}
+
 /** Base options shared by all store implementations. */
 export interface StoreOptions {
   /** Run migrations automatically on connect() (default: true). */
   autoMigrate?: boolean;
 
-  /** Called when an event handler throws. Defaults to `console.warn`. */
+  /**
+   * Called when an event handler throws.
+   * @deprecated Use `logger` instead. Will be removed in v2.
+   */
   onEventHandlerError?: (error: unknown) => void;
+
+  /** Logger for internal messages. Default: silent (no-op). */
+  logger?: Logger;
 
   /**
    * Enable built-in metrics collection.

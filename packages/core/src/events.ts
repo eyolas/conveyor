@@ -69,6 +69,7 @@ export class EventBus {
               this.emittingError = false;
             }
           } else {
+            // Last-resort fallback — use store logger for normal error handling
             console.error('[Conveyor] Unhandled error in event handler:', err);
           }
         }
