@@ -116,6 +116,8 @@ await imageQueue.cron('*/30 * * * * *', 'cleanup-thumbnails', {
 // ─── Flow (parent → children) ────────────────────────────────────────
 
 const flow = new FlowProducer({ store });
+
+// Order processing flow
 await flow.add({
   name: 'process-order',
   queueName: 'emails',
@@ -130,6 +132,59 @@ await flow.add({
       name: 'thumbnail',
       queueName: 'image-resize',
       data: { url: 'https://example.com/order-1234.jpg', width: 150 },
+    },
+  ],
+});
+
+// User onboarding flow (deeper nesting)
+await flow.add({
+  name: 'onboard-user',
+  queueName: 'emails',
+  data: { to: 'newuser@example.com', subject: 'Welcome aboard!' },
+  children: [
+    {
+      name: 'send-welcome',
+      queueName: 'emails',
+      data: { to: 'newuser@example.com', subject: 'Getting started guide' },
+    },
+    {
+      name: 'generate-avatar',
+      queueName: 'image-resize',
+      data: { url: 'https://example.com/default-avatar.png', width: 128 },
+    },
+    {
+      name: 'send-verification',
+      queueName: 'emails',
+      data: { to: 'newuser@example.com', subject: 'Verify your email' },
+    },
+  ],
+});
+
+// Report generation flow (cross-queue)
+await flow.add({
+  name: 'generate-weekly-report',
+  queueName: 'emails',
+  data: { to: 'team@example.com', subject: 'Weekly report ready' },
+  children: [
+    {
+      name: 'render-chart-1',
+      queueName: 'image-resize',
+      data: { url: 'https://example.com/chart-revenue.svg', width: 800 },
+    },
+    {
+      name: 'render-chart-2',
+      queueName: 'image-resize',
+      data: { url: 'https://example.com/chart-users.svg', width: 800 },
+    },
+    {
+      name: 'send-to-stakeholders',
+      queueName: 'emails',
+      data: { to: 'ceo@example.com', subject: 'Weekly report attached' },
+    },
+    {
+      name: 'send-to-board',
+      queueName: 'emails',
+      data: { to: 'board@example.com', subject: 'Weekly metrics' },
     },
   ],
 });

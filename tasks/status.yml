@@ -32,6 +32,10 @@ thinking:
     description: Dead letter queue for permanently failed jobs
     status: thinking
 
+  standalone-workflows:
+    description: 'Queue-agnostic workflow orchestrator — flows without mandatory queue binding, DAG-based execution, conditional branching'
+    status: thinking
+
   queue-schema-definition:
     description: Declarative queue schema format (like OpenAPI for queues) — typed payloads, actions, metadata to auto-generate dashboard UI
     status: planned
