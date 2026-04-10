@@ -5,6 +5,7 @@ import {
   LiveUpdatesContext,
 } from './hooks/live-updates-context';
 import { useLiveUpdates } from './hooks/use-live-updates';
+import { FlowDetailPage } from './pages/flow-detail';
 import { FlowsPage } from './pages/flows';
 import { HomePage } from './pages/home';
 import { QueuePage } from './pages/queue';
@@ -38,6 +39,7 @@ export function App() {
         <Router onChange={(e) => setUrl(e.url)}>
           <HomePage path="/" />
           <FlowsPage path="/flows" />
+          <FlowDetailPage path="/flows/:name/:id" />
           <QueuePage path="/queues/:name" />
           <JobPage path="/queues/:name/jobs/:id" />
         </Router>

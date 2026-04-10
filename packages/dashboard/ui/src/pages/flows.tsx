@@ -16,11 +16,13 @@ function FlowCard({
   children,
   expanded,
   onToggle,
+  onViewDetail,
 }: {
   parent: JobData;
   children: JobData[] | null;
   expanded: boolean;
   onToggle: () => void;
+  onViewDetail: () => void;
 }) {
   return (
     <div class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-border-dim dark:bg-surface-1">
@@ -105,10 +107,7 @@ function FlowCard({
                 {children.map((child) => (
                   <button
                     key={child.id}
-                    onClick={() =>
-                      route(
-                        `/queues/${encodeURIComponent(child.queueName)}/jobs/${encodeURIComponent(child.id)}`,
-                      )}
+                    onClick={onViewDetail}
                     class="flex w-full items-center justify-between border-t border-slate-50 px-4 py-2.5 text-left transition-colors first:border-t-0 hover:bg-slate-50/50 dark:border-border-dim/50 dark:hover:bg-surface-2/30"
                   >
                     <div class="flex items-center gap-2.5 pl-11">
@@ -129,13 +128,10 @@ function FlowCard({
                 ))}
                 <div class="border-t border-slate-100 px-4 py-2 dark:border-border-dim">
                   <button
-                    onClick={() =>
-                      route(
-                        `/queues/${encodeURIComponent(parent.queueName)}/jobs/${encodeURIComponent(parent.id)}`,
-                      )}
+                    onClick={onViewDetail}
                     class="text-xs text-accent hover:underline dark:text-accent-bright"
                   >
-                    View full details &rarr;
+                    View details &rarr;
                   </button>
                 </div>
               </div>
@@ -147,11 +143,23 @@ function FlowCard({
 }
 
 export function FlowsPage() {
-  const [tab, setTab] = useState<FlowTab>('active');
+  const [tab, setTab] = useState<FlowTab>(() => {
+    if (typeof location === 'undefined') return 'active';
+    const params = new URLSearchParams(location.search);
+    return (params.get('tab') as FlowTab) || 'active';
+  });
   const [activeFlows, setActiveFlows] = useState<JobData[]>([]);
   const [completedFlows, setCompletedFlows] = useState<JobData[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (typeof history !== 'undefined') {
+      const url = new URL(location.href);
+      url.searchParams.set('tab', tab);
+      history.replaceState(null, '', url.pathname + url.search);
+    }
+  }, [tab]);
   // Cache children separately so SSE reloads don't lose them
   const childrenCache = useRef<Map<string, JobData[]>>(new Map());
 
@@ -294,10 +302,12 @@ export function FlowsPage() {
                 children={childrenCache.current.get(parent.id) ?? (expandedIds.has(parent.id) ? null : undefined) ?? null}
                 expanded={expandedIds.has(parent.id)}
                 onToggle={() => toggleExpand(parent)}
+                onViewDetail={() => route(`/flows/${encodeURIComponent(parent.queueName)}/${encodeURIComponent(parent.id)}`)}
               />
             ))}
           </div>
         )}
+
     </div>
   );
 }
