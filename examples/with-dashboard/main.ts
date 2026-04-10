@@ -6,7 +6,7 @@
  * Then open: http://localhost:8080
  */
 
-import { type Job, Queue, Worker } from '@conveyor/core';
+import { FlowProducer, type Job, Queue, Worker } from '@conveyor/core';
 import { MemoryStore } from '@conveyor/store-memory';
 import { createDashboardHandler } from '@conveyor/dashboard';
 
@@ -112,6 +112,38 @@ await imageQueue.cron('*/30 * * * * *', 'cleanup-thumbnails', {
   url: 'https://example.com/cleanup',
   width: 0,
 });
+
+// ─── Flow (parent → children) ────────────────────────────────────────
+
+const flow = new FlowProducer({ store });
+await flow.add({
+  name: 'process-order',
+  queueName: 'emails',
+  data: { to: 'orders@example.com', subject: 'Order #1234 confirmation' },
+  children: [
+    {
+      name: 'send-invoice',
+      queueName: 'emails',
+      data: { to: 'billing@example.com', subject: 'Invoice for Order #1234' },
+    },
+    {
+      name: 'thumbnail',
+      queueName: 'image-resize',
+      data: { url: 'https://example.com/order-1234.jpg', width: 150 },
+    },
+  ],
+});
+
+// ─── Groups ──────────────────────────────────────────────────────────
+
+for (const region of ['us-east', 'us-west', 'eu-central']) {
+  for (let i = 0; i < 3; i++) {
+    await emailQueue.add('send-regional', {
+      to: `user${i}@${region}.example.com`,
+      subject: `Regional update (${region})`,
+    }, { group: { id: region } });
+  }
+}
 
 // ─── Dashboard ───────────────────────────────────────────────────────
 
