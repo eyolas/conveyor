@@ -1,0 +1,1301 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Conveyor Dashboard API",
+    "description": "REST API for the Conveyor job queue dashboard. Provides queue management, job CRUD, search, metrics, and real-time SSE event streaming.",
+    "version": "1.0.0",
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "Default API base path"
+    }
+  ],
+  "tags": [
+    { "name": "Queues", "description": "Queue management operations" },
+    { "name": "Jobs", "description": "Job CRUD and lifecycle operations" },
+    { "name": "Groups", "description": "Job group queries" },
+    { "name": "Flows", "description": "Flow (parent/child) job queries" },
+    { "name": "Search", "description": "Cross-queue search (Cmd+K)" },
+    { "name": "Metrics", "description": "Metrics and sparklines" },
+    { "name": "Events", "description": "Real-time SSE event streams" }
+  ],
+  "paths": {
+    "/queues": {
+      "get": {
+        "tags": ["Queues"],
+        "summary": "List all queues",
+        "description": "Returns all known queues with job counts and metadata. Filtered by the `queues` option if configured.",
+        "operationId": "listQueues",
+        "responses": {
+          "200": {
+            "description": "List of queues",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/QueueInfo" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queues/{name}": {
+      "get": {
+        "tags": ["Queues"],
+        "summary": "Get queue detail",
+        "description": "Returns job counts per state and paused job names for a specific queue.",
+        "operationId": "getQueueDetail",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queue detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/QueueDetail" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Queues"],
+        "summary": "Obliterate a queue",
+        "description": "Destroys a queue and all its data. Fails if active jobs exist unless `force=true`.",
+        "operationId": "obliterateQueue",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" },
+          {
+            "name": "force",
+            "in": "query",
+            "description": "Force obliteration even with active jobs",
+            "schema": { "type": "string", "enum": ["true", "false"], "default": "false" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queue obliterated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["obliterated"],
+                      "properties": {
+                        "obliterated": { "type": "boolean", "const": true }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queues/{name}/pause": {
+      "post": {
+        "tags": ["Queues"],
+        "summary": "Pause a queue or job name",
+        "description": "Pauses the entire queue or a specific job name. Omit `jobName` or set to `\"__all__\"` for global pause.",
+        "operationId": "pauseQueue",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jobName": {
+                    "type": "string",
+                    "description": "Job name to pause, or `\"__all__\"` for global pause",
+                    "default": "__all__"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Queue paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["paused"],
+                      "properties": {
+                        "paused": { "type": "string", "description": "The job name that was paused" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queues/{name}/resume": {
+      "post": {
+        "tags": ["Queues"],
+        "summary": "Resume a queue or job name",
+        "description": "Resumes the entire queue or a specific job name. Omit `jobName` or set to `\"__all__\"` for global resume.",
+        "operationId": "resumeQueue",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jobName": {
+                    "type": "string",
+                    "description": "Job name to resume, or `\"__all__\"` for global resume",
+                    "default": "__all__"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Queue resumed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["resumed"],
+                      "properties": {
+                        "resumed": { "type": "string", "description": "The job name that was resumed" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queues/{name}/drain": {
+      "post": {
+        "tags": ["Queues"],
+        "summary": "Drain a queue",
+        "description": "Removes all waiting and delayed jobs from the queue.",
+        "operationId": "drainQueue",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queue drained",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["drained"],
+                      "properties": {
+                        "drained": { "type": "boolean", "const": true }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queues/{name}/clean": {
+      "post": {
+        "tags": ["Queues"],
+        "summary": "Clean old jobs",
+        "description": "Removes jobs in a given state older than a grace period (in milliseconds).",
+        "operationId": "cleanQueue",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["state", "grace"],
+                "properties": {
+                  "state": { "$ref": "#/components/schemas/JobState" },
+                  "grace": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Grace period in milliseconds"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Number of removed jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["removed"],
+                      "properties": {
+                        "removed": { "type": "integer", "description": "Number of jobs removed" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/queues/{name}/retry": {
+      "post": {
+        "tags": ["Queues"],
+        "summary": "Retry all jobs in a terminal state",
+        "description": "Moves all failed or completed jobs back to waiting.",
+        "operationId": "retryQueueJobs",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["state"],
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": ["failed", "completed"],
+                    "description": "Source state to retry from"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Number of retried jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["retried"],
+                      "properties": {
+                        "retried": { "type": "integer", "description": "Number of jobs retried" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/queues/{name}/promote": {
+      "post": {
+        "tags": ["Queues"],
+        "summary": "Promote all delayed jobs",
+        "description": "Promotes all delayed jobs to waiting immediately, regardless of their delay.",
+        "operationId": "promoteQueueJobs",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Number of promoted jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["promoted"],
+                      "properties": {
+                        "promoted": { "type": "integer", "description": "Number of jobs promoted" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queues/{name}/groups": {
+      "get": {
+        "tags": ["Groups"],
+        "summary": "List groups in a queue",
+        "description": "Returns distinct group IDs with their active and waiting job counts.",
+        "operationId": "listGroups",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of groups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/GroupInfo" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queues/{name}/jobs": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "List jobs with pagination",
+        "description": "Returns jobs in a given state with offset-based pagination. Maximum page size is 1000.",
+        "operationId": "listJobs",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Job state to filter by",
+            "schema": { "$ref": "#/components/schemas/JobState" },
+            "example": "waiting"
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Pagination offset",
+            "schema": { "type": "integer", "minimum": 0, "default": 0 }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "Pagination end index",
+            "schema": { "type": "integer", "minimum": 0, "default": 100 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of jobs",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaginatedJobResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      },
+      "post": {
+        "tags": ["Jobs"],
+        "summary": "Add a new job",
+        "description": "Creates a new job in the queue. Returns the created job with status 201.",
+        "operationId": "addJob",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "description": "Job name (e.g. \"send-email\")" },
+                  "data": { "description": "Job payload (any JSON value)", "default": {} },
+                  "opts": {
+                    "type": "object",
+                    "description": "Job options (priority, delay, repeat, etc.)",
+                    "properties": {
+                      "priority": { "type": "integer", "description": "Lower = higher priority (default: 0)" },
+                      "delay": { "type": "integer", "description": "Delay in milliseconds before execution" },
+                      "attempts": { "type": "integer", "description": "Max retry attempts (default: 1)" },
+                      "lifo": { "type": "boolean", "description": "LIFO mode (default: false)" },
+                      "jobId": { "type": "string", "description": "Custom job ID for manual dedup" },
+                      "timeout": { "type": "integer", "description": "Timeout in milliseconds" },
+                      "removeOnComplete": {
+                        "oneOf": [
+                          { "type": "boolean" },
+                          { "type": "integer", "description": "Max age in ms" }
+                        ]
+                      },
+                      "removeOnFail": {
+                        "oneOf": [
+                          { "type": "boolean" },
+                          { "type": "integer", "description": "Max age in ms" }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Job created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/JobData" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/queues/{name}/jobs/{id}": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Get job detail",
+        "description": "Returns full job data including payload, state, logs, and attempt history.",
+        "operationId": "getJob",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" },
+          { "$ref": "#/components/parameters/JobId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/JobData" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "tags": ["Jobs"],
+        "summary": "Edit job payload or priority",
+        "description": "Updates the payload or priority of a non-active job.",
+        "operationId": "editJob",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" },
+          { "$ref": "#/components/parameters/JobId" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "data": { "description": "New job payload (any JSON value)" },
+                  "opts": {
+                    "type": "object",
+                    "properties": {
+                      "priority": { "type": "integer", "description": "New priority value" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": { "$ref": "#/components/schemas/JobData" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Jobs"],
+        "summary": "Remove a job",
+        "description": "Permanently removes a job from the queue.",
+        "operationId": "removeJob",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" },
+          { "$ref": "#/components/parameters/JobId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["removed"],
+                      "properties": {
+                        "removed": { "type": "boolean", "const": true }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queues/{name}/jobs/{id}/children": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "List child jobs",
+        "description": "Returns all children of a parent job in a flow.",
+        "operationId": "getJobChildren",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" },
+          { "$ref": "#/components/parameters/JobId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of child jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/JobData" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/queues/{name}/jobs/{id}/retry": {
+      "post": {
+        "tags": ["Jobs"],
+        "summary": "Retry a single job",
+        "description": "Moves a failed or completed job back to waiting, resetting attempt counters.",
+        "operationId": "retryJob",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" },
+          { "$ref": "#/components/parameters/JobId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job retried",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["retried"],
+                      "properties": {
+                        "retried": { "type": "boolean", "const": true }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/queues/{name}/jobs/{id}/promote": {
+      "post": {
+        "tags": ["Jobs"],
+        "summary": "Promote a delayed job",
+        "description": "Promotes a single delayed job to waiting immediately.",
+        "operationId": "promoteJob",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" },
+          { "$ref": "#/components/parameters/JobId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job promoted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["promoted"],
+                      "properties": {
+                        "promoted": { "type": "boolean", "const": true }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/queues/{name}/jobs/{id}/cancel": {
+      "post": {
+        "tags": ["Jobs"],
+        "summary": "Cancel an active job",
+        "description": "Cancels a currently active job. The worker detects the cancellation and aborts processing.",
+        "operationId": "cancelJob",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" },
+          { "$ref": "#/components/parameters/JobId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["cancelled"],
+                      "properties": {
+                        "cancelled": { "type": "boolean", "const": true }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/queues/{name}/metrics": {
+      "get": {
+        "tags": ["Metrics"],
+        "summary": "Get queue metrics",
+        "description": "Returns aggregated metrics buckets for a queue over a time range.",
+        "operationId": "getQueueMetrics",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" },
+          {
+            "name": "granularity",
+            "in": "query",
+            "description": "Aggregation granularity",
+            "schema": { "type": "string", "enum": ["minute", "hour"], "default": "minute" }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Start of time range (ISO 8601). Defaults to 1 hour ago.",
+            "schema": { "type": "string", "format": "date-time" }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "End of time range (ISO 8601). Defaults to now.",
+            "schema": { "type": "string", "format": "date-time" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metrics buckets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/MetricsBucket" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/queues/{name}/events": {
+      "get": {
+        "tags": ["Events"],
+        "summary": "SSE stream for a single queue",
+        "description": "Opens a Server-Sent Events stream for real-time events on a specific queue. Sends a `connected` event on connection, then streams events as they occur.",
+        "operationId": "streamQueueEvents",
+        "parameters": [
+          { "$ref": "#/components/parameters/QueueName" }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": { "$ref": "#/components/schemas/StoreEvent" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/flows": {
+      "get": {
+        "tags": ["Flows"],
+        "summary": "List flow parent jobs",
+        "description": "Returns parent jobs that have children (flow jobs). Optionally filter by state.",
+        "operationId": "listFlows",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Filter by job state",
+            "schema": { "$ref": "#/components/schemas/JobState" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of flow parent jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/JobData" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search": {
+      "get": {
+        "tags": ["Search"],
+        "summary": "Search jobs, queues, or payloads",
+        "description": "Cross-queue search for the Cmd+K interface. Supports searching by job ID, queue name substring, or payload content.",
+        "operationId": "search",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Search term (job ID, queue name substring, or payload text)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "What to search for",
+            "schema": { "type": "string", "enum": ["job", "queue", "payload"], "default": "job" }
+          },
+          {
+            "name": "queue",
+            "in": "query",
+            "description": "Queue name (required when type is \"payload\")",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results. Shape depends on `type`: single JobData for `job`, array of QueueInfo for `queue`, array of JobData for `payload`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "description": "JobData | QueueInfo[] | JobData[] | null",
+                      "oneOf": [
+                        { "$ref": "#/components/schemas/JobData" },
+                        { "type": "array", "items": { "$ref": "#/components/schemas/QueueInfo" } },
+                        { "type": "array", "items": { "$ref": "#/components/schemas/JobData" } },
+                        { "type": "null" }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/metrics/sparklines": {
+      "get": {
+        "tags": ["Metrics"],
+        "summary": "Batch sparklines for all queues",
+        "description": "Returns the last hour of per-minute throughput (completed + failed) for each queue. Avoids N+1 queries from the dashboard.",
+        "operationId": "getSparklines",
+        "responses": {
+          "200": {
+            "description": "Map of queue name to array of throughput values",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "integer" }
+                      },
+                      "description": "Map of queue name to array of per-minute throughput counts"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics/status": {
+      "get": {
+        "tags": ["Metrics"],
+        "summary": "Check if metrics are enabled",
+        "description": "Probes the store to determine whether metrics collection is enabled.",
+        "operationId": "getMetricsStatus",
+        "responses": {
+          "200": {
+            "description": "Metrics status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["enabled"],
+                      "properties": {
+                        "enabled": { "type": "boolean" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "tags": ["Events"],
+        "summary": "SSE stream for all queues",
+        "description": "Opens a Server-Sent Events stream for real-time events across all queues. Automatically subscribes to new queues as they are discovered (polled every 10 seconds). Sends a `connected` event on connection.",
+        "operationId": "streamAllEvents",
+        "responses": {
+          "200": {
+            "description": "SSE event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": { "$ref": "#/components/schemas/StoreEvent" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "QueueName": {
+        "name": "name",
+        "in": "path",
+        "required": true,
+        "description": "Queue name",
+        "schema": { "type": "string" }
+      },
+      "JobId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Job ID (UUID)",
+        "schema": { "type": "string", "format": "uuid" }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request parameters",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "JobState": {
+        "type": "string",
+        "enum": ["waiting", "waiting-children", "delayed", "active", "completed", "failed"],
+        "description": "Possible states of a job in its lifecycle"
+      },
+      "JobData": {
+        "type": "object",
+        "description": "Full job data as stored in the backend",
+        "required": [
+          "id", "name", "queueName", "data", "state", "attemptsMade", "progress",
+          "opts", "logs", "stacktrace", "createdAt", "pendingChildrenCount",
+          "discarded", "childrenIds", "attemptLogs"
+        ],
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "Unique job ID" },
+          "name": { "type": "string", "description": "Job name" },
+          "queueName": { "type": "string", "description": "Queue this job belongs to" },
+          "data": { "description": "Job payload (any JSON value)" },
+          "state": { "$ref": "#/components/schemas/JobState" },
+          "attemptsMade": { "type": "integer", "description": "Number of processing attempts made" },
+          "progress": { "type": "number", "minimum": 0, "maximum": 100, "description": "Progress percentage" },
+          "returnvalue": { "description": "Return value from successful processing", "nullable": true },
+          "failedReason": { "type": "string", "nullable": true, "description": "Error message if failed" },
+          "opts": { "$ref": "#/components/schemas/JobOptions" },
+          "deduplicationKey": { "type": "string", "nullable": true },
+          "logs": { "type": "array", "items": { "type": "string" }, "description": "Logs appended during processing" },
+          "stacktrace": { "type": "array", "items": { "type": "string" }, "description": "Stack traces across retries" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "processedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "completedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "failedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "delayUntil": { "type": "string", "format": "date-time", "nullable": true },
+          "lockUntil": { "type": "string", "format": "date-time", "nullable": true },
+          "lockedBy": { "type": "string", "nullable": true, "description": "Worker ID holding the lock" },
+          "parentId": { "type": "string", "nullable": true, "description": "Parent job ID (for flows)" },
+          "parentQueueName": { "type": "string", "nullable": true, "description": "Parent job queue name" },
+          "pendingChildrenCount": { "type": "integer", "description": "Children not yet completed" },
+          "cancelledAt": { "type": "string", "format": "date-time", "nullable": true },
+          "groupId": { "type": "string", "nullable": true, "description": "Group ID this job belongs to" },
+          "discarded": { "type": "boolean", "description": "Whether this job has been discarded" },
+          "childrenIds": { "type": "array", "items": { "type": "string" }, "description": "IDs of child jobs" },
+          "attemptLogs": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AttemptRecord" },
+            "description": "Per-attempt processing history"
+          }
+        }
+      },
+      "AttemptRecord": {
+        "type": "object",
+        "description": "Record of a single processing attempt",
+        "required": ["attempt", "startedAt", "endedAt", "status", "error", "stacktrace", "logs"],
+        "properties": {
+          "attempt": { "type": "integer", "minimum": 1, "description": "1-based attempt number" },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "endedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "error": { "type": "string", "nullable": true },
+          "stacktrace": { "type": "string", "nullable": true },
+          "logs": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "JobOptions": {
+        "type": "object",
+        "description": "Job configuration options",
+        "properties": {
+          "attempts": { "type": "integer", "description": "Max retry attempts (default: 1)" },
+          "backoff": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["fixed", "exponential", "custom"] },
+              "delay": { "type": "integer", "description": "Base delay in ms" }
+            }
+          },
+          "delay": { "type": "integer", "description": "Delay before execution in ms" },
+          "repeat": {
+            "type": "object",
+            "properties": {
+              "cron": { "type": "string", "description": "Cron expression (5/6/7 fields)" },
+              "every": { "type": "integer", "description": "Interval in ms" },
+              "limit": { "type": "integer", "description": "Max repetitions" },
+              "tz": { "type": "string", "description": "IANA timezone" }
+            }
+          },
+          "priority": { "type": "integer", "description": "Lower = higher priority (default: 0)" },
+          "lifo": { "type": "boolean", "description": "LIFO mode (default: false)" },
+          "deduplication": {
+            "type": "object",
+            "properties": {
+              "hash": { "type": "boolean" },
+              "key": { "type": "string" },
+              "ttl": { "type": "integer", "description": "TTL in ms" }
+            }
+          },
+          "removeOnComplete": {
+            "oneOf": [
+              { "type": "boolean" },
+              { "type": "integer", "description": "Max age in ms" }
+            ]
+          },
+          "removeOnFail": {
+            "oneOf": [
+              { "type": "boolean" },
+              { "type": "integer", "description": "Max age in ms" }
+            ]
+          },
+          "timeout": { "type": "integer", "description": "Timeout in ms" },
+          "jobId": { "type": "string", "description": "Custom job ID" },
+          "failParentOnChildFailure": { "type": "string", "enum": ["fail", "ignore", "remove"] },
+          "group": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "description": "Group identifier" },
+              "maxSize": { "type": "integer", "description": "Max waiting jobs in group" }
+            }
+          }
+        }
+      },
+      "QueueInfo": {
+        "type": "object",
+        "description": "Summary information for a queue",
+        "required": ["name", "counts", "isPaused", "latestActivity", "scheduledCount"],
+        "properties": {
+          "name": { "type": "string", "description": "Queue name" },
+          "counts": {
+            "type": "object",
+            "description": "Job counts per state",
+            "properties": {
+              "waiting": { "type": "integer" },
+              "waiting-children": { "type": "integer" },
+              "delayed": { "type": "integer" },
+              "active": { "type": "integer" },
+              "completed": { "type": "integer" },
+              "failed": { "type": "integer" }
+            }
+          },
+          "isPaused": { "type": "boolean", "description": "Whether the queue is globally paused" },
+          "latestActivity": { "type": "string", "format": "date-time", "nullable": true, "description": "Most recent job activity timestamp" },
+          "scheduledCount": { "type": "integer", "description": "Number of jobs with a repeat/cron schedule" }
+        }
+      },
+      "QueueDetail": {
+        "type": "object",
+        "description": "Detailed queue information with counts and paused names",
+        "required": ["name", "counts", "pausedNames"],
+        "properties": {
+          "name": { "type": "string", "description": "Queue name" },
+          "counts": {
+            "type": "object",
+            "description": "Job counts per state",
+            "properties": {
+              "waiting": { "type": "integer" },
+              "waiting-children": { "type": "integer" },
+              "delayed": { "type": "integer" },
+              "active": { "type": "integer" },
+              "completed": { "type": "integer" },
+              "failed": { "type": "integer" }
+            }
+          },
+          "pausedNames": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Currently paused job names (includes \"__all__\" if globally paused)"
+          }
+        }
+      },
+      "GroupInfo": {
+        "type": "object",
+        "description": "Group summary with active and waiting job counts",
+        "required": ["groupId", "activeCount", "waitingCount"],
+        "properties": {
+          "groupId": { "type": "string", "description": "Group identifier" },
+          "activeCount": { "type": "integer", "description": "Number of active jobs in this group" },
+          "waitingCount": { "type": "integer", "description": "Number of waiting jobs in this group" }
+        }
+      },
+      "MetricsBucket": {
+        "type": "object",
+        "description": "Aggregated metrics for a time bucket",
+        "required": ["queueName", "jobName", "periodStart", "granularity", "completedCount", "failedCount", "totalProcessMs", "minProcessMs", "maxProcessMs"],
+        "properties": {
+          "queueName": { "type": "string" },
+          "jobName": { "type": "string", "description": "Job name, or \"__all__\" for queue-wide aggregation" },
+          "periodStart": { "type": "string", "format": "date-time", "description": "Start of the time bucket" },
+          "granularity": { "type": "string", "enum": ["minute", "hour"] },
+          "completedCount": { "type": "integer", "description": "Completed jobs in this bucket" },
+          "failedCount": { "type": "integer", "description": "Failed jobs in this bucket" },
+          "totalProcessMs": { "type": "number", "description": "Sum of processing durations in ms" },
+          "minProcessMs": { "type": "number", "nullable": true, "description": "Shortest processing duration" },
+          "maxProcessMs": { "type": "number", "nullable": true, "description": "Longest processing duration" }
+        }
+      },
+      "StoreEvent": {
+        "type": "object",
+        "description": "Real-time event from the store pub/sub system",
+        "required": ["type", "queueName", "timestamp"],
+        "properties": {
+          "type": { "$ref": "#/components/schemas/StoreEventType" },
+          "queueName": { "type": "string" },
+          "jobId": { "type": "string", "description": "Related job ID, if any" },
+          "data": { "description": "Extra event data" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "StoreEventType": {
+        "type": "string",
+        "enum": [
+          "job:waiting", "job:waiting-children", "job:active", "job:completed",
+          "job:failed", "job:progress", "job:stalled", "job:delayed",
+          "job:removed", "queue:drained", "queue:paused", "queue:resumed",
+          "job:cancelled", "queue:error"
+        ],
+        "description": "Event type identifiers"
+      },
+      "PaginatedJobResponse": {
+        "type": "object",
+        "description": "Paginated list of jobs with metadata",
+        "required": ["data", "meta"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/JobData" }
+          },
+          "meta": {
+            "type": "object",
+            "required": ["total", "start", "end"],
+            "properties": {
+              "total": { "type": "integer", "description": "Total number of jobs matching the filter" },
+              "start": { "type": "integer", "description": "Pagination offset" },
+              "end": { "type": "integer", "description": "Pagination end index" }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Error envelope",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Error code",
+                "examples": ["BAD_REQUEST", "NOT_FOUND", "FORBIDDEN", "UNAUTHORIZED", "METRICS_DISABLED"]
+              },
+              "message": { "type": "string", "description": "Human-readable error message" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

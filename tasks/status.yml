@@ -132,7 +132,7 @@ roadmap:
       web-dashboard:
         status: in-progress
         file: tasks/web-dashboard.md
-        notes: 'Phases 1-4 done. Phase 5 (docs, logger, OpenAPI, client package) remaining.'
+        notes: 'Phases 1-5 done. Only dashboard-client package (nice-to-have) remaining.'
       decoupled-notifications:
         status: next-release-candidate
       sandboxed-workers:

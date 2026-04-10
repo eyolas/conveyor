@@ -208,3 +208,9 @@ events.addEventListener('job:failed', (e) => {
 ```
 
 Common error codes: `BAD_REQUEST`, `NOT_FOUND`, `FORBIDDEN` (read-only mode), `UNAUTHORIZED` (auth failed), `METRICS_DISABLED`.
+
+## OpenAPI Specification
+
+The complete OpenAPI 3.1 spec is available at [`/openapi.json`](/openapi.json).
+
+You can import it into tools like [Swagger Editor](https://editor.swagger.io/) or [Scalar](https://scalar.com/) for an interactive API explorer.
