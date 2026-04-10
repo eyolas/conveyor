@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import {
   getJob,
   getJobChildren,
@@ -36,6 +36,8 @@ export function FlowDetailPage({
   const [parent, setParent] = useState<JobData | null>(null);
   const [children, setChildren] = useState<JobData[]>([]);
   const [selectedChild, setSelectedChild] = useState<JobData | null>(null);
+  const selectedChildRef = useRef<JobData | null>(null);
+  selectedChildRef.current = selectedChild;
   const [loading, setLoading] = useState(true);
   const [dataTab, setDataTab] = useState<'payload' | 'return' | 'options'>(
     'payload',
@@ -51,8 +53,9 @@ export function FlowDetailPage({
       setParent(p);
       setChildren(c);
       // Refresh selected child if still selected
-      if (selectedChild) {
-        const updated = c.find((ch) => ch.id === selectedChild.id);
+      const sel = selectedChildRef.current;
+      if (sel) {
+        const updated = c.find((ch) => ch.id === sel.id);
         if (updated) setSelectedChild(updated);
       }
     } catch {
@@ -60,7 +63,7 @@ export function FlowDetailPage({
     } finally {
       setLoading(false);
     }
-  }, [queueName, jobId, selectedChild]);
+  }, [queueName, jobId]);
 
   useEffect(() => {
     loadFlow();
