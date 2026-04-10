@@ -884,6 +884,17 @@ export interface StoreInterface {
    * Optional — stores without metrics support may omit this method.
    */
   aggregateMetrics?(): Promise<void>;
+
+  /**
+   * Search jobs by payload content.
+   * Optional — returns matching jobs across all states.
+   *
+   * @param queueName - The queue to search in.
+   * @param query - The search string to match against serialized payload.
+   * @param limit - Maximum number of results (default 50).
+   * @returns Matching jobs.
+   */
+  searchByPayload?(queueName: string, query: string, limit?: number): Promise<JobData[]>;
 }
 
 /**

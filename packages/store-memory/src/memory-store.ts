@@ -646,6 +646,19 @@ export class MemoryStore implements StoreInterface {
     return Promise.resolve(null);
   }
 
+  searchByPayload(queueName: string, query: string, limit = 50): Promise<JobData[]> {
+    const queue = this.getQueue(queueName);
+    const lowerQuery = query.toLowerCase();
+    const results: JobData[] = [];
+    for (const job of queue.values()) {
+      if (JSON.stringify(job.data).toLowerCase().includes(lowerQuery)) {
+        results.push(structuredClone(job));
+        if (results.length >= limit) break;
+      }
+    }
+    return Promise.resolve(results);
+  }
+
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {
     const queue = this.getQueue(queueName);
     const job = queue.get(jobId);

@@ -42,6 +42,18 @@ export function registerSearchRoutes(
       return jsonData(c, filtered);
     }
 
-    return jsonError(c, 'BAD_REQUEST', 'type must be "job" or "queue"');
+    if (type === 'payload') {
+      const queueName = c.req.query('queue');
+      if (!queueName) {
+        return jsonError(c, 'BAD_REQUEST', 'queue parameter is required for payload search');
+      }
+      if (!store.searchByPayload) {
+        return jsonData(c, []);
+      }
+      const results = await store.searchByPayload(queueName, query, 50);
+      return jsonData(c, results);
+    }
+
+    return jsonError(c, 'BAD_REQUEST', 'type must be "job", "queue", or "payload"');
   });
 }

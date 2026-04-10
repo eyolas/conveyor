@@ -13,6 +13,7 @@ import { useLiveUpdatesContext } from '../hooks/live-updates-context';
 import { useSSE } from '../hooks/use-sse';
 import { AttemptHistory } from '../components/attempt-history';
 import { Badge } from '../components/badge';
+import { FlowTree } from '../components/flow-tree';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import { JobEditDialog } from '../components/job-edit-dialog';
 import { JsonViewer } from '../components/json-viewer';
@@ -225,24 +226,16 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
         {dataTab === 'options' && <JsonViewer data={job.opts} />}
       </div>
 
-      {/* ── Children ─────────────────────────────────────────────── */}
-      {children.length > 0 && (
+      {/* ── Flow (parent/children) ──────────────────────────────── */}
+      {(children.length > 0 || job.parentId) && (
         <div>
-          <SectionLabel title={`Children (${children.length})`} icon="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-          <div class="space-y-1.5">
-            {children.map((child) => (
-              <button
-                key={child.id}
-                onClick={() => route(`/queues/${encodeURIComponent(child.queueName)}/jobs/${encodeURIComponent(child.id)}`)}
-                class="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition-all hover:border-slate-300 hover:shadow-sm dark:border-border-dim dark:bg-surface-1 dark:hover:border-border-default"
-              >
-                <span class="flex items-center gap-3">
-                  <span class="font-mono text-xs text-slate-400 dark:text-text-muted">{child.id.slice(0, 8)}</span>
-                  <span class="text-sm font-medium text-slate-700 dark:text-text-primary">{child.name}</span>
-                </span>
-                <Badge state={child.state} />
-              </button>
-            ))}
+          <SectionLabel title="Flow" icon="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-border-dim dark:bg-surface-1">
+            <FlowTree
+              currentJobId={job.id}
+              parent={job.parentId ? { id: job.parentId, queueName: job.parentQueueName ?? queueName } : null}
+              children={children}
+            />
           </div>
         </div>
       )}

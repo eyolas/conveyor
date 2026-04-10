@@ -139,6 +139,21 @@ export async function obliterateQueue(name: string, force = false): Promise<void
   await request(`/queues/${encodeURIComponent(name)}?force=${force}`, { method: 'DELETE' });
 }
 
+// ─── Groups ─────────────────────────────────────────────────────────
+
+export interface GroupInfo {
+  groupId: string;
+  activeCount: number;
+  waitingCount: number;
+}
+
+export async function getQueueGroups(queueName: string): Promise<GroupInfo[]> {
+  const res = await request<DataResponse<GroupInfo[]>>(
+    `/queues/${encodeURIComponent(queueName)}/groups`,
+  );
+  return res.data;
+}
+
 // ─── Jobs ────────────────────────────────────────────────────────────
 
 export async function listJobs(
@@ -224,6 +239,13 @@ export async function editJob(
 export async function searchJob(jobId: string): Promise<JobData | null> {
   const res = await request<DataResponse<JobData | null>>(
     `/search?type=job&q=${encodeURIComponent(jobId)}`,
+  );
+  return res.data;
+}
+
+export async function searchByPayload(queueName: string, query: string): Promise<JobData[]> {
+  const res = await request<DataResponse<JobData[]>>(
+    `/search?type=payload&queue=${encodeURIComponent(queueName)}&q=${encodeURIComponent(query)}`,
   );
   return res.data;
 }

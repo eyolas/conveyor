@@ -104,6 +104,33 @@ export function registerQueueRoutes(
     return jsonData(c, { promoted });
   });
 
+  // GET /api/queues/:name/groups — list distinct groups with counts
+  app.get(`${apiBase}/queues/:name/groups`, async (c) => {
+    const name = c.req.param('name')!;
+    const [activeJobs, waitingJobs] = await Promise.all([
+      store.listJobs(name, 'active', 0, 10_000),
+      store.listJobs(name, 'waiting', 0, 10_000),
+    ]);
+    const groupMap = new Map<string, { activeCount: number; waitingCount: number }>();
+    for (const job of activeJobs) {
+      if (!job.groupId) continue;
+      const entry = groupMap.get(job.groupId) ?? { activeCount: 0, waitingCount: 0 };
+      entry.activeCount++;
+      groupMap.set(job.groupId, entry);
+    }
+    for (const job of waitingJobs) {
+      if (!job.groupId) continue;
+      const entry = groupMap.get(job.groupId) ?? { activeCount: 0, waitingCount: 0 };
+      entry.waitingCount++;
+      groupMap.set(job.groupId, entry);
+    }
+    const data = [...groupMap.entries()].map(([groupId, counts]) => ({
+      groupId,
+      ...counts,
+    }));
+    return jsonData(c, data);
+  });
+
   // DELETE /api/queues/:name — obliterate
   app.delete(`${apiBase}/queues/:name`, async (c) => {
     const name = c.req.param('name')!;

@@ -953,6 +953,13 @@ export class BaseSqliteStore implements StoreInterface {
     return Promise.resolve(rowToJobData(row));
   }
 
+  searchByPayload(queueName: string, query: string, limit = 50): Promise<JobData[]> {
+    const rows = this.db.prepare(
+      'SELECT * FROM conveyor_jobs WHERE queue_name = ? AND data LIKE ? LIMIT ?',
+    ).all(queueName, `%${query}%`, limit) as unknown as JobRow[];
+    return Promise.resolve(rows.map(rowToJobData));
+  }
+
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {
     const now = Date.now();
     const result = this.db.prepare(`

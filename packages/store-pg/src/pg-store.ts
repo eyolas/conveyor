@@ -849,6 +849,16 @@ export class PgStore implements StoreInterface {
     return rowToJobData(rows[0]!);
   }
 
+  async searchByPayload(queueName: string, query: string, limit = 50): Promise<JobData[]> {
+    const rows = await this.sql<JobRow[]>`
+      SELECT * FROM conveyor_jobs
+      WHERE queue_name = ${queueName}
+        AND data::text ILIKE ${'%' + query + '%'}
+      LIMIT ${limit}
+    `;
+    return rows.map(rowToJobData);
+  }
+
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {
     const now = new Date();
     const rows = await this.sql`
