@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { route } from 'preact-router';
 import {
   getJobChildren,
@@ -13,18 +13,17 @@ import { Badge } from '../components/badge';
 
 type FlowTab = 'active' | 'completed';
 
-interface FlowWithChildren {
+function FlowCard({
+  parent,
+  children,
+  expanded,
+  onToggle,
+}: {
   parent: JobData;
-  children: JobData[] | null; // null = not loaded yet
-}
-
-function FlowCard({ flow, onToggle, expanded }: {
-  flow: FlowWithChildren;
-  onToggle: () => void;
+  children: JobData[] | null;
   expanded: boolean;
+  onToggle: () => void;
 }) {
-  const { parent, children } = flow;
-
   return (
     <div class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-border-dim dark:bg-surface-1">
       {/* Parent row */}
@@ -59,12 +58,15 @@ function FlowCard({ flow, onToggle, expanded }: {
               <span class="font-mono text-[11px] text-slate-400 dark:text-text-muted">
                 {parent.id.slice(0, 8)}
               </span>
+              <span class="font-mono text-[11px] text-slate-400 dark:text-text-muted">
+                {(parent.childrenIds ?? []).length} children
+              </span>
             </div>
           </div>
         </div>
         <div class="flex items-center gap-3">
           {parent.pendingChildrenCount > 0 && (
-            <span class="font-mono text-xs tabular-nums text-slate-400 dark:text-text-muted">
+            <span class="font-mono text-xs tabular-nums text-amber dark:text-amber">
               {parent.pendingChildrenCount} pending
             </span>
           )}
@@ -97,18 +99,11 @@ function FlowCard({ flow, onToggle, expanded }: {
             : children.length === 0
             ? (
               <p class="px-4 py-3 text-center text-sm text-slate-400 dark:text-text-muted">
-                No children
+                No children found
               </p>
             )
             : (
               <div>
-                {/* Header */}
-                <div class="flex items-center gap-2 px-4 py-2">
-                  <span class="font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
-                    Children ({children.length})
-                  </span>
-                </div>
-                {/* Children list */}
                 {children.map((child) => (
                   <button
                     key={child.id}
@@ -116,7 +111,7 @@ function FlowCard({ flow, onToggle, expanded }: {
                       route(
                         `/queues/${encodeURIComponent(child.queueName)}/jobs/${encodeURIComponent(child.id)}`,
                       )}
-                    class="flex w-full items-center justify-between border-t border-slate-50 px-4 py-2.5 text-left transition-colors hover:bg-slate-50/50 dark:border-border-dim/50 dark:hover:bg-surface-2/30"
+                    class="flex w-full items-center justify-between border-t border-slate-50 px-4 py-2.5 text-left transition-colors first:border-t-0 hover:bg-slate-50/50 dark:border-border-dim/50 dark:hover:bg-surface-2/30"
                   >
                     <div class="flex items-center gap-2.5 pl-11">
                       <span class="font-mono text-[11px] text-slate-400 dark:text-text-muted">
@@ -134,7 +129,6 @@ function FlowCard({ flow, onToggle, expanded }: {
                     <Badge state={child.state} />
                   </button>
                 ))}
-                {/* Link to parent detail */}
                 <div class="border-t border-slate-100 px-4 py-2 dark:border-border-dim">
                   <button
                     onClick={() =>
@@ -156,10 +150,12 @@ function FlowCard({ flow, onToggle, expanded }: {
 
 export function FlowsPage() {
   const [tab, setTab] = useState<FlowTab>('active');
-  const [activeFlows, setActiveFlows] = useState<FlowWithChildren[]>([]);
-  const [completedFlows, setCompletedFlows] = useState<FlowWithChildren[]>([]);
+  const [activeFlows, setActiveFlows] = useState<JobData[]>([]);
+  const [completedFlows, setCompletedFlows] = useState<JobData[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  // Cache children separately so SSE reloads don't lose them
+  const childrenCache = useRef<Map<string, JobData[]>>(new Map());
 
   const loadFlows = useCallback(async () => {
     try {
@@ -173,7 +169,6 @@ export function FlowsPage() {
             const res = await listJobs(q.name, 'waiting-children', 0, 100);
             active.push(...res.data);
           }
-          // Completed flow parents (have childrenIds)
           if ((q.counts.completed ?? 0) > 0) {
             const res = await listJobs(q.name, 'completed', 0, 100);
             completed.push(
@@ -184,7 +179,8 @@ export function FlowsPage() {
       );
 
       active.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
       completed.sort(
         (a, b) =>
@@ -192,8 +188,8 @@ export function FlowsPage() {
           new Date(a.completedAt ?? a.createdAt).getTime(),
       );
 
-      setActiveFlows(active.map((p) => ({ parent: p, children: null })));
-      setCompletedFlows(completed.map((p) => ({ parent: p, children: null })));
+      setActiveFlows(active);
+      setCompletedFlows(completed);
     } catch {
       setActiveFlows([]);
       setCompletedFlows([]);
@@ -210,37 +206,27 @@ export function FlowsPage() {
   useSSE({ onEvent: loadFlows, paused: !liveUpdates });
   useEffect(() => onRefresh(loadFlows), [onRefresh, loadFlows]);
 
-  const toggleExpand = useCallback(
-    async (flow: FlowWithChildren) => {
-      const id = flow.parent.id;
-      setExpandedIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(id)) {
-          next.delete(id);
-        } else {
-          next.add(id);
-        }
-        return next;
-      });
+  const toggleExpand = useCallback(async (parent: JobData) => {
+    const id = parent.id;
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
-      // Load children if not yet loaded
-      if (flow.children === null) {
-        try {
-          const children = await getJobChildren(
-            flow.parent.queueName,
-            flow.parent.id,
-          );
-          const update = (flows: FlowWithChildren[]) =>
-            flows.map((f) => (f.parent.id === id ? { ...f, children } : f));
-          setActiveFlows(update);
-          setCompletedFlows(update);
-        } catch {
-          // Failed to load children
-        }
+    if (!childrenCache.current.has(id)) {
+      try {
+        const children = await getJobChildren(parent.queueName, parent.id);
+        childrenCache.current.set(id, children);
+        // Force re-render
+        setExpandedIds((prev) => new Set(prev));
+      } catch {
+        childrenCache.current.set(id, []);
+        setExpandedIds((prev) => new Set(prev));
       }
-    },
-    [],
-  );
+    }
+  }, []);
 
   const flows = tab === 'active' ? activeFlows : completedFlows;
 
@@ -328,12 +314,13 @@ export function FlowsPage() {
         )
         : (
           <div class="space-y-2">
-            {flows.map((flow) => (
+            {flows.map((parent) => (
               <FlowCard
-                key={flow.parent.id}
-                flow={flow}
-                expanded={expandedIds.has(flow.parent.id)}
-                onToggle={() => toggleExpand(flow)}
+                key={parent.id}
+                parent={parent}
+                children={childrenCache.current.get(parent.id) ?? (expandedIds.has(parent.id) ? null : undefined) ?? null}
+                expanded={expandedIds.has(parent.id)}
+                onToggle={() => toggleExpand(parent)}
               />
             ))}
           </div>
