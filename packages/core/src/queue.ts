@@ -10,12 +10,13 @@ import type {
   JobData,
   JobOptions,
   JobState,
+  Logger,
   PauseOptions,
   QueueOptions,
   ScheduleDelay,
   StoreInterface,
 } from '@conveyor/shared';
-import { createJobData, hashPayload, parseDelay } from '@conveyor/shared';
+import { createJobData, hashPayload, noopLogger, parseDelay } from '@conveyor/shared';
 import { EventBus } from './events.ts';
 import { Job } from './job.ts';
 import { JobObservable } from './job-observable.ts';
@@ -41,6 +42,7 @@ export class Queue<T = unknown> {
 
   private readonly store: StoreInterface;
   private readonly defaultJobOptions: Partial<JobOptions>;
+  private readonly logger: Logger;
   private closed = false;
 
   /**
@@ -51,7 +53,8 @@ export class Queue<T = unknown> {
     this.name = name;
     this.store = options.store;
     this.defaultJobOptions = options.defaultJobOptions ?? {};
-    this.events = new EventBus();
+    this.logger = options.logger ?? noopLogger;
+    this.events = new EventBus(this.logger);
   }
 
   // ─── Adding Jobs ─────────────────────────────────────────────────────
@@ -278,7 +281,7 @@ export class Queue<T = unknown> {
             timestamp: new Date(),
           });
         } else {
-          console.warn(
+          this.logger.warn(
             `[Conveyor] Job ${id} not found after saveBulk — possible store inconsistency`,
           );
         }

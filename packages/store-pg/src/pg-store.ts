@@ -15,6 +15,7 @@ import {
   generateId,
   InvalidJobStateError,
   MetricsDisabledError,
+  noopLogger,
 } from '@conveyor/shared';
 import postgres from 'postgres';
 import type { JobRow } from './mapping.ts';
@@ -53,14 +54,16 @@ export class PgStore implements StoreInterface {
   private listeningChannels = new Set<string>();
   private listenPromises = new Map<string, Promise<{ unlisten: () => Promise<void> }>>();
   private readonly onEventHandlerError: (error: unknown) => void;
+  private readonly logger;
   private readonly instanceId = crypto.randomUUID();
   private disconnected = false;
 
   /** @param options - PostgreSQL connection and store options. */
   constructor(options: PgStoreOptions) {
     this.options = options;
+    this.logger = options.logger ?? noopLogger;
     this.onEventHandlerError = options.onEventHandlerError ??
-      ((err) => console.warn('[Conveyor] Error in event handler:', err));
+      ((err) => this.logger.warn('[Conveyor] Error in event handler:', err));
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────

@@ -24,6 +24,7 @@ export type {
   JobOptions,
   JobState,
   LimiterOptions,
+  Logger,
   MetricsBucket,
   MetricsOptions,
   MetricsQueryOptions,
@@ -45,11 +46,13 @@ export type {
 export {
   assertJobState,
   calculateBackoff,
+  consoleLogger,
   createJobData,
   generateId,
   generateWorkerId,
   hashPayload,
   JOB_STATES,
+  noopLogger,
   parseDelay,
   validateQueueName,
 } from './utils.ts';

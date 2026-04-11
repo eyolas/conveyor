@@ -7,6 +7,7 @@
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { noopLogger } from '@conveyor/shared';
 import type { DashboardHandler, DashboardOptions } from './types.ts';
 import { createAuthMiddleware } from './middleware/auth.ts';
 import { createReadOnlyMiddleware } from './middleware/read-only.ts';
@@ -30,6 +31,7 @@ import { registerMetricsRoutes } from './controllers/metrics.ts';
  */
 export function createDashboardHandler(options: DashboardOptions): DashboardHandler {
   const { store, basePath = '/', queues: filterQueues, readOnly = false, auth } = options;
+  const logger = options.logger ?? noopLogger;
 
   // Normalize basePath: ensure it starts with / and doesn't end with /
   const normalizedBase = basePath === '/'
@@ -68,7 +70,7 @@ export function createDashboardHandler(options: DashboardOptions): DashboardHand
         try {
           await store.aggregateMetrics!();
         } catch (err) {
-          console.warn('[Conveyor] Metrics aggregation error:', err);
+          logger.warn('[Conveyor] Metrics aggregation error:', err);
         }
       }, 5 * 60_000);
       // Unref the timer so it doesn't prevent process exit
@@ -80,12 +82,10 @@ export function createDashboardHandler(options: DashboardOptions): DashboardHand
     // Run once at startup — if it succeeds, start the periodic timer
     try {
       store.aggregateMetrics().then(() => startTimer()).catch(() => {
-        // TODO: use a configurable logger instead of console
-        // console.info('[Conveyor] Metrics disabled — aggregation timer not started');
+        logger.info('[Conveyor] Metrics disabled — aggregation timer not started');
       });
     } catch {
-      // TODO: use a configurable logger instead of console
-      // console.info('[Conveyor] Metrics disabled — aggregation timer not started');
+      logger.info('[Conveyor] Metrics disabled — aggregation timer not started');
     }
   }
 
