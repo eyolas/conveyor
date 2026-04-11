@@ -282,6 +282,9 @@ export interface QueueOptions {
 
   /** Default options applied to all jobs added to this queue. */
   defaultJobOptions?: Partial<JobOptions>;
+
+  /** Logger for internal messages. Default: silent (no-op). */
+  logger?: Logger;
 }
 
 /** Configuration for batch processing. */
@@ -506,6 +509,8 @@ export interface StoreOptions {
   /**
    * Called when an event handler throws.
    * @deprecated Use `logger` instead. Will be removed in v2.
+   * Migrate: `new MemoryStore({ logger: consoleLogger })` replaces
+   * `new MemoryStore({ onEventHandlerError: (err) => console.warn(err) })`.
    */
   onEventHandlerError?: (error: unknown) => void;
 

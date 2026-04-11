@@ -17,10 +17,10 @@ export const noopLogger: Logger = {
 
 /** Console-based logger for quick setup. */
 export const consoleLogger: Logger = {
-  debug: console.debug.bind(console),
-  info: console.info.bind(console),
-  warn: console.warn.bind(console),
-  error: console.error.bind(console),
+  debug: (msg, ...args) => console.debug(msg, ...args),
+  info: (msg, ...args) => console.info(msg, ...args),
+  warn: (msg, ...args) => console.warn(msg, ...args),
+  error: (msg, ...args) => console.error(msg, ...args),
 };
 
 /**

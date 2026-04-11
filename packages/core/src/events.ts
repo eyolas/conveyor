@@ -5,7 +5,8 @@
  * Uses a simple callback map — no runtime-specific APIs.
  */
 
-import type { QueueEventType } from '@conveyor/shared';
+import type { Logger, QueueEventType } from '@conveyor/shared';
+import { noopLogger } from '@conveyor/shared';
 
 /** A typed event handler function. */
 export type EventHandler<T = unknown> = (data: T) => void;
@@ -17,6 +18,11 @@ export type EventHandler<T = unknown> = (data: T) => void;
 export class EventBus {
   private handlers = new Map<string, Set<EventHandler>>();
   private emittingError = false;
+  private readonly logger: Logger;
+
+  constructor(logger?: Logger) {
+    this.logger = logger ?? noopLogger;
+  }
 
   // ─── Subscribe / Unsubscribe ─────────────────────────────────────
 
@@ -69,8 +75,7 @@ export class EventBus {
               this.emittingError = false;
             }
           } else {
-            // Last-resort fallback — use store logger for normal error handling
-            console.error('[Conveyor] Unhandled error in event handler:', err);
+            this.logger.error('[Conveyor] Unhandled error in event handler:', err);
           }
         }
       }
