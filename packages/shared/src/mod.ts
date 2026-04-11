@@ -46,6 +46,7 @@ export type {
 export {
   assertJobState,
   calculateBackoff,
+  consoleLogger,
   createJobData,
   generateId,
   generateWorkerId,
