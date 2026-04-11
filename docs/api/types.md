@@ -261,6 +261,22 @@ type TimeUnit =
   | 'weeks';
 ```
 
+## Logger
+
+Interface for configurable logging. All methods follow the `console` signature.
+
+| Method  | Signature                                      | Description            |
+| ------- | ---------------------------------------------- | ---------------------- |
+| `debug` | `(message: string, ...args: unknown[]) => void` | Debug-level messages   |
+| `info`  | `(message: string, ...args: unknown[]) => void` | Informational messages |
+| `warn`  | `(message: string, ...args: unknown[]) => void` | Warnings               |
+| `error` | `(message: string, ...args: unknown[]) => void` | Errors                 |
+
+Two built-in loggers are provided:
+
+- `noopLogger` -- Silent, discards all messages (default)
+- `consoleLogger` -- Forwards to `console.debug/info/warn/error`
+
 ## QueueOptions
 
 Options for creating a Queue.
@@ -271,6 +287,8 @@ interface QueueOptions {
   store: StoreInterface;
   /** Default options applied to all jobs added to this queue. */
   defaultJobOptions?: Partial<JobOptions>;
+  /** Logger for internal messages (default: silent no-op). */
+  logger?: Logger;
 }
 ```
 
@@ -301,10 +319,18 @@ Base options shared by all store implementations.
 interface StoreOptions {
   /** Run migrations automatically on connect() (default: true). */
   autoMigrate?: boolean;
-  /** Called when an event handler throws. Defaults to console.warn. */
+  /** Logger for internal messages (default: noopLogger). */
+  logger?: Logger;
+  /** @deprecated Use `logger` instead. Called when an event handler throws. */
   onEventHandlerError?: (error: unknown) => void;
 }
 ```
+
+::: warning Breaking behavior change
+Stores now default to silent logging (no-op). Previously, event handler errors were logged to
+`console.warn`. To restore the previous behavior, pass `logger: consoleLogger` to your store
+options.
+:::
 
 ## PauseOptions
 

@@ -507,10 +507,18 @@ export interface StoreOptions {
   autoMigrate?: boolean;
 
   /**
-   * Called when an event handler throws.
-   * @deprecated Use `logger` instead. Will be removed in v2.
-   * Migrate: `new MemoryStore({ logger: consoleLogger })` replaces
-   * `new MemoryStore({ onEventHandlerError: (err) => console.warn(err) })`.
+   * Called when an event handler throws. Receives only the error object.
+   *
+   * @deprecated Use `logger` instead — it provides `warn(message, ...args)` with
+   * richer context. Will be removed in v2.
+   *
+   * @example
+   * ```ts
+   * // Before (deprecated):
+   * new MemoryStore({ onEventHandlerError: (err) => console.warn(err) })
+   * // After:
+   * new MemoryStore({ logger: consoleLogger })
+   * ```
    */
   onEventHandlerError?: (error: unknown) => void;
 

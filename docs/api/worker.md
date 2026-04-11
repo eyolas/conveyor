@@ -38,6 +38,11 @@ new Worker<T = unknown>(
 | `batch`                | `BatchOptions`       | --         | Batch processing config: `{ size }`           |
 | `group`                | `GroupWorkerOptions` | --         | Per-group concurrency and rate limiting       |
 
+::: tip Logger
+The worker inherits its logger from the store. Pass `logger` to your store options to enable logging
+for both the store and all workers using it.
+:::
+
 ## Processor Types
 
 ### Single Job Processor

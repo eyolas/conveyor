@@ -18,6 +18,7 @@ new Queue<T = unknown>(name: string, options: QueueOptions)
 | `name`                      | `string`              | The queue name (e.g. `"emails"`, `"tasks"`)              |
 | `options.store`             | `StoreInterface`      | The store backend to use                                 |
 | `options.defaultJobOptions` | `Partial<JobOptions>` | Default options applied to every job added to this queue |
+| `options.logger`            | `Logger`              | Logger for internal messages (default: silent no-op)     |
 
 ```typescript
 const queue = new Queue<EmailPayload>('emails', {

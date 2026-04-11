@@ -330,6 +330,22 @@ Count waiting jobs in a specific group.
 getWaitingGroupCount(queueName: string, groupId: string): Promise<number>
 ```
 
+## StoreOptions
+
+Base options shared by all store implementations. Pass these to any store constructor.
+
+| Option                  | Type                          | Default        | Description                                                       |
+| ----------------------- | ----------------------------- | -------------- | ----------------------------------------------------------------- |
+| `autoMigrate`           | `boolean`                     | `true`         | Run migrations automatically on `connect()`                       |
+| `logger`                | `Logger`                      | `noopLogger`   | Logger for internal messages (see [Logger](./types#logger))       |
+| `onEventHandlerError`   | `(error: unknown) => void`    | --             | **Deprecated.** Use `logger` instead                              |
+
+::: warning Breaking behavior change
+Stores now default to silent logging (no-op). Previously, event handler errors were logged to
+`console.warn`. To restore the previous behavior, pass `logger: consoleLogger` to your store
+options.
+:::
+
 ## Implementing a Custom Store
 
 To implement a custom store, create a class that implements the full `StoreInterface`:
