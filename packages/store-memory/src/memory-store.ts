@@ -21,7 +21,12 @@ import type {
   StoreOptions,
   UpdateJobOptions,
 } from '@conveyor/shared';
-import { generateId, InvalidJobStateError, MetricsDisabledError } from '@conveyor/shared';
+import {
+  generateId,
+  InvalidJobStateError,
+  MetricsDisabledError,
+  noopLogger,
+} from '@conveyor/shared';
 
 /** @internal */
 type EventCallback = (event: StoreEvent) => void;
@@ -51,12 +56,14 @@ export class MemoryStore implements StoreInterface {
   /** Metrics buckets: key = `${queueName}::${jobName}::${periodStart.getTime()}::${granularity}` */
   private metrics = new Map<string, MetricsBucket>();
   private readonly onEventHandlerError: (error: unknown) => void;
+  private readonly logger;
   private readonly options?: StoreOptions;
 
   constructor(options?: StoreOptions) {
     this.options = options;
+    this.logger = options?.logger ?? noopLogger;
     this.onEventHandlerError = options?.onEventHandlerError ??
-      ((err) => console.warn('[Conveyor] Error in event handler:', err));
+      ((err) => this.logger.warn('[Conveyor] Error in event handler:', err));
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────────

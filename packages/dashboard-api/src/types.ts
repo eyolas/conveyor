@@ -4,7 +4,7 @@
  * Type definitions for the dashboard API.
  */
 
-import type { StoreInterface } from '@conveyor/shared';
+import type { Logger, StoreInterface } from '@conveyor/shared';
 
 /** Options for creating a dashboard handler. */
 export interface DashboardOptions {
@@ -19,6 +19,9 @@ export interface DashboardOptions {
 
   /** Disable mutation endpoints (POST/PATCH/DELETE return 403). Default: `false`. */
   readOnly?: boolean;
+
+  /** Logger for internal messages. Default: silent (no-op). */
+  logger?: Logger;
 
   /** Optional auth callback. Return `true` to allow, `false` to reject with 401. */
   auth?: (req: Request) => boolean | Promise<boolean>;

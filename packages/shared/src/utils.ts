@@ -5,7 +5,23 @@
  * Only Web Standard APIs — no runtime-specific code.
  */
 
-import type { Delay, JobData, JobOptions, JobState } from './types.ts';
+import type { Delay, JobData, JobOptions, JobState, Logger } from './types.ts';
+
+/** No-op logger that silently discards all messages. */
+export const noopLogger: Logger = {
+  debug() {},
+  info() {},
+  warn() {},
+  error() {},
+};
+
+/** Console-based logger for quick setup. */
+export const consoleLogger: Logger = {
+  debug: (msg, ...args) => console.debug(msg, ...args),
+  info: (msg, ...args) => console.info(msg, ...args),
+  warn: (msg, ...args) => console.warn(msg, ...args),
+  error: (msg, ...args) => console.error(msg, ...args),
+};
 
 /**
  * Generate a unique job ID using `crypto.randomUUID` (Web Standard).

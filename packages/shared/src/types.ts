@@ -282,6 +282,9 @@ export interface QueueOptions {
 
   /** Default options applied to all jobs added to this queue. */
   defaultJobOptions?: Partial<JobOptions>;
+
+  /** Logger for internal messages. Default: silent (no-op). */
+  logger?: Logger;
 }
 
 /** Configuration for batch processing. */
@@ -490,13 +493,37 @@ export interface MetricsOptions {
   retentionHours?: number;
 }
 
+/** Logger interface for Conveyor. All methods are optional-use (no-op by default). */
+export interface Logger {
+  debug(message: string, ...args: unknown[]): void;
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
+}
+
 /** Base options shared by all store implementations. */
 export interface StoreOptions {
   /** Run migrations automatically on connect() (default: true). */
   autoMigrate?: boolean;
 
-  /** Called when an event handler throws. Defaults to `console.warn`. */
+  /**
+   * Called when an event handler throws. Receives only the error object.
+   *
+   * @deprecated Use `logger` instead — it provides `warn(message, ...args)` with
+   * richer context. Will be removed in v2.
+   *
+   * @example
+   * ```ts
+   * // Before (deprecated):
+   * new MemoryStore({ onEventHandlerError: (err) => console.warn(err) })
+   * // After:
+   * new MemoryStore({ logger: consoleLogger })
+   * ```
+   */
   onEventHandlerError?: (error: unknown) => void;
+
+  /** Logger for internal messages. Default: silent (no-op). */
+  logger?: Logger;
 
   /**
    * Enable built-in metrics collection.

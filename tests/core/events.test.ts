@@ -54,30 +54,28 @@ test('EventBus handler error emits on error channel', () => {
 });
 
 test('EventBus recursion guard prevents infinite loop on error handler throw', () => {
-  const bus = new EventBus();
-  const consoleErrors: unknown[] = [];
+  const loggedErrors: unknown[] = [];
+  const testLogger = {
+    debug() {},
+    info() {},
+    warn() {},
+    error: (...args: unknown[]) => loggedErrors.push(args),
+  };
+  const bus = new EventBus(testLogger);
 
-  // Capture console.error
-  const originalError = console.error;
-  console.error = (...args: unknown[]) => consoleErrors.push(args);
+  // Error handler that throws — would cause infinite recursion without guard
+  bus.on('error', () => {
+    throw new Error('error handler boom');
+  });
+  bus.on('waiting', () => {
+    throw new Error('handler boom');
+  });
 
-  try {
-    // Error handler that throws — would cause infinite recursion without guard
-    bus.on('error', () => {
-      throw new Error('error handler boom');
-    });
-    bus.on('waiting', () => {
-      throw new Error('handler boom');
-    });
+  // This should NOT loop infinitely
+  bus.emit('waiting', {});
 
-    // This should NOT loop infinitely
-    bus.emit('waiting', {});
-
-    // The recursive error should be caught by console.error
-    expect(consoleErrors.length).toEqual(1);
-  } finally {
-    console.error = originalError;
-  }
+  // The recursive error should be caught by the logger
+  expect(loggedErrors.length).toEqual(1);
 });
 
 test('EventBus removeAllListeners by event', () => {
