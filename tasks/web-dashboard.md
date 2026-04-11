@@ -500,8 +500,9 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 - [x] `noopLogger` default (silent)
 - [x] `logger?: Logger` on `StoreOptions` and `DashboardOptions`
 - [x] Deprecated `onEventHandlerError` (backward compat)
-- [x] Wired through all 3 stores and dashboard-api handler
-- [x] Core events.ts and queue.ts: kept console fallbacks with TODO (no logger access)
+- [x] Wired through all 3 stores, dashboard-api handler, EventBus, and Queue
+- [x] `consoleLogger` built-in for quick setup
+- [x] Breaking change documented (default silent instead of console.warn)
 
 **`@conveyor/dashboard-client` (nice-to-have):**
 
