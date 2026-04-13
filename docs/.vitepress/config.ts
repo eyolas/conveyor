@@ -115,6 +115,7 @@ export default withMermaid(defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/' },
       { text: 'API', link: '/api/' },
+      { text: 'Dashboard', link: '/dashboard/' },
       { text: 'Examples', link: '/examples/' },
       versionNav(),
     ],
@@ -123,6 +124,18 @@ export default withMermaid(defineConfig({
       '/guide/': guideSidebar(),
       '/concepts/': guideSidebar(),
       '/features/': guideSidebar(),
+
+      '/dashboard/': [
+        {
+          text: 'Dashboard',
+          collapsed: true,
+          items: [
+            { text: 'Overview', link: '/dashboard/' },
+            { text: 'Setup & Configuration', link: '/dashboard/setup' },
+            { text: 'API Reference', link: '/dashboard/api-reference' },
+          ],
+        },
+      ],
 
       '/stores/': [
         {

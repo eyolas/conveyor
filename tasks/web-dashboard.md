@@ -477,30 +477,32 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 
 **Package READMEs (JSR):**
 
-- [ ] `@conveyor/dashboard` README — quick start, framework examples, options
-- [ ] `@conveyor/dashboard-api` README — headless API usage, custom UI integration
+- [x] `@conveyor/dashboard` README — quick start, framework examples, options table, auth, metrics
+- [x] `@conveyor/dashboard-api` README — headless API, REST endpoints table, toNodeHandler
 - [ ] Review other packages for missing/outdated READMEs
 
 **VitePress documentation site:**
 
-- [ ] Dashboard guide page — setup, auth, readOnly, basePath, framework examples
+- [x] Dashboard overview page — features, quick start
+- [x] Setup & Configuration guide — all options, 7 framework examples, auth, read-only, metrics
+- [x] API Reference — all REST endpoints, SSE events, response formats, error codes
+- [x] Add dashboard section to site navigation (nav + sidebar)
 - [ ] Dashboard screenshots / live demo link
-- [ ] Add dashboard section to site navigation
 
 **OpenAPI spec:**
 
-- [ ] Auto-generate OpenAPI spec from Hono routes (`@hono/zod-openapi` or manual spec export)
-- [ ] Serve spec at `GET /api/openapi.json`
-- [ ] Add Swagger/Scalar UI page (optional, at `/api/docs`)
+- [x] OpenAPI 3.1 spec (static JSON in docs/public/openapi.json)
+- [x] Link from API Reference page to spec + Swagger Editor / Scalar
 
 **Configurable logger:**
 
-- [ ] Add `Logger` interface to `@conveyor/shared` (`debug`, `info`, `warn`, `error`)
-- [ ] Add `logger?: Logger` to `StoreOptions` (replaces `onEventHandlerError`)
-- [ ] Default: no-op (silent) — users opt-in to logging
-- [ ] Wire through core (`events.ts`, `queue.ts`), all stores, and `dashboard-api`
-- [ ] Remove all hardcoded `console.warn`/`console.error` calls
-- [ ] Uncomment TODO logging in dashboard handler
+- [x] `Logger` interface in `@conveyor/shared` (debug, info, warn, error)
+- [x] `noopLogger` default (silent)
+- [x] `logger?: Logger` on `StoreOptions` and `DashboardOptions`
+- [x] Deprecated `onEventHandlerError` (backward compat)
+- [x] Wired through all 3 stores, dashboard-api handler, EventBus, and Queue
+- [x] `consoleLogger` built-in for quick setup
+- [x] Breaking change documented (default silent instead of console.warn)
 
 **`@conveyor/dashboard-client` (nice-to-have):**
 
