@@ -58,6 +58,60 @@ Deno.serve({ port: 3000 }, (req) => dashboard(req));
 Use the same store instance for your Queue, Worker, **and** the dashboard so it sees all jobs in real time.
 :::
 
+## Screenshots
+
+### Queue Overview
+
+The home page shows all queues with job counts, state distribution, sparkline throughput, and
+scheduled job indicators.
+
+<a href="/dashboard/home.png" target="_blank">
+  <img src="/dashboard/home.png" alt="Dashboard Home" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider);" />
+</a>
+
+### Queue Detail
+
+Drill into a queue to see jobs by state, with bulk selection, cron/repeat/flow/child/group tags, and
+inline metrics.
+
+<a href="/dashboard/queue-detail.png" target="_blank">
+  <img src="/dashboard/queue-detail.png" alt="Queue Detail" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider);" />
+</a>
+
+### Job Detail
+
+Inspect a job's payload, options, return value, per-attempt logs and stacktraces, and timeline
+metadata.
+
+<a href="/dashboard/job-detail.png" target="_blank">
+  <img src="/dashboard/job-detail.png" alt="Job Detail" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider);" />
+</a>
+
+### Metrics
+
+Throughput bar charts and processing time area charts with time range selector (1h to 30d).
+
+<a href="/dashboard/metrics.png" target="_blank">
+  <img src="/dashboard/metrics.png" alt="Metrics" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider);" />
+</a>
+
+### Flows
+
+Browse parent/child job flows with active and completed tabs.
+
+<a href="/dashboard/flows.png" target="_blank">
+  <img src="/dashboard/flows.png" alt="Flows" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider);" />
+</a>
+
+### Flow Detail
+
+Two-column view with flow tree on the left and selected job detail on the right. Progress ring shows
+completion status.
+
+<a href="/dashboard/flow-detail.png" target="_blank">
+  <img src="/dashboard/flow-detail.png" alt="Flow Detail" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider);" />
+</a>
+
 ## Next Steps
 
 - [Setup & Configuration](/dashboard/setup) -- installation, options, and framework integration
