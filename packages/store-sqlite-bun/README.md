@@ -46,6 +46,13 @@ const store = new SqliteStore({ filename: ':memory:' });
 - WAL mode for better concurrent read/write performance
 - Prepared statement caching
 - Uses Bun's native `bun:sqlite` (strict mode) — no native dependencies
+- Job flows (parent-child dependencies)
+- Batch processing
+- Per-group concurrency and rate limiting
+- Job observables (lifecycle tracking, cancellation)
+- Optional metrics collection (`metrics: { enabled: true }`)
+- Dashboard integration (`listQueues()`, `findJobById()`, `searchByPayload()`)
+- Configurable logger (`logger` option)
 
 ## See also
 
