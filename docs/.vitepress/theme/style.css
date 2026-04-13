@@ -238,3 +238,9 @@ div[class*="language-"] code {
 .VPContent {
   transition: opacity 0.2s ease;
 }
+
+/* ─── Medium-zoom lightbox above sidebar ─────────── */
+.medium-zoom-overlay,
+.medium-zoom-image--opened {
+  z-index: 999;
+}
