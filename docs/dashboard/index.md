@@ -65,52 +65,40 @@ Use the same store instance for your Queue, Worker, **and** the dashboard so it 
 The home page shows all queues with job counts, state distribution, sparkline throughput, and
 scheduled job indicators.
 
-<a href="/dashboard/home.png" target="_blank">
-  <img src="/dashboard/home.png" alt="Dashboard Home" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider);" />
-</a>
+<img src="/dashboard/home.png" alt="Dashboard Home" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider); cursor: zoom-in;" />
 
 ### Queue Detail
 
 Drill into a queue to see jobs by state, with bulk selection, cron/repeat/flow/child/group tags, and
 inline metrics.
 
-<a href="/dashboard/queue-detail.png" target="_blank">
-  <img src="/dashboard/queue-detail.png" alt="Queue Detail" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider);" />
-</a>
+<img src="/dashboard/queue-detail.png" alt="Queue Detail" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider); cursor: zoom-in;" />
 
 ### Job Detail
 
 Inspect a job's payload, options, return value, per-attempt logs and stacktraces, and timeline
 metadata.
 
-<a href="/dashboard/job-detail.png" target="_blank">
-  <img src="/dashboard/job-detail.png" alt="Job Detail" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider);" />
-</a>
+<img src="/dashboard/job-detail.png" alt="Job Detail" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider); cursor: zoom-in;" />
 
 ### Metrics
 
 Throughput bar charts and processing time area charts with time range selector (1h to 30d).
 
-<a href="/dashboard/metrics.png" target="_blank">
-  <img src="/dashboard/metrics.png" alt="Metrics" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider);" />
-</a>
+<img src="/dashboard/metrics.png" alt="Metrics" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider); cursor: zoom-in;" />
 
 ### Flows
 
 Browse parent/child job flows with active and completed tabs.
 
-<a href="/dashboard/flows.png" target="_blank">
-  <img src="/dashboard/flows.png" alt="Flows" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider);" />
-</a>
+<img src="/dashboard/flows.png" alt="Flows" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider); cursor: zoom-in;" />
 
 ### Flow Detail
 
 Two-column view with flow tree on the left and selected job detail on the right. Progress ring shows
 completion status.
 
-<a href="/dashboard/flow-detail.png" target="_blank">
-  <img src="/dashboard/flow-detail.png" alt="Flow Detail" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider);" />
-</a>
+<img src="/dashboard/flow-detail.png" alt="Flow Detail" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--vp-c-divider); cursor: zoom-in;" />
 
 ## Next Steps
 

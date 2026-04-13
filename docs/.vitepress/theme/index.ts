@@ -1,5 +1,6 @@
 import type { Theme } from 'vitepress';
 import DefaultTheme from 'vitepress/theme';
+import mediumZoom from 'medium-zoom';
 import ConveyorHome from './components/ConveyorHome.vue';
 import AnimTerminal from './components/AnimTerminal.vue';
 import AnimPipeline from './components/AnimPipeline.vue';
@@ -84,6 +85,10 @@ export default {
           setupMermaidZoom();
           setupRuntimeSync();
           observer.observe(document.body, { childList: true, subtree: true });
+          // Lightbox for dashboard screenshots and other images
+          mediumZoom('.vp-doc img:not(.no-zoom)', {
+            background: 'rgba(0, 0, 0, 0.85)',
+          });
         }, 500);
       };
     }
