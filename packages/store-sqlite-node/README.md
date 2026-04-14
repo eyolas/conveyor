@@ -47,7 +47,14 @@ const store = new SqliteStore({ filename: ':memory:' });
 - Automatic schema migrations
 - WAL mode for better concurrent read/write performance
 - Prepared statement caching
-- Zero native dependencies (`node:sqlite` is built-in)
+- Zero native dependencies (`node:sqlite` is built-in, Node.js 22.13+)
+- Job flows (parent-child dependencies)
+- Batch processing
+- Per-group concurrency and rate limiting
+- Job observables (lifecycle tracking, cancellation)
+- Optional metrics collection (`metrics: { enabled: true }`)
+- Dashboard integration (`listQueues()`, `findJobById()`, `searchByPayload()`)
+- Configurable logger (`logger` option)
 
 ## See also
 

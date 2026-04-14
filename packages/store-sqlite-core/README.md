@@ -46,6 +46,12 @@ export class MySqliteStore extends BaseSqliteStore {
 }
 ```
 
+## Supported Features
+
+All SQLite backends built on this base support: job flows, batch processing, per-group concurrency
+and rate limiting, job observables, optional metrics collection, dashboard integration
+(`listQueues()`, `findJobById()`, `searchByPayload()`), and configurable logger.
+
 ## See also
 
 - [`@conveyor/store-sqlite-node`](../store-sqlite-node) — Node.js (`node:sqlite`)

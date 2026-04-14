@@ -479,7 +479,7 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 
 - [x] `@conveyor/dashboard` README — quick start, framework examples, options table, auth, metrics
 - [x] `@conveyor/dashboard-api` README — headless API, REST endpoints table, toNodeHandler
-- [ ] Review other packages for missing/outdated READMEs
+- [x] Review other packages for missing/outdated READMEs
 
 **VitePress documentation site:**
 

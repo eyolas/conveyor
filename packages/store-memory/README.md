@@ -34,6 +34,17 @@ await queue.close();
 await store.disconnect();
 ```
 
+## Features
+
+- Zero dependencies
+- Job flows (parent-child dependencies)
+- Batch processing
+- Per-group concurrency and rate limiting
+- Job observables (lifecycle tracking, cancellation)
+- Optional metrics collection (`metrics: { enabled: true }`)
+- Dashboard integration (`listQueues()`, `findJobById()`, `searchByPayload()`)
+- Configurable logger (`logger` option)
+
 ## Limitations
 
 - No persistence (data lost on restart)

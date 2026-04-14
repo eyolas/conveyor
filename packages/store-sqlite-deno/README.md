@@ -48,6 +48,13 @@ const store = new SqliteStore({ filename: ':memory:' });
 - WAL mode for better concurrent read/write performance
 - Prepared statement caching
 - `@db/sqlite` (FFI native) with `node:sqlite` fallback — no external native dependencies
+- Job flows (parent-child dependencies)
+- Batch processing
+- Per-group concurrency and rate limiting
+- Job observables (lifecycle tracking, cancellation)
+- Optional metrics collection (`metrics: { enabled: true }`)
+- Dashboard integration (`listQueues()`, `findJobById()`, `searchByPayload()`)
+- Configurable logger (`logger` option)
 
 ## See also
 

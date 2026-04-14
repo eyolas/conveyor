@@ -45,6 +45,13 @@ await store.disconnect();
 - JSONB columns for job data, options, and return values
 - `LISTEN/NOTIFY` for real-time event delivery
 - Connection pooling via `postgres` driver
+- Job flows (parent-child dependencies)
+- Batch processing
+- Per-group concurrency and rate limiting
+- Job observables (lifecycle tracking, cancellation)
+- Optional metrics collection (`metrics: { enabled: true }`)
+- Dashboard integration (`listQueues()`, `findJobById()`, `searchByPayload()`)
+- Configurable logger (`logger` option)
 
 ## License
 
