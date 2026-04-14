@@ -1,17 +1,19 @@
 # Conveyor
 
-Multi-backend TypeScript job queue. PostgreSQL, SQLite, in-memory. Deno 2 monorepo, 8 workspace packages, JSR (v1.0.0).
+Multi-backend TypeScript job queue supporting PostgreSQL, SQLite, and in-memory stores. Deno 2
+monorepo with 8 workspace packages, published on JSR (v1.0.0).
 
-BullMQ-like API, no Redis needed. Full specs in `prd.md`.
+BullMQ-like API without requiring Redis. See `prd.md` for full specs.
 
 ## Guiding Principles
 
-- **Zero lock-in**: switch backend = change one config line
-- **Familiar API**: know BullMQ? know Conveyor
-- **Runtime agnostic**: Deno 2, Node.js 18+, Bun all first-class
+- **Zero lock-in**: switching backends = changing one line of config
+- **Familiar API**: if you know BullMQ, you know Conveyor
+- **Runtime agnostic**: Deno 2, Node.js 18+, and Bun first-class
 - **Type-safe**: strict TypeScript, generics on payloads
-- **Testable**: in-memory store = fast deterministic tests
-- **No runtime-specific APIs in core**: Web Standards only (`setTimeout`, `EventTarget`, `crypto.randomUUID`)
+- **Testable**: in-memory store makes tests fast and deterministic
+- **No runtime-specific APIs in core**: only Web Standards APIs (`setTimeout`, `EventTarget`,
+  `crypto.randomUUID`)
 
 ## Packages
 
@@ -43,7 +45,7 @@ deno task check             # Type-check all package entry points
 deno task setup             # Set up git hooks
 ```
 
-PG tests need running database:
+PostgreSQL tests require a running database:
 
 ```bash
 docker-compose up -d  # Start PG container
@@ -70,7 +72,7 @@ docker-compose up -d  # Start PG container
 
 ### Imports & Exports
 
-- Separate `import type` from runtime imports; types first
+- Separate `import type` from runtime imports; types come first
 - Barrel exports via `mod.ts`
 - Separate `export type` from `export`
 
@@ -82,7 +84,7 @@ docker-compose up -d  # Start PG container
 
 ### Patterns
 
-- Generic defaults `unknown`: `class Queue<T = unknown>`
+- Generic defaults to `unknown`: `class Queue<T = unknown>`
 - `interface` for contracts, `type` for unions/aliases
 - `readonly` / `private readonly` for immutability
 - `Symbol.asyncDispose` for cleanup
@@ -91,23 +93,23 @@ docker-compose up -d  # Start PG container
 
 ### JSDoc
 
-- `@module` top of every file
+- `@module` at top of every file
 - Tags: `@typeParam`, `@param`, `@returns`, `@throws`, `@example`
-- `{@linkcode Type}` for cross-refs
+- `{@linkcode Type}` for cross-references
 - `/** @internal */` for internal-only types
 
 ### Errors
 
 - `Error` with descriptive messages at boundaries
 - `RangeError` for range validations
-- Event handlers wrapped try-catch + `onEventHandlerError` callback
+- Event handlers wrapped in try-catch + `onEventHandlerError` callback
 
 ### Tests
 
-- Vitest (all runtimes except Bun = `bun test`)
+- Vitest (all runtimes except Bun which uses `bun test`)
 - Files named `*.test.ts`
 - Test names: `test('Class.method description', async () => ...)`
-- Helpers top of file (`createQueue()`, `createWorker()`)
+- Helpers at top of file (`createQueue()`, `createWorker()`)
 - Section separators: `// ─── Feature ─────`
 - Always cleanup: call `close()`, `disconnect()`
 
@@ -115,14 +117,16 @@ docker-compose up -d  # Start PG container
 
 - `implements StoreInterface` (no abstract class except SQLite base)
 - Options extend `StoreOptions`
-- PG: tagged template literals, `SELECT ... FOR UPDATE SKIP LOCKED` for locking, `LISTEN/NOTIFY` for events
-- SQLite: prepared statements named params, WAL mode + `BEGIN IMMEDIATE`, polling for events
+- PG: tagged template literals, `SELECT ... FOR UPDATE SKIP LOCKED` for locking, `LISTEN/NOTIFY` for
+  events
+- SQLite: prepared statements with named parameters, WAL mode + `BEGIN IMMEDIATE`, polling for
+  events
 - Memory: `Map` + mutex for locking, `EventEmitter` for events
-- Core never depends concrete driver — each store encapsulates runtime-specific driver
+- Core never depends on a concrete driver — each store encapsulates its runtime-specific driver
 
 ### Language
 
-- All code, comments, commits, docs, task files **English**
+- All code, comments, commit messages, documentation, and task files must be in **English**
 
 ### Commits
 
@@ -148,17 +152,19 @@ add() → [waiting] ──fetch──→ [active] ──success──→ [comple
 ### Key Features (see `prd.md` for full API)
 
 - **Concurrency**: per-worker (`concurrency`) + global cross-worker (`maxGlobalConcurrency`)
-- **Retry**: fixed, exponential, custom backoff
+- **Retry**: fixed, exponential, or custom backoff strategies
 - **FIFO/LIFO**: default FIFO, opt-in LIFO per job
-- **Scheduling**: ms delays, cron, human-readable (`'in 10 minutes'`, `'every 2 hours'`)
-- **Deduplication**: payload hash or custom key, optional TTL
+- **Scheduling**: ms delays, cron expressions, human-readable (`'in 10 minutes'`, `'every 2 hours'`)
+- **Deduplication**: payload hash or custom key with optional TTL
 - **Pause/Resume**: global or per job name
 - **Rate limiting**: sliding window (`max` jobs per `duration`)
-- **Events**: waiting, active, completed, failed, progress, stalled, delayed, removed, drained, paused, resumed, error
+- **Events**: waiting, active, completed, failed, progress, stalled, delayed, removed, drained,
+  paused, resumed, error
 
 ### Testing Strategy
 
-- **Conformance tests** (`tests/conformance/`): single suite runs against every store, guarantees identical behavior
+- **Conformance tests** (`tests/conformance/`): single suite that runs against every store to
+  guarantee identical behavior
 - **Per-store tests**: store-specific integration tests
 - **Core tests** (`tests/core/`): unit tests with mock store
 
@@ -178,83 +184,89 @@ Redis store, Cloudflare D1, dead letter queue.
 
 ### Plan First
 
-- Enter plan mode ANY non-trivial task (3+ steps or arch decisions)
-- Something go sideways → STOP, re-plan immediately
-- Write detailed specs upfront, reduce ambiguity
+- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
+- If something goes sideways → STOP and re-plan immediately
+- Write detailed specs upfront to reduce ambiguity
 
 ### Task Management
 
-- **`tasks/status.yml`** = index of all tasks, roadmap phases, ideas. Check first.
+- **`tasks/status.yml`** is the index of all tasks, roadmap phases, and ideas. Check it first to
+  know where things stand.
 - Roadmap & task lifecycle: `todo` → `planned` → `in-progress` → `done`
-  - `todo`: idea in roadmap, no task file yet
-  - `planned`: task file created with plan, ready for dev
-  - `in-progress`: actively worked on
+  - `todo`: idea in the roadmap, no task file yet
+  - `planned`: task file created with detailed plan, ready for dev
+  - `in-progress`: actively being worked on
   - `done`: completed and verified
-  - `next-release-candidate`: deferred, evaluate for next minor/patch (v1.x, non-breaking)
-  - `next-major-candidate`: deferred, evaluate for next major (v2.0, breaking)
+  - `next-release-candidate`: deferred feature, to be evaluated for the next minor/patch release
+    (v1.x, non-breaking)
+  - `next-major-candidate`: deferred feature, to be evaluated for the next major release (v2.0,
+    breaking changes)
 - Thinking lifecycle (ideas not yet in roadmap): `thinking` → `accepted` | `abandoned`
-  - `thinking`: under consideration, needs discussion
-  - `accepted`: validated → move to roadmap as `todo`
-  - `abandoned`: rejected, keep with `reason:` for traceability
-- No `file:` link on roadmap item → propose creating task file. Once created, set `planned`.
-- Each initiative own file in `tasks/` (kebab-case)
+  - `thinking`: idea under consideration, needs discussion or analysis
+  - `accepted`: validated → move to roadmap as `todo` (add to the relevant phase)
+  - `abandoned`: rejected, keep with a `reason:` for traceability
+- If a roadmap item has no `file:` link, propose creating a task file for it (plan the work, break
+  it into phases/checkboxes). Once the task file is created, set its status to `planned`.
+- Each initiative gets its own file in `tasks/` named after the feature (kebab-case)
 - Format: `tasks/<feature-name>.md` with checkable items (`- [ ]` / `- [x]`)
-- Add `## Status` header matching `status.yml`
-- Add `## Review` section when done (what worked, what didn't)
-- Starting work → check `tasks/status.yml` and existing task files first
-- Status change → update **both** task file and `tasks/status.yml`
-- One active task file per agent/user, avoid conflicts
+- Add a `## Status` header at the top matching the status in `status.yml`
+- Add a `## Review` section when done (what worked, what didn't)
+- When starting work, check `tasks/status.yml` and existing task files first
+- When changing a task status, update **both** the task file and `tasks/status.yml`
+- One active task file per agent/user to avoid conflicts
 
 ### Lessons Learned (shared)
 
-- `tasks/lessons.md` tracks project-specific pitfalls
-- Review at session start
-- After correction → add pattern to `tasks/lessons.md`
-- Lesson becomes established rule → promote to `CLAUDE.md`, remove from lessons
+- `tasks/lessons.md` tracks project-specific pitfalls shared across all users/agents
+- Review it at session start
+- After any correction → add the pattern to `tasks/lessons.md`
+- When a lesson becomes an established rule → promote it to `CLAUDE.md` and remove from lessons
 
 ### Verification Before Done
 
-- Never mark task complete without proving it works
-- Run tests, `deno task check`, `deno task lint` before marking complete
-- Ask: "Would staff engineer approve this?"
+- Never mark a task complete without proving it works
+- Run tests, `deno task check` (type-check), and `deno task lint` before marking complete
+- Ask: "Would a staff engineer approve this?"
 
 ### Demand Elegance (Balanced)
 
-- Non-trivial changes: "more elegant way?"
-- Hacky fix → implement elegant solution
-- Simple obvious fixes → skip, don't over-engineer
+- For non-trivial changes: "is there a more elegant way?"
+- If a fix feels hacky → implement the elegant solution
+- Skip for simple obvious fixes — don't over-engineer
 
 ### Autonomous Bug Fixing
 
-- Given bug: just fix it, no hand-holding
-- Point at logs, errors, failing tests → resolve
-- Zero context switching for user
+- When given a bug: just fix it, don't ask for hand-holding
+- Point at logs, errors, failing tests → resolve them
+- Zero context switching for the user
 
 ### Core Principles
 
-- **Simplicity first:** every change simple as possible, minimal code impact
-- **No laziness:** find root causes, no temporary fixes, senior dev standards
+- **Simplicity first:** every change as simple as possible, minimal code impact
+- **No laziness:** find root causes, no temporary fixes, senior developer standards
 
 ## Subagent Strategy
 
-- Use subagents liberally, keep main context clean
-- Offload research, exploration, parallel analysis to subagents
-- Complex problems → throw more compute via subagents
-- One task per subagent, focused execution
+- Use subagents liberally to keep main context window clean
+- Offload research, exploration, and parallel analysis to subagents
+- For complex problems, throw more compute at it via subagents
+- One task per subagent for focused execution
 
 ## MCP Tools
 
-- **Claudette** (code graph): `get_impact_radius` before refactors, `query_graph` for callers/importers, `get_review_context` for PR reviews. Run `build_or_update_graph` first.
-- **context7**: `resolve-library-id` + `query-docs` for current docs of any dependency (croner, postgres, vitest, etc.) instead of training data
+- **Claudette** (code graph): use `get_impact_radius` before refactors, `query_graph` for
+  callers/importers, `get_review_context` for PR reviews. Run `build_or_update_graph` first.
+- **context7**: use `resolve-library-id` + `query-docs` to fetch current docs for any dependency
+  (croner, postgres, vitest, etc.) instead of relying on training data
 
 <!-- rtk-instructions v2 -->
 # RTK (Rust Token Killer) - Token-Optimized Commands
 
 ## Golden Rule
 
-**Always prefix commands with `rtk`**. RTK has dedicated filter → uses it. No filter → passes through unchanged. Always safe.
+**Always prefix commands with `rtk`**. If RTK has a dedicated filter, it uses it. If not, it passes through unchanged. This means RTK is always safe to use.
 
-**Important**: Command chains with `&&` — use `rtk` each time:
+**Important**: Even in command chains with `&&`, use `rtk`:
 ```bash
 # ❌ Wrong
 git add . && git commit -m "msg" && git push
@@ -300,7 +312,7 @@ rtk git stash           # Compact stash
 rtk git worktree        # Compact worktree
 ```
 
-Git passthrough works ALL subcommands, even unlisted.
+Note: Git passthrough works for ALL subcommands, even those not explicitly listed.
 
 ### GitHub (26-87% savings)
 ```bash
@@ -378,5 +390,5 @@ rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
 | Infrastructure | docker, kubectl | 85% |
 | Network | curl, wget | 65-70% |
 
-Overall average: **60-90% token reduction** on common dev operations.
+Overall average: **60-90% token reduction** on common development operations.
 <!-- /rtk-instructions -->
