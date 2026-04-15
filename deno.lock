@@ -800,6 +800,11 @@
           "npm:hono@4"
         ]
       },
+      "packages/dashboard-client": {
+        "dependencies": [
+          "jsr:@conveyor/shared@1"
+        ]
+      },
       "packages/store-memory": {
         "dependencies": [
           "jsr:@conveyor/shared@1"
