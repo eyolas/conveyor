@@ -108,29 +108,37 @@ export function SearchPage({ path: _path }: { path?: string }) {
           aria-hidden="true"
         />
         <div class="mb-4 flex items-center justify-between gap-4">
-          <h1 class="font-display text-sm font-bold text-slate-900 dark:text-text-bright">
+          <h1 class="min-w-0 shrink font-display text-sm font-bold text-slate-900 dark:text-text-bright">
             Search Jobs
           </h1>
-          <div class="flex items-center gap-3">
-            {searched && !loading && (
-              <span class="font-mono text-xs tabular-nums text-slate-500 dark:text-text-muted">
-                {total} result{total !== 1 ? 's' : ''}
-              </span>
-            )}
-            {loading && (
-              <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-accent dark:border-surface-3 dark:border-t-accent" />
-            )}
-            {hasFilters && (
-              <button
-                onClick={clearFilters}
-                class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
-              >
-                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Clear all
-              </button>
-            )}
+          <div class="flex shrink-0 items-center gap-3">
+            <div
+              class={`flex h-7 items-center justify-end ${
+                loading || searched ? 'min-w-[6.5rem]' : ''
+              }`}
+            >
+              {loading ? (
+                <span class="inline-block h-3 w-3 shrink-0 animate-spin rounded-full border-2 border-slate-200 border-t-accent dark:border-surface-3 dark:border-t-accent" />
+              ) : searched ? (
+                <span class="font-mono text-xs tabular-nums text-slate-500 dark:text-text-muted">
+                  {total} result{total !== 1 ? 's' : ''}
+                </span>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={clearFilters}
+              class={`inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 ${
+                !hasFilters ? 'invisible pointer-events-none' : ''
+              }`}
+              tabIndex={hasFilters ? 0 : -1}
+              aria-hidden={!hasFilters}
+            >
+              <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Clear all
+            </button>
           </div>
         </div>
         <div class="flex flex-wrap items-end gap-4">
