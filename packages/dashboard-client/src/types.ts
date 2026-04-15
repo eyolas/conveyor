@@ -131,7 +131,7 @@ export interface ClientSearchJobsFilter {
   /** Restrict to a specific queue. */
   queueName?: string;
   /** Filter by one or more states. */
-  states?: string[];
+  states?: JobState[];
   /** Substring match on job name (case-insensitive). */
   name?: string;
   /** Jobs created at or after this date. */

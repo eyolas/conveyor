@@ -972,10 +972,10 @@ export class BaseSqliteStore implements StoreInterface {
 
   searchByName(query: string, queueName?: string, limit = 50): Promise<JobData[]> {
     const escaped = query.replace(/[%_\\]/g, '\\$&');
-    const pattern = `%${escaped}%`;
+    const pattern = `%${escaped.toLowerCase()}%`;
     const sql = queueName
-      ? "SELECT * FROM conveyor_jobs WHERE queue_name = ? AND name LIKE ? ESCAPE '\\' LIMIT ?"
-      : "SELECT * FROM conveyor_jobs WHERE name LIKE ? ESCAPE '\\' LIMIT ?";
+      ? "SELECT * FROM conveyor_jobs WHERE queue_name = ? AND LOWER(name) LIKE ? ESCAPE '\\' LIMIT ?"
+      : "SELECT * FROM conveyor_jobs WHERE LOWER(name) LIKE ? ESCAPE '\\' LIMIT ?";
     const params = queueName ? [queueName, pattern, limit] : [pattern, limit];
     const rows = this.db.prepare(sql).all(...params) as unknown as JobRow[];
     return Promise.resolve(rows.map(rowToJobData));
@@ -1005,8 +1005,8 @@ export class BaseSqliteStore implements StoreInterface {
     }
     if (filter.name) {
       const escaped = filter.name.replace(/[%_\\]/g, '\\$&');
-      conditions.push("name LIKE ? ESCAPE '\\'");
-      params.push(`%${escaped}%`);
+      conditions.push("LOWER(name) LIKE ? ESCAPE '\\'");
+      params.push(`%${escaped.toLowerCase()}%`);
     }
     if (filter.createdAfter) {
       conditions.push('created_at >= ?');

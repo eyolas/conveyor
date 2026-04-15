@@ -98,26 +98,39 @@ export function registerSearchRoutes(
     }
 
     // Respect filterQueues option
-    if (queueName && filterQueues && !filterQueues.includes(queueName)) {
+    const effectiveQueue = queueName ?? undefined;
+    if (effectiveQueue && filterQueues && !filterQueues.includes(effectiveQueue)) {
       return jsonPaginated(c, [], { total: 0, start, end });
+    }
+
+    // When filterQueues is set and no specific queue requested,
+    // run individual searches per allowed queue and merge results
+    if (filterQueues && !effectiveQueue) {
+      let allJobs: Awaited<ReturnType<NonNullable<typeof store.searchJobs>>>['jobs'] = [];
+      for (const allowedQueue of filterQueues) {
+        const r = await store.searchJobs!({
+          name: name ?? undefined,
+          queueName: allowedQueue,
+          states,
+          createdAfter: after ? new Date(after) : undefined,
+          createdBefore: before ? new Date(before) : undefined,
+        }, 0, 10_000);
+        allJobs = allJobs.concat(r.jobs);
+      }
+      allJobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const total = allJobs.length;
+      const paged = allJobs.slice(start, end);
+      return jsonPaginated(c, paged, { total, start, end: start + paged.length });
     }
 
     const result = await store.searchJobs({
       name: name ?? undefined,
-      queueName: queueName ?? undefined,
+      queueName: effectiveQueue,
       states,
       createdAfter: after ? new Date(after) : undefined,
       createdBefore: before ? new Date(before) : undefined,
     }, start, end);
 
-    // Filter by allowed queues if needed
-    let jobs = result.jobs;
-    let total = result.total;
-    if (filterQueues) {
-      jobs = jobs.filter((j) => filterQueues.includes(j.queueName));
-      total = jobs.length;
-    }
-
-    return jsonPaginated(c, jobs, { total, start, end });
+    return jsonPaginated(c, result.jobs, { total: result.total, start, end });
   });
 }
