@@ -130,9 +130,9 @@ roadmap:
     status: next-release-candidate
     items:
       web-dashboard:
-        status: in-progress
+        status: done
         file: tasks/web-dashboard.md
-        notes: 'Phases 1-5 done. Only dashboard-client package (nice-to-have) remaining.'
+        notes: 'All phases complete. dashboard, dashboard-api, dashboard-client published on JSR v1.3.0.'
       decoupled-notifications:
         status: next-release-candidate
       sandboxed-workers:

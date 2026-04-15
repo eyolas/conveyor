@@ -2,7 +2,7 @@
 
 ## Status
 
-in-progress
+done
 
 ---
 
@@ -508,7 +508,7 @@ Dark/light mode with system preference detection. Real-time updates via SSE `Eve
 
 - [x] Extract typed API client from `ui/src/api/client.ts` into standalone package
 - [x] Include SSE subscription helpers
-- [ ] Publish on JSR
+- [x] Publish on JSR (v1.3.0)
 
 ---
 
