@@ -104,6 +104,9 @@ jobs:
       - name: Run dashboard-api tests
         run: deno -A npm:vitest run --config vitest.dashboard-api.config.ts tests/dashboard-api/
 
+      - name: Run dashboard-client tests
+        run: deno -A npm:vitest run --config vitest.dashboard-client.config.ts tests/dashboard-client/
+
   test-node:
     name: Tests (Node.js ${{ matrix.node-version }})
     runs-on: ubuntu-latest

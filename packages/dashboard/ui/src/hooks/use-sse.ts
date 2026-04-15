@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'preact/hooks';
-
-const BASE = import.meta.env.VITE_API_BASE ?? '';
+import type { SSEEvent } from '@conveyor/dashboard-client';
+import { client } from '../api/client';
 
 export interface SSEOptions {
   /** Queue name, or omit for all-queues stream. */
   queueName?: string;
   /** Called for every SSE event. */
-  onEvent: (event: { type: string; data: Record<string, unknown> }) => void;
+  onEvent: (event: SSEEvent) => void;
   /** Called on connection error. */
   onError?: (error: Event) => void;
   /** When true, SSE connection is closed and events are ignored. */
@@ -26,56 +26,12 @@ export function useSSE({ queueName, onEvent, onError, paused }: SSEOptions): voi
   useEffect(() => {
     if (paused) return;
 
-    const path = queueName
-      ? `${BASE}/api/queues/${encodeURIComponent(queueName)}/events`
-      : `${BASE}/api/events`;
+    const sub = client.subscribe({
+      queueName,
+      onEvent: (event) => onEventRef.current(event),
+      onError: (e) => onErrorRef.current?.(e),
+    });
 
-    let disposed = false;
-    let es: EventSource | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
-    function connect() {
-      if (disposed) return;
-      es = new EventSource(path);
-
-      es.addEventListener('job:waiting', handleEvent);
-      es.addEventListener('job:active', handleEvent);
-      es.addEventListener('job:completed', handleEvent);
-      es.addEventListener('job:failed', handleEvent);
-      es.addEventListener('job:progress', handleEvent);
-      es.addEventListener('job:delayed', handleEvent);
-      es.addEventListener('job:removed', handleEvent);
-      es.addEventListener('job:cancelled', handleEvent);
-      es.addEventListener('job:stalled', handleEvent);
-      es.addEventListener('queue:paused', handleEvent);
-      es.addEventListener('queue:resumed', handleEvent);
-      es.addEventListener('queue:drained', handleEvent);
-
-      es.onerror = (e) => {
-        onErrorRef.current?.(e);
-        es?.close();
-        if (!disposed) {
-          reconnectTimer = setTimeout(connect, 3000);
-        }
-      };
-    }
-
-    function handleEvent(e: MessageEvent) {
-      if (disposed) return;
-      try {
-        const data = JSON.parse(e.data);
-        onEventRef.current({ type: e.type, data });
-      } catch {
-        // Ignore malformed events
-      }
-    }
-
-    connect();
-
-    return () => {
-      disposed = true;
-      es?.close();
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-    };
+    return () => sub.close();
   }, [queueName, paused]);
 }
