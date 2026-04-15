@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Documentation
+
+- Update version to
+  v1([6e9e52c](https://github.com/eyolas/conveyor/commit/6e9e52c4872621dbf9ef8489f199f8fcbeba5325))
+
+## [1.3.0] - 2026-04-15
+
+### Features
+
+- **dashboard-client**: Add typed HTTP + SSE client package
+  (#44)([3664966](https://github.com/eyolas/conveyor/commit/3664966cc59d5ef632bcacda9b27bd11e76f3242))
+- **shared**: Add configurable Logger interface
+  (#42)([e864a81](https://github.com/eyolas/conveyor/commit/e864a818ac9d64d1f6fa50f20c6c7042611e120e))
+- **dashboard**: Phase 4 — job forms, flows, bulk actions, groups, payload search
+  (#40)([026d7a1](https://github.com/eyolas/conveyor/commit/026d7a1a1f44c644ce01c211ac55e940214a1484))
+- **dashboard**: Add metrics collection, charts, and opt-in config
+  (#39)([8ee917b](https://github.com/eyolas/conveyor/commit/8ee917b4aea694206591bf8500a8f8a7ed543432))
+- **dashboard**: Redesign UI with per-attempt tracking and review fixes
+  (#38)([b58f712](https://github.com/eyolas/conveyor/commit/b58f71235f818d2090fba77a74aeed5cb2c92a06))
+- **dashboard-api**: Add dashboard REST API package
+  (#37)([5452bd4](https://github.com/eyolas/conveyor/commit/5452bd4b525fc491e764f5f815127be030cd211a))
+
+### Documentation
+
+- Update package READMEs with Phase 4 features and current API
+  (#43)([2cea021](https://github.com/eyolas/conveyor/commit/2cea021c3a3fcf3c2a3b36630cf24e2d7eb0b40a))
+- Add dashboard READMEs, VitePress guide, and OpenAPI spec
+  (#41)([7bc9649](https://github.com/eyolas/conveyor/commit/7bc9649ece3df2f9e81837c8b8ac08772c3aaefc))
+- **tasks**: Refine web dashboard plan with Cmd+K, metrics, and collapsible
+  sidebar([3117fd6](https://github.com/eyolas/conveyor/commit/3117fd6ddc560f62b8037311f603502aabfe5fde))
+- Require deno task check and lint in verification checklist
+  (#36)([7d25dd8](https://github.com/eyolas/conveyor/commit/7d25dd8ed6bfb5779d6f6a2617dc08f0934fe80c))
+- **tasks**: Add queue schema definition task
+  plan([433311e](https://github.com/eyolas/conveyor/commit/433311ee02f7974a10d8306dd8b3e57c6136c756))
+- **tasks**: Add web dashboard task
+  plan([2c3e167](https://github.com/eyolas/conveyor/commit/2c3e1672c37f18aa537ba8ad9092bd470c50a298))
+- Update version to
+  v1([f1987f9](https://github.com/eyolas/conveyor/commit/f1987f9617612ca0947657192ed8d89110deab35))
+- Update CHANGELOG.md for
+  v1.2.0([bdbc510](https://github.com/eyolas/conveyor/commit/bdbc510311aab19187559a25746231962e0fe885))
+
 ## [1.2.0] - 2026-03-24
 
 ### Features
