@@ -14,6 +14,7 @@ export default defineConfig({
       'tests/store-sqlite-bun/**',
       'tests/store-sqlite-deno/**',
       'tests/dashboard-api/**',
+      'tests/dashboard-client/**',
     ],
     testTimeout: 30_000,
     fileParallelism: false,
