@@ -114,8 +114,8 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
       }
     }
 
-    // ─── Find job by ID ─────────────────────────────────────────
-    if (q && q.length >= 8) {
+    // ─── Find job by ID (only for UUID-like strings) ─────────────
+    if (q && q.length >= 8 && /^[0-9a-f-]+$/i.test(q)) {
       result.push({
         id: `search:job:${q}`,
         label: `Find job by ID: ${q.length > 20 ? q.slice(0, 20) + '...' : q}`,
@@ -136,9 +136,9 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
     // ─── Advanced search ─────────────────────────────────────────
     if (q && q.length >= 2) {
       result.push({
-        id: `search:advanced:${q}`,
-        label: `Advanced search: ${q}`,
-        description: 'open search page',
+        id: 'search:advanced',
+        label: 'Advanced search',
+        description: `"${q}" → filters page`,
         section: 'search',
         action: () => route(`/search?name=${encodeURIComponent(q)}`),
       });
