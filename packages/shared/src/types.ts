@@ -927,6 +927,17 @@ export interface StoreInterface {
   searchByPayload?(queueName: string, query: string, limit?: number): Promise<JobData[]>;
 
   /**
+   * Search jobs by name across all queues (or a specific queue).
+   * Optional — returns matching jobs by name substring.
+   *
+   * @param query - The search string to match against job names.
+   * @param queueName - Optional queue to restrict the search.
+   * @param limit - Maximum number of results (default 50).
+   * @returns Matching jobs.
+   */
+  searchByName?(query: string, queueName?: string, limit?: number): Promise<JobData[]>;
+
+  /**
    * List all flow parent jobs (jobs with childrenIds).
    * Optional — returns flow parents across all states.
    *

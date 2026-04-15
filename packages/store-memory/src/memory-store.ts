@@ -666,6 +666,22 @@ export class MemoryStore implements StoreInterface {
     return Promise.resolve(results);
   }
 
+  searchByName(query: string, queueName?: string, limit = 50): Promise<JobData[]> {
+    const lowerQuery = query.toLowerCase();
+    const results: JobData[] = [];
+    const queues = queueName ? [this.getQueue(queueName)] : this.jobs.values();
+    for (const queue of queues) {
+      for (const job of queue.values()) {
+        if (job.name.toLowerCase().includes(lowerQuery)) {
+          results.push(structuredClone(job));
+          if (results.length >= limit) break;
+        }
+      }
+      if (results.length >= limit) break;
+    }
+    return Promise.resolve(results);
+  }
+
   listFlowParents(state?: JobState, limit = 100): Promise<JobData[]> {
     const results: JobData[] = [];
     for (const queue of this.jobs.values()) {

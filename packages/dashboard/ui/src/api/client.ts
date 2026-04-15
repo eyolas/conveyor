@@ -151,6 +151,10 @@ export function searchQueues(query: string): Promise<QueueInfo[]> {
   return client.searchQueues(query);
 }
 
+export function searchByName(query: string, queueName?: string): Promise<JobData[]> {
+  return client.searchByName(query, queueName);
+}
+
 // ─── Flows ──────────────────────────────────────────────────────────
 
 export function listFlowParents(state?: string): Promise<JobData[]> {

@@ -54,6 +54,18 @@ export function registerSearchRoutes(
       return jsonData(c, results);
     }
 
-    return jsonError(c, 'BAD_REQUEST', 'type must be "job", "queue", or "payload"');
+    if (type === 'name') {
+      if (!store.searchByName) {
+        return jsonData(c, []);
+      }
+      const queueName = c.req.query('queue');
+      const results = await store.searchByName(query, queueName ?? undefined, 50);
+      if (filterQueues) {
+        return jsonData(c, results.filter((j) => filterQueues.includes(j.queueName)));
+      }
+      return jsonData(c, results);
+    }
+
+    return jsonError(c, 'BAD_REQUEST', 'type must be "job", "queue", "payload", or "name"');
   });
 }

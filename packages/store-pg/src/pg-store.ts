@@ -865,6 +865,24 @@ export class PgStore implements StoreInterface {
     return rows.map(rowToJobData);
   }
 
+  async searchByName(query: string, queueName?: string, limit = 50): Promise<JobData[]> {
+    const escaped = query.replace(/[%_\\]/g, '\\$&');
+    const pattern = `%${escaped}%`;
+    const rows = queueName
+      ? await this.sql<JobRow[]>`
+          SELECT * FROM conveyor_jobs
+          WHERE queue_name = ${queueName}
+            AND name ILIKE ${pattern} ESCAPE '\\'
+          LIMIT ${limit}
+        `
+      : await this.sql<JobRow[]>`
+          SELECT * FROM conveyor_jobs
+          WHERE name ILIKE ${pattern} ESCAPE '\\'
+          LIMIT ${limit}
+        `;
+    return rows.map(rowToJobData);
+  }
+
   async listFlowParents(state?: JobState, limit = 100): Promise<JobData[]> {
     const rows = state
       ? await this.sql<JobRow[]>`

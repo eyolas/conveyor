@@ -968,6 +968,17 @@ export class BaseSqliteStore implements StoreInterface {
     return Promise.resolve(rows.map(rowToJobData));
   }
 
+  searchByName(query: string, queueName?: string, limit = 50): Promise<JobData[]> {
+    const escaped = query.replace(/[%_\\]/g, '\\$&');
+    const pattern = `%${escaped}%`;
+    const sql = queueName
+      ? "SELECT * FROM conveyor_jobs WHERE queue_name = ? AND name LIKE ? ESCAPE '\\' LIMIT ?"
+      : "SELECT * FROM conveyor_jobs WHERE name LIKE ? ESCAPE '\\' LIMIT ?";
+    const params = queueName ? [queueName, pattern, limit] : [pattern, limit];
+    const rows = this.db.prepare(sql).all(...params) as unknown as JobRow[];
+    return Promise.resolve(rows.map(rowToJobData));
+  }
+
   listFlowParents(state?: JobState, limit = 100): Promise<JobData[]> {
     const sql = state
       ? "SELECT * FROM conveyor_jobs WHERE children_ids != '[]' AND state = ? ORDER BY created_at DESC LIMIT ?"

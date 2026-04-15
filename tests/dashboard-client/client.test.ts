@@ -180,6 +180,48 @@ test('ConveyorDashboardClient.searchJob returns null for unknown ID', async () =
   await store.disconnect();
 });
 
+// ─── Search by Name ─────────────────────────────────────────────────
+
+test('ConveyorDashboardClient.searchByName finds jobs by name', async () => {
+  const { store, client } = setup();
+  await store.connect();
+
+  await client.addJob('emails', 'send-welcome', { to: 'a@b.com' });
+  await client.addJob('emails', 'send-reset', { to: 'c@d.com' });
+  await client.addJob('images', 'send-notification', { to: 'e@f.com' });
+
+  const results = await client.searchByName('send');
+  expect(results.length).toBe(3);
+
+  await store.disconnect();
+});
+
+test('ConveyorDashboardClient.searchByName filters by queue', async () => {
+  const { store, client } = setup();
+  await store.connect();
+
+  await client.addJob('emails', 'send-welcome', { to: 'a@b.com' });
+  await client.addJob('images', 'send-notification', { to: 'e@f.com' });
+
+  const results = await client.searchByName('send', 'emails');
+  expect(results.length).toBe(1);
+  expect(results[0]!.queueName).toBe('emails');
+
+  await store.disconnect();
+});
+
+test('ConveyorDashboardClient.searchByName returns empty for no match', async () => {
+  const { store, client } = setup();
+  await store.connect();
+
+  await client.addJob('emails', 'send-welcome', {});
+
+  const results = await client.searchByName('nonexistent');
+  expect(results.length).toBe(0);
+
+  await store.disconnect();
+});
+
 // ─── Error Handling ─────────────────────────────────────────────────
 
 test('ConveyorDashboardClient throws ConveyorApiError on 404', async () => {

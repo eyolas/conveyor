@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { route } from 'preact-router';
-import { listQueues, type QueueInfo, searchByPayload, searchJob } from '../api/client';
+import { listQueues, type QueueInfo, searchByName, searchByPayload, searchJob } from '../api/client';
 import { showToast } from './toast';
 import * as api from '../api/client';
 
@@ -61,6 +61,27 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
           const job = await searchJob(q);
           if (job) {
             route(`/queues/${encodeURIComponent(job.queueName)}/jobs/${encodeURIComponent(job.id)}`);
+          } else {
+            showToast('No job found with that ID', 'error');
+          }
+        },
+      });
+    }
+
+    if (q && q.length >= 2) {
+      result.push({
+        id: `search:name:${q}`,
+        label: `Search by name: ${q}`,
+        description: activeQueue ?? 'all queues',
+        section: 'search',
+        action: async () => {
+          const jobs = await searchByName(q, activeQueue);
+          if (jobs.length === 1) {
+            route(`/queues/${encodeURIComponent(jobs[0]!.queueName)}/jobs/${encodeURIComponent(jobs[0]!.id)}`);
+          } else if (jobs.length > 1) {
+            route(`/queues/${encodeURIComponent(jobs[0]!.queueName)}?tab=${encodeURIComponent(jobs[0]!.state)}`);
+          } else {
+            showToast('No jobs found with that name', 'error');
           }
         },
       });
