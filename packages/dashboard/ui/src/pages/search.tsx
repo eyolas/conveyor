@@ -101,28 +101,31 @@ export function SearchPage({ path: _path }: { path?: string }) {
 
   return (
     <div class="flex flex-1 flex-col overflow-hidden">
-      {/* Header */}
-      <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-border-dim">
-        <div>
-          <h1 class="font-display text-lg font-bold text-slate-900 dark:text-text-bright">
-            Advanced Search
-          </h1>
-          <p class="mt-0.5 text-sm text-slate-500 dark:text-text-muted">
-            Search jobs across all queues with filters
-          </p>
-        </div>
-        {hasFilters && (
-          <button
-            onClick={clearFilters}
-            class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-border-default dark:text-text-secondary dark:hover:bg-surface-2"
-          >
-            Clear filters
-          </button>
-        )}
-      </div>
-
-      {/* Filter bar */}
+      {/* Filters */}
       <div class="border-b border-slate-200 bg-slate-50/50 px-6 py-4 dark:border-border-dim dark:bg-surface-1/50">
+        <div class="mb-3 flex items-center justify-between">
+          <h1 class="font-display text-sm font-bold text-slate-900 dark:text-text-bright">
+            Search Jobs
+          </h1>
+          <div class="flex items-center gap-3">
+            {searched && !loading && (
+              <span class="font-mono text-xs tabular-nums text-slate-500 dark:text-text-muted">
+                {total} result{total !== 1 ? 's' : ''}
+              </span>
+            )}
+            {loading && (
+              <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-accent dark:border-surface-3 dark:border-t-accent" />
+            )}
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                class="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:bg-slate-100 dark:border-border-default dark:text-text-muted dark:hover:bg-surface-2"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
         <div class="flex flex-wrap items-end gap-4">
           {/* Name */}
           <div class="min-w-[200px] flex-1">
@@ -216,25 +219,6 @@ export function SearchPage({ path: _path }: { path?: string }) {
 
       {/* Results */}
       <div class="flex-1 overflow-y-auto">
-        {/* Results header */}
-        {searched && (
-          <div class="flex items-center justify-between border-b border-slate-100 px-6 py-3 dark:border-border-dim">
-            <span class="text-sm text-slate-500 dark:text-text-muted">
-              {loading ? (
-                <span class="flex items-center gap-2">
-                  <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-accent dark:border-surface-3 dark:border-t-accent" />
-                  Searching...
-                </span>
-              ) : (
-                <>
-                  <span class="font-mono font-semibold tabular-nums text-slate-700 dark:text-text-primary">{total}</span>
-                  {' '}job{total !== 1 ? 's' : ''} found
-                </>
-              )}
-            </span>
-          </div>
-        )}
-
         {/* Table */}
         {jobs.length > 0 && (
           <table class="w-full text-left text-sm">
