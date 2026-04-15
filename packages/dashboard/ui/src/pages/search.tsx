@@ -263,7 +263,7 @@ export function SearchPage({ path: _path }: { path?: string }) {
                     {timeAgo(job.createdAt)}
                   </td>
                   <td class="px-3 py-3">
-                    <JobTypeTags job={job} />
+                    <JobTypeTags opts={job.opts} parentId={job.parentId} childrenIds={job.childrenIds ?? []} groupId={job.groupId} />
                   </td>
                 </tr>
               ))}
