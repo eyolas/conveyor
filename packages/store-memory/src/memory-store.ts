@@ -16,6 +16,8 @@ import type {
   MetricsBucket,
   MetricsQueryOptions,
   QueueInfo,
+  SearchJobsFilter,
+  SearchJobsResult,
   StoreEvent,
   StoreInterface,
   StoreOptions,
@@ -695,6 +697,27 @@ export class MemoryStore implements StoreInterface {
     }
     results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     return Promise.resolve(results);
+  }
+
+  searchJobs(filter: SearchJobsFilter, start = 0, end = 50): Promise<SearchJobsResult> {
+    const results: JobData[] = [];
+    const queues = filter.queueName ? [this.getQueue(filter.queueName)] : this.jobs.values();
+    for (const queue of queues) {
+      for (const job of queue.values()) {
+        if (filter.states && filter.states.length > 0 && !filter.states.includes(job.state)) {
+          continue;
+        }
+        if (filter.name && !job.name.toLowerCase().includes(filter.name.toLowerCase())) continue;
+        if (filter.createdAfter && job.createdAt < filter.createdAfter) continue;
+        if (filter.createdBefore && job.createdAt > filter.createdBefore) continue;
+        results.push(structuredClone(job));
+      }
+    }
+    results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return Promise.resolve({
+      jobs: results.slice(start, end),
+      total: results.length,
+    });
   }
 
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {

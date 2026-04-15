@@ -103,7 +103,7 @@ export function Sidebar({ collapsed, onToggle, activeQueue }: SidebarProps) {
         <a
           href="/"
           class={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-display text-xs font-semibold transition-colors ${
-            typeof location !== 'undefined' && location.pathname !== '/flows'
+            typeof location !== 'undefined' && location.pathname !== '/flows' && location.pathname !== '/search'
               ? 'bg-accent/10 text-accent dark:bg-accent-glow-strong dark:text-accent-bright'
               : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600 dark:text-text-muted dark:hover:bg-surface-2'
           }`}
@@ -128,6 +128,19 @@ export function Sidebar({ collapsed, onToggle, activeQueue }: SidebarProps) {
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z" />
           </svg>
           Flows
+        </a>
+        <a
+          href="/search"
+          class={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-display text-xs font-semibold transition-colors ${
+            typeof location !== 'undefined' && location.pathname === '/search'
+              ? 'bg-accent/10 text-accent dark:bg-accent-glow-strong dark:text-accent-bright'
+              : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600 dark:text-text-muted dark:hover:bg-surface-2'
+          }`}
+        >
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          Search
         </a>
       </div>
 

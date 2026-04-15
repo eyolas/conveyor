@@ -1,0 +1,335 @@
+import { useCallback, useEffect, useState } from 'preact/hooks';
+import { route } from 'preact-router';
+import {
+  type JobData,
+  listQueues,
+  type QueueInfo,
+  searchJobs,
+  type SearchJobsFilter,
+} from '../api/client';
+import { Badge } from '../components/badge';
+import { JobTypeTags } from '../components/job-type-tags';
+import { Pagination } from '../components/pagination';
+
+const STATES = ['waiting', 'active', 'completed', 'failed', 'delayed', 'waiting-children'] as const;
+const PAGE_SIZE = 50;
+
+function timeAgo(dateStr: string): string {
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+export function SearchPage({ path: _path }: { path?: string }) {
+  // ─── Filter state ─────────────────────────────────────────────
+  const [nameFilter, setNameFilter] = useState(() => {
+    if (typeof location === 'undefined') return '';
+    return new URLSearchParams(location.search).get('name') ?? '';
+  });
+  const [queueFilter, setQueueFilter] = useState('');
+  const [stateFilters, setStateFilters] = useState<Set<string>>(new Set());
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  // ─── Results state ────────────────────────────────────────────
+  const [jobs, setJobs] = useState<JobData[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [queues, setQueues] = useState<QueueInfo[]>([]);
+  const [searched, setSearched] = useState(false);
+
+  // Load queues for dropdown
+  useEffect(() => {
+    listQueues().then(setQueues).catch(() => {});
+  }, []);
+
+  const doSearch = useCallback(async (pageNum = 0) => {
+    setLoading(true);
+    setSearched(true);
+    try {
+      const filter: SearchJobsFilter = {};
+      if (nameFilter.trim()) filter.name = nameFilter.trim();
+      if (queueFilter) filter.queueName = queueFilter;
+      if (stateFilters.size > 0) filter.states = Array.from(stateFilters);
+      if (dateFrom) filter.createdAfter = new Date(dateFrom);
+      if (dateTo) filter.createdBefore = new Date(dateTo);
+
+      const start = pageNum * PAGE_SIZE;
+      const end = start + PAGE_SIZE;
+      const result = await searchJobs(filter, start, end);
+      setJobs(result.data);
+      setTotal(result.meta.total);
+      setPage(pageNum);
+    } catch {
+      setJobs([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [nameFilter, queueFilter, stateFilters, dateFrom, dateTo]);
+
+  // Auto-search on filter change (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => doSearch(0), 300);
+    return () => clearTimeout(timer);
+  }, [doSearch]);
+
+  const toggleState = (state: string) => {
+    setStateFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(state)) next.delete(state);
+      else next.add(state);
+      return next;
+    });
+  };
+
+  const clearFilters = () => {
+    setNameFilter('');
+    setQueueFilter('');
+    setStateFilters(new Set());
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const hasFilters = nameFilter || queueFilter || stateFilters.size > 0 || dateFrom || dateTo;
+
+  return (
+    <div class="flex flex-1 flex-col overflow-hidden">
+      {/* Header */}
+      <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-border-dim">
+        <div>
+          <h1 class="font-display text-lg font-bold text-slate-900 dark:text-text-bright">
+            Advanced Search
+          </h1>
+          <p class="mt-0.5 text-sm text-slate-500 dark:text-text-muted">
+            Search jobs across all queues with filters
+          </p>
+        </div>
+        {hasFilters && (
+          <button
+            onClick={clearFilters}
+            class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-border-default dark:text-text-secondary dark:hover:bg-surface-2"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {/* Filter bar */}
+      <div class="border-b border-slate-200 bg-slate-50/50 px-6 py-4 dark:border-border-dim dark:bg-surface-1/50">
+        <div class="flex flex-wrap items-end gap-4">
+          {/* Name */}
+          <div class="min-w-[200px] flex-1">
+            <label class="mb-1.5 block font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
+              Job name
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. send-notification"
+              value={nameFilter}
+              onInput={(e) => setNameFilter((e.target as HTMLInputElement).value)}
+              class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 dark:border-border-default dark:bg-surface-2 dark:text-text-primary dark:placeholder-text-muted dark:focus:border-accent"
+            />
+          </div>
+
+          {/* Queue */}
+          <div class="w-48">
+            <label class="mb-1.5 block font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
+              Queue
+            </label>
+            <select
+              value={queueFilter}
+              onChange={(e) => setQueueFilter((e.target as HTMLSelectElement).value)}
+              class="h-9 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 dark:border-border-default dark:bg-surface-2 dark:text-text-primary dark:focus:border-accent"
+            >
+              <option value="">All queues</option>
+              {queues.map((q) => (
+                <option key={q.name} value={q.name}>{q.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date from */}
+          <div class="w-48">
+            <label class="mb-1.5 block font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
+              Created after
+            </label>
+            <input
+              type="datetime-local"
+              value={dateFrom}
+              onInput={(e) => setDateFrom((e.target as HTMLInputElement).value)}
+              class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 dark:border-border-default dark:bg-surface-2 dark:text-text-primary dark:focus:border-accent"
+            />
+          </div>
+
+          {/* Date to */}
+          <div class="w-48">
+            <label class="mb-1.5 block font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
+              Created before
+            </label>
+            <input
+              type="datetime-local"
+              value={dateTo}
+              onInput={(e) => setDateTo((e.target as HTMLInputElement).value)}
+              class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 dark:border-border-default dark:bg-surface-2 dark:text-text-primary dark:focus:border-accent"
+            />
+          </div>
+        </div>
+
+        {/* State chips */}
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <span class="font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
+            State
+          </span>
+          {STATES.map((state) => {
+            const active = stateFilters.has(state);
+            return (
+              <button
+                key={state}
+                onClick={() => toggleState(state)}
+                class={`rounded-full px-3 py-1 font-display text-[11px] font-medium uppercase tracking-wide transition-all ${
+                  active
+                    ? 'bg-accent/15 text-accent ring-1 ring-accent/30 dark:bg-accent-glow-strong dark:text-accent-bright dark:ring-accent/40'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-surface-3 dark:text-text-muted dark:hover:bg-surface-4'
+                }`}
+              >
+                {state}
+              </button>
+            );
+          })}
+          {stateFilters.size > 0 && (
+            <button
+              onClick={() => setStateFilters(new Set())}
+              class="text-[11px] text-slate-400 hover:text-slate-600 dark:text-text-muted dark:hover:text-text-secondary"
+            >
+              clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Results */}
+      <div class="flex-1 overflow-y-auto">
+        {/* Results header */}
+        {searched && (
+          <div class="flex items-center justify-between border-b border-slate-100 px-6 py-3 dark:border-border-dim">
+            <span class="text-sm text-slate-500 dark:text-text-muted">
+              {loading ? (
+                <span class="flex items-center gap-2">
+                  <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-accent dark:border-surface-3 dark:border-t-accent" />
+                  Searching...
+                </span>
+              ) : (
+                <>
+                  <span class="font-mono font-semibold tabular-nums text-slate-700 dark:text-text-primary">{total}</span>
+                  {' '}job{total !== 1 ? 's' : ''} found
+                </>
+              )}
+            </span>
+          </div>
+        )}
+
+        {/* Table */}
+        {jobs.length > 0 && (
+          <table class="w-full text-left text-sm">
+            <thead>
+              <tr class="border-b border-slate-100 text-slate-400 dark:border-border-dim dark:text-text-muted">
+                <th class="px-6 py-3 font-display text-[10px] font-semibold uppercase tracking-wider">State</th>
+                <th class="px-3 py-3 font-display text-[10px] font-semibold uppercase tracking-wider">Name</th>
+                <th class="px-3 py-3 font-display text-[10px] font-semibold uppercase tracking-wider">Queue</th>
+                <th class="px-3 py-3 font-display text-[10px] font-semibold uppercase tracking-wider">ID</th>
+                <th class="px-3 py-3 font-display text-[10px] font-semibold uppercase tracking-wider">Created</th>
+                <th class="px-3 py-3 font-display text-[10px] font-semibold uppercase tracking-wider">Tags</th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((job) => (
+                <tr
+                  key={job.id}
+                  onClick={() => route(`/queues/${encodeURIComponent(job.queueName)}/jobs/${encodeURIComponent(job.id)}`)}
+                  class="cursor-pointer border-b border-slate-50 transition-colors hover:bg-slate-50 dark:border-border-dim/50 dark:hover:bg-surface-2"
+                >
+                  <td class="px-6 py-3">
+                    <Badge state={job.state} />
+                  </td>
+                  <td class="px-3 py-3 font-medium text-slate-900 dark:text-text-bright">
+                    {job.name}
+                  </td>
+                  <td class="px-3 py-3">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        route(`/queues/${encodeURIComponent(job.queueName)}`);
+                      }}
+                      class="font-mono text-xs text-accent hover:underline dark:text-accent-bright"
+                    >
+                      {job.queueName}
+                    </button>
+                  </td>
+                  <td class="px-3 py-3 font-mono text-xs text-slate-400 dark:text-text-muted">
+                    {job.id.slice(0, 12)}...
+                  </td>
+                  <td class="px-3 py-3 text-slate-500 dark:text-text-secondary" title={job.createdAt}>
+                    {timeAgo(job.createdAt)}
+                  </td>
+                  <td class="px-3 py-3">
+                    <JobTypeTags job={job} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {/* Pagination */}
+        {total > PAGE_SIZE && (
+          <Pagination
+            total={total}
+            start={page * PAGE_SIZE}
+            end={Math.min((page + 1) * PAGE_SIZE, total)}
+            pageSize={PAGE_SIZE}
+            onPageChange={(newStart) => doSearch(Math.floor(newStart / PAGE_SIZE))}
+          />
+        )}
+
+        {/* Empty state */}
+        {searched && !loading && jobs.length === 0 && (
+          <div class="flex flex-col items-center gap-3 py-20">
+            <svg class="h-12 w-12 text-slate-200 dark:text-surface-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <p class="text-sm text-slate-400 dark:text-text-muted">
+              No jobs match your filters
+            </p>
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                class="text-xs text-accent hover:underline dark:text-accent-bright"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Initial state */}
+        {!searched && (
+          <div class="flex flex-col items-center gap-3 py-20">
+            <svg class="h-12 w-12 text-slate-200 dark:text-surface-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <p class="text-sm text-slate-400 dark:text-text-muted">
+              Use the filters above to search jobs
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

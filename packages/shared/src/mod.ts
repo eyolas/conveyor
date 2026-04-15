@@ -34,6 +34,8 @@ export type {
   QueueOptions,
   RepeatOptions,
   ScheduleDelay,
+  SearchJobsFilter,
+  SearchJobsResult,
   StoreEvent,
   StoreEventType,
   StoreInterface,

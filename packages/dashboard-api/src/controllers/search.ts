@@ -5,8 +5,9 @@
  */
 
 import type { Hono } from 'hono';
-import type { StoreInterface } from '@conveyor/shared';
-import { jsonData, jsonError } from '../helpers.ts';
+import type { JobState, StoreInterface } from '@conveyor/shared';
+import { JOB_STATES } from '@conveyor/shared';
+import { jsonData, jsonError, jsonPaginated } from '../helpers.ts';
 
 export function registerSearchRoutes(
   app: Hono,
@@ -67,5 +68,56 @@ export function registerSearchRoutes(
     }
 
     return jsonError(c, 'BAD_REQUEST', 'type must be "job", "queue", "payload", or "name"');
+  });
+
+  // GET /api/jobs/search — advanced job search with combinable filters
+  app.get(`${apiBase}/jobs/search`, async (c) => {
+    if (!store.searchJobs) {
+      return jsonPaginated(c, [], { total: 0, start: 0, end: 0 });
+    }
+
+    const name = c.req.query('name');
+    const queueName = c.req.query('queue');
+    const stateParam = c.req.query('state');
+    const after = c.req.query('after');
+    const before = c.req.query('before');
+    const start = Math.max(0, parseInt(c.req.query('start') ?? '0', 10) || 0);
+    const end = Math.max(start, parseInt(c.req.query('end') ?? '50', 10) || 50);
+
+    if (end - start > 1000) {
+      return jsonError(c, 'BAD_REQUEST', 'Page size too large (max 1000)');
+    }
+
+    // Parse states (comma-separated)
+    let states: JobState[] | undefined;
+    if (stateParam) {
+      states = stateParam.split(',').filter((s): s is JobState =>
+        JOB_STATES.includes(s as JobState)
+      );
+      if (states.length === 0) states = undefined;
+    }
+
+    // Respect filterQueues option
+    if (queueName && filterQueues && !filterQueues.includes(queueName)) {
+      return jsonPaginated(c, [], { total: 0, start, end });
+    }
+
+    const result = await store.searchJobs({
+      name: name ?? undefined,
+      queueName: queueName ?? undefined,
+      states,
+      createdAfter: after ? new Date(after) : undefined,
+      createdBefore: before ? new Date(before) : undefined,
+    }, start, end);
+
+    // Filter by allowed queues if needed
+    let jobs = result.jobs;
+    let total = result.total;
+    if (filterQueues) {
+      jobs = jobs.filter((j) => filterQueues.includes(j.queueName));
+      total = jobs.length;
+    }
+
+    return jsonPaginated(c, jobs, { total, start, end });
   });
 }

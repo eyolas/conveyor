@@ -133,6 +133,17 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
       });
     }
 
+    // ─── Advanced search ─────────────────────────────────────────
+    if (q && q.length >= 2) {
+      result.push({
+        id: `search:advanced:${q}`,
+        label: `Advanced search: ${q}`,
+        description: 'open search page',
+        section: 'search',
+        action: () => route(`/search?name=${encodeURIComponent(q)}`),
+      });
+    }
+
     // ─── Search payload ─────────────────────────────────────────
     if (q && q.length >= 2 && activeQueue) {
       result.push({

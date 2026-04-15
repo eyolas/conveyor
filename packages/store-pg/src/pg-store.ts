@@ -5,6 +5,8 @@ import type {
   MetricsBucket,
   MetricsQueryOptions,
   QueueInfo,
+  SearchJobsFilter,
+  SearchJobsResult,
   StoreEvent,
   StoreInterface,
   StoreOptions,
@@ -896,6 +898,49 @@ export class PgStore implements StoreInterface {
           ORDER BY created_at DESC LIMIT ${limit}
         `;
     return rows.map(rowToJobData);
+  }
+
+  async searchJobs(
+    filter: SearchJobsFilter,
+    start = 0,
+    end = 50,
+  ): Promise<SearchJobsResult> {
+    const limit = Math.max(0, end - start);
+    const conditions: ReturnType<typeof this.sql>[] = [];
+
+    if (filter.queueName) {
+      conditions.push(this.sql`queue_name = ${filter.queueName}`);
+    }
+    if (filter.states && filter.states.length > 0) {
+      conditions.push(this.sql`state = ANY(${filter.states})`);
+    }
+    if (filter.name) {
+      const escaped = filter.name.replace(/[%_\\]/g, '\\$&');
+      conditions.push(this.sql`name ILIKE ${`%${escaped}%`} ESCAPE '\\'`);
+    }
+    if (filter.createdAfter) {
+      conditions.push(this.sql`created_at >= ${filter.createdAfter}`);
+    }
+    if (filter.createdBefore) {
+      conditions.push(this.sql`created_at <= ${filter.createdBefore}`);
+    }
+
+    const where = conditions.length > 0
+      ? this.sql`WHERE ${conditions.reduce((a, b) => this.sql`${a} AND ${b}`)}`
+      : this.sql``;
+
+    const [countRow] = await this.sql<[{ count: string }]>`
+      SELECT COUNT(*)::text AS count FROM conveyor_jobs ${where}
+    `;
+    const total = parseInt(countRow?.count ?? '0', 10);
+
+    const rows = await this.sql<JobRow[]>`
+      SELECT * FROM conveyor_jobs ${where}
+      ORDER BY created_at DESC
+      LIMIT ${limit} OFFSET ${start}
+    `;
+
+    return { jobs: rows.map(rowToJobData), total };
   }
 
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {

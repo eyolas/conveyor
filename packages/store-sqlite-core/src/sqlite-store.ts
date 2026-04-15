@@ -12,6 +12,8 @@ import type {
   MetricsBucket,
   MetricsQueryOptions,
   QueueInfo,
+  SearchJobsFilter,
+  SearchJobsResult,
   StoreEvent,
   StoreInterface,
   StoreOptions,
@@ -986,6 +988,47 @@ export class BaseSqliteStore implements StoreInterface {
     const params = state ? [state, limit] : [limit];
     const rows = this.db.prepare(sql).all(...params) as unknown as JobRow[];
     return Promise.resolve(rows.map(rowToJobData));
+  }
+
+  searchJobs(filter: SearchJobsFilter, start = 0, end = 50): Promise<SearchJobsResult> {
+    const limit = Math.max(0, end - start);
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filter.queueName) {
+      conditions.push('queue_name = ?');
+      params.push(filter.queueName);
+    }
+    if (filter.states && filter.states.length > 0) {
+      conditions.push(`state IN (${filter.states.map(() => '?').join(', ')})`);
+      params.push(...filter.states);
+    }
+    if (filter.name) {
+      const escaped = filter.name.replace(/[%_\\]/g, '\\$&');
+      conditions.push("name LIKE ? ESCAPE '\\'");
+      params.push(`%${escaped}%`);
+    }
+    if (filter.createdAfter) {
+      conditions.push('created_at >= ?');
+      params.push(filter.createdAfter.toISOString());
+    }
+    if (filter.createdBefore) {
+      conditions.push('created_at <= ?');
+      params.push(filter.createdBefore.toISOString());
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countRow = this.db.prepare(
+      `SELECT COUNT(*) AS count FROM conveyor_jobs ${where}`,
+    ).get(...params) as unknown as { count: number | bigint };
+    const total = Number(countRow?.count ?? 0);
+
+    const rows = this.db.prepare(
+      `SELECT * FROM conveyor_jobs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+    ).all(...params, limit, start) as unknown as JobRow[];
+
+    return Promise.resolve({ jobs: rows.map(rowToJobData), total });
   }
 
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {
