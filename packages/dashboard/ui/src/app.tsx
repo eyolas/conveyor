@@ -41,9 +41,9 @@ export function App() {
           <SearchPage path="/search" />
           <FlowsPage path="/flows" />
           <FlowDetailPage path="/flows/:name/:id" />
-          <QueuePage path="/queues/:name" />
           <JobPage path="/queues/:name/jobs/:id" />
-          <HomePage default path="/" />
+          <QueuePage path="/queues/:name" />
+          <HomePage path="/" />
         </Router>
       </Layout>
     </LiveUpdatesContext.Provider>
