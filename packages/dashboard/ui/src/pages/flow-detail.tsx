@@ -171,7 +171,7 @@ export function FlowDetailPage({
   }, [loadFlow]);
 
   const { liveUpdates, onRefresh } = useLiveUpdatesContext();
-  useSSE({ queueName, onEvent: loadFlow, paused: !liveUpdates });
+  useSSE({ queueName, onEvent: () => loadFlow(), paused: !liveUpdates });
   useEffect(() => onRefresh(loadFlow), [onRefresh, loadFlow]);
 
   const detailJob = selectedChild ?? parent;

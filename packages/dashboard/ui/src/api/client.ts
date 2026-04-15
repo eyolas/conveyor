@@ -16,6 +16,7 @@ import type {
   ClientQueueDetail,
   ClientQueueInfo,
   PaginatedResponse,
+  SSEEvent,
 } from '@conveyor/dashboard-client';
 
 // ─── Types (re-export with UI-facing names) ─────────────────────────
@@ -25,12 +26,14 @@ export type QueueDetail = ClientQueueDetail;
 export type JobData = ClientJobData;
 export type GroupInfo = ClientGroupInfo;
 export type MetricsBucket = ClientMetricsBucket;
+export type { SSEEvent };
 
 // ─── Singleton Client ───────────────────────────────────────────────
 
 const BASE = import.meta.env.VITE_API_BASE ?? '';
 
-const client = new ConveyorDashboardClient({
+/** Shared client instance used by all API functions and the SSE hook. */
+export const client = new ConveyorDashboardClient({
   baseUrl: BASE,
 });
 

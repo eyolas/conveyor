@@ -76,7 +76,7 @@ export class ConveyorDashboardClient {
   async pauseQueue(name: string, jobName?: string): Promise<void> {
     await this.#request(`/queues/${encodeURIComponent(name)}/pause`, {
       method: 'POST',
-      body: JSON.stringify({ jobName }),
+      body: jobName !== undefined ? JSON.stringify({ jobName }) : undefined,
     });
   }
 
@@ -88,7 +88,7 @@ export class ConveyorDashboardClient {
   async resumeQueue(name: string, jobName?: string): Promise<void> {
     await this.#request(`/queues/${encodeURIComponent(name)}/resume`, {
       method: 'POST',
-      body: JSON.stringify({ jobName }),
+      body: jobName !== undefined ? JSON.stringify({ jobName }) : undefined,
     });
   }
 
@@ -367,10 +367,16 @@ export class ConveyorDashboardClient {
       },
     });
 
+    // 204 No Content — no body to parse
+    if (res.status === 204) {
+      return undefined as T;
+    }
+
     let body: unknown;
     try {
       body = await res.json();
     } catch {
+      if (res.ok) return undefined as T;
       throw new ConveyorApiError(
         res.status,
         'PARSE_ERROR',

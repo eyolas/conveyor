@@ -1,16 +1,12 @@
 import { useEffect, useRef } from 'preact/hooks';
-import { ConveyorDashboardClient } from '@conveyor/dashboard-client';
-import type { StoreEventType } from '@conveyor/dashboard-client';
-
-const BASE = import.meta.env.VITE_API_BASE ?? '';
-
-const client = new ConveyorDashboardClient({ baseUrl: BASE });
+import type { SSEEvent } from '@conveyor/dashboard-client';
+import { client } from '../api/client';
 
 export interface SSEOptions {
   /** Queue name, or omit for all-queues stream. */
   queueName?: string;
   /** Called for every SSE event. */
-  onEvent: (event: { type: string; data: Record<string, unknown> }) => void;
+  onEvent: (event: SSEEvent) => void;
   /** Called on connection error. */
   onError?: (error: Event) => void;
   /** When true, SSE connection is closed and events are ignored. */
@@ -32,12 +28,7 @@ export function useSSE({ queueName, onEvent, onError, paused }: SSEOptions): voi
 
     const sub = client.subscribe({
       queueName,
-      onEvent: (event) => {
-        onEventRef.current({
-          type: event.type,
-          data: event as unknown as Record<string, unknown>,
-        });
-      },
+      onEvent: (event) => onEventRef.current(event),
       onError: (e) => onErrorRef.current?.(e),
     });
 

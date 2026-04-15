@@ -73,7 +73,7 @@ export function JobPage({ name, id }: { name?: string; id?: string; path?: strin
   const { liveUpdates, onRefresh } = useLiveUpdatesContext();
   useSSE({
     queueName,
-    onEvent: (e) => { if (e.data.jobId === jobId) loadJob(); },
+    onEvent: (e) => { if (e.jobId === jobId) loadJob(); },
     paused: !liveUpdates,
   });
   useEffect(() => onRefresh(loadJob), [onRefresh, loadJob]);

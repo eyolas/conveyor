@@ -184,7 +184,7 @@ export function FlowsPage() {
   }, [loadFlows]);
 
   const { liveUpdates, onRefresh } = useLiveUpdatesContext();
-  useSSE({ onEvent: loadFlows, paused: !liveUpdates });
+  useSSE({ onEvent: () => loadFlows(), paused: !liveUpdates });
   useEffect(() => onRefresh(loadFlows), [onRefresh, loadFlows]);
 
   const toggleExpand = useCallback(async (parent: JobData) => {
