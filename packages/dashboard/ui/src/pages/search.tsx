@@ -100,10 +100,14 @@ export function SearchPage({ path: _path }: { path?: string }) {
   const hasFilters = nameFilter || queueFilter || stateFilters.size > 0 || dateFrom || dateTo;
 
   return (
-    <div class="flex flex-1 flex-col overflow-hidden">
-      {/* Filters */}
-      <div class="border-b border-slate-200 bg-slate-50/50 px-6 py-4 dark:border-border-dim dark:bg-surface-1/50">
-        <div class="mb-3 flex items-center justify-between">
+    <div class="flex flex-col">
+      {/* Filters — sticky: parent must not use overflow-hidden (scroll is on <main>) */}
+      <section class="relative sticky top-0 z-10 mb-6 rounded-xl border border-slate-200/90 bg-white/90 px-5 py-5 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.14)] backdrop-blur-md dark:border-border-default dark:bg-surface-2/95 dark:shadow-[0_12px_40px_-16px_rgba(0,0,0,0.55)]">
+        <div
+          class="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/55 to-transparent dark:via-accent-bright/45"
+          aria-hidden="true"
+        />
+        <div class="mb-4 flex items-center justify-between gap-4">
           <h1 class="font-display text-sm font-bold text-slate-900 dark:text-text-bright">
             Search Jobs
           </h1>
@@ -247,10 +251,10 @@ export function SearchPage({ path: _path }: { path?: string }) {
             </button>
           )}
         </div>
-      </div>
+      </section>
 
       {/* Results */}
-      <div class="flex-1 overflow-y-auto">
+      <div>
         {/* Table */}
         {jobs.length > 0 && (
           <table class="w-full text-left text-sm">
