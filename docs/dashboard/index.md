@@ -1,9 +1,10 @@
 # Web Dashboard
 
-A real-time monitoring and management UI for your Conveyor job queues. Ships as two packages:
+A real-time monitoring and management UI for your Conveyor job queues. Ships as three packages:
 
 - **`@conveyor/dashboard`** -- the full dashboard (API + embedded UI)
 - **`@conveyor/dashboard-api`** -- headless REST API only
+- **`@conveyor/dashboard-client`** -- typed HTTP + SSE client for the API
 
 ## Features
 
@@ -103,4 +104,5 @@ completion status.
 ## Next Steps
 
 - [Setup & Configuration](/dashboard/setup) -- installation, options, and framework integration
+- [Client SDK](/dashboard/client) -- typed HTTP + SSE client for custom integrations
 - [API Reference](/dashboard/api-reference) -- full REST endpoint documentation

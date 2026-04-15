@@ -132,6 +132,7 @@ export default withMermaid(defineConfig({
           items: [
             { text: 'Overview', link: '/dashboard/' },
             { text: 'Setup & Configuration', link: '/dashboard/setup' },
+            { text: 'Client SDK', link: '/dashboard/client' },
             { text: 'API Reference', link: '/dashboard/api-reference' },
           ],
         },

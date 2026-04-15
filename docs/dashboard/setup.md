@@ -8,6 +8,7 @@ The dashboard is available in two flavors:
 | --- | --- |
 | `@conveyor/dashboard` | Full dashboard: REST API + embedded web UI |
 | `@conveyor/dashboard-api` | Headless REST API only (bring your own UI) |
+| `@conveyor/dashboard-client` | Typed HTTP + SSE client for the API ([docs](/dashboard/client)) |
 
 ::: code-group
 
