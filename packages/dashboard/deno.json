@@ -1,6 +1,6 @@
 {
   "name": "@conveyor/dashboard",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "exports": "./src/mod.ts",
   "imports": {
     "@conveyor/dashboard-api": "jsr:@conveyor/dashboard-api@^1.0.0"

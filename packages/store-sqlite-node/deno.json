@@ -1,6 +1,6 @@
 {
   "name": "@conveyor/store-sqlite-node",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "exports": "./src/mod.ts",
   "imports": {
     "@conveyor/shared": "jsr:@conveyor/shared@^1.0.0",
