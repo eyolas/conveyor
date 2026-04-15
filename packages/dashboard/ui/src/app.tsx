@@ -38,12 +38,12 @@ export function App() {
     >
       <Layout url={url}>
         <Router onChange={(e) => setUrl(e.url)}>
-          <HomePage path="/" />
+          <SearchPage path="/search" />
           <FlowsPage path="/flows" />
           <FlowDetailPage path="/flows/:name/:id" />
           <QueuePage path="/queues/:name" />
           <JobPage path="/queues/:name/jobs/:id" />
-          <SearchPage path="/search" />
+          <HomePage default path="/" />
         </Router>
       </Layout>
     </LiveUpdatesContext.Provider>
