@@ -119,9 +119,12 @@ export function SearchPage({ path: _path }: { path?: string }) {
             {hasFilters && (
               <button
                 onClick={clearFilters}
-                class="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:bg-slate-100 dark:border-border-default dark:text-text-muted dark:hover:bg-surface-2"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-600 transition-colors hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
               >
-                Clear
+                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Clear all
               </button>
             )}
           </div>
@@ -132,13 +135,26 @@ export function SearchPage({ path: _path }: { path?: string }) {
             <label class="mb-1.5 block font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
               Job name
             </label>
-            <input
-              type="text"
-              placeholder="e.g. send-notification"
-              value={nameFilter}
-              onInput={(e) => setNameFilter((e.target as HTMLInputElement).value)}
-              class="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 dark:border-border-default dark:bg-surface-2 dark:text-text-primary dark:placeholder-text-muted dark:focus:border-accent"
-            />
+            <div class="relative">
+              <input
+                type="text"
+                placeholder="e.g. send-notification"
+                value={nameFilter}
+                onInput={(e) => setNameFilter((e.target as HTMLInputElement).value)}
+                class={`h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 dark:border-border-default dark:bg-surface-2 dark:text-text-primary dark:placeholder-text-muted dark:focus:border-accent ${nameFilter ? 'pr-8' : ''}`}
+              />
+              {nameFilter && (
+                <button
+                  onClick={() => setNameFilter('')}
+                  class="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-slate-300 transition-colors hover:bg-slate-100 hover:text-slate-500 dark:text-text-muted dark:hover:bg-surface-3 dark:hover:text-text-secondary"
+                  title="Clear job name"
+                >
+                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Queue */}
@@ -146,16 +162,29 @@ export function SearchPage({ path: _path }: { path?: string }) {
             <label class="mb-1.5 block font-display text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-text-muted">
               Queue
             </label>
-            <select
-              value={queueFilter}
-              onChange={(e) => setQueueFilter((e.target as HTMLSelectElement).value)}
-              class="h-9 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 dark:border-border-default dark:bg-surface-2 dark:text-text-primary dark:focus:border-accent"
-            >
-              <option value="">All queues</option>
-              {queues.map((q) => (
-                <option key={q.name} value={q.name}>{q.name}</option>
-              ))}
-            </select>
+            <div class="relative">
+              <select
+                value={queueFilter}
+                onChange={(e) => setQueueFilter((e.target as HTMLSelectElement).value)}
+                class={`h-9 w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 transition-colors focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 dark:border-border-default dark:bg-surface-2 dark:text-text-primary dark:focus:border-accent ${queueFilter ? 'pr-8' : ''}`}
+              >
+                <option value="">All queues</option>
+                {queues.map((q) => (
+                  <option key={q.name} value={q.name}>{q.name}</option>
+                ))}
+              </select>
+              {queueFilter && (
+                <button
+                  onClick={() => setQueueFilter('')}
+                  class="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-slate-300 transition-colors hover:bg-slate-100 hover:text-slate-500 dark:text-text-muted dark:hover:bg-surface-3 dark:hover:text-text-secondary"
+                  title="Clear queue"
+                >
+                  <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Date from */}
@@ -209,8 +238,11 @@ export function SearchPage({ path: _path }: { path?: string }) {
           {stateFilters.size > 0 && (
             <button
               onClick={() => setStateFilters(new Set())}
-              class="text-[11px] text-slate-400 hover:text-slate-600 dark:text-text-muted dark:hover:text-text-secondary"
+              class="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-500 transition-colors hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
             >
+              <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
               clear
             </button>
           )}
