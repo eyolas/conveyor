@@ -97,6 +97,16 @@ export function registerSearchRoutes(
       if (states.length === 0) states = undefined;
     }
 
+    // Parse and validate dates
+    const afterDate = after ? new Date(after) : undefined;
+    const beforeDate = before ? new Date(before) : undefined;
+    if (afterDate && Number.isNaN(afterDate.getTime())) {
+      return jsonError(c, 'BAD_REQUEST', 'Invalid "after" date');
+    }
+    if (beforeDate && Number.isNaN(beforeDate.getTime())) {
+      return jsonError(c, 'BAD_REQUEST', 'Invalid "before" date');
+    }
+
     // Respect filterQueues option
     const effectiveQueue = queueName ?? undefined;
     if (effectiveQueue && filterQueues && !filterQueues.includes(effectiveQueue)) {
@@ -112,23 +122,23 @@ export function registerSearchRoutes(
           name: name ?? undefined,
           queueName: allowedQueue,
           states,
-          createdAfter: after ? new Date(after) : undefined,
-          createdBefore: before ? new Date(before) : undefined,
+          createdAfter: afterDate,
+          createdBefore: beforeDate,
         }, 0, 10_000);
         allJobs = allJobs.concat(r.jobs);
       }
       allJobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       const total = allJobs.length;
       const paged = allJobs.slice(start, end);
-      return jsonPaginated(c, paged, { total, start, end: start + paged.length });
+      return jsonPaginated(c, paged, { total, start, end });
     }
 
     const result = await store.searchJobs({
       name: name ?? undefined,
       queueName: effectiveQueue,
       states,
-      createdAfter: after ? new Date(after) : undefined,
-      createdBefore: before ? new Date(before) : undefined,
+      createdAfter: afterDate,
+      createdBefore: beforeDate,
     }, start, end);
 
     return jsonPaginated(c, result.jobs, { total: result.total, start, end });
