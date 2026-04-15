@@ -12,6 +12,13 @@
 <p align="center">
   <a href="https://github.com/eyolas/conveyor/actions/workflows/ci.yml"><img src="https://github.com/eyolas/conveyor/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/eyolas/conveyor/actions/workflows/deploy-docs.yml"><img src="https://github.com/eyolas/conveyor/actions/workflows/deploy-docs.yml/badge.svg" alt="Deploy Docs" /></a>
+  <a href="https://jsr.io/@conveyor/core"><img src="https://jsr.io/badges/@conveyor/core" alt="JSR" /></a>
+</p>
+
+<p align="center">
+  <a href="https://conveyor-docs.pages.dev">Documentation</a> ·
+  <a href="https://conveyor-docs.pages.dev/dashboard/">Dashboard</a> ·
+  <a href="https://conveyor-docs.pages.dev/dashboard/api-reference">API Reference</a>
 </p>
 
 ## Why Conveyor?
@@ -62,16 +69,19 @@ await queue.close();
 
 ## Packages
 
-| Package                       | Description                | Status |
-| ----------------------------- | -------------------------- | ------ |
-| `@conveyor/core`              | Queue, Worker, Job, Events | Alpha  |
-| `@conveyor/shared`            | Types & utilities          | Alpha  |
-| `@conveyor/store-memory`      | In-memory store            | Alpha  |
-| `@conveyor/store-pg`          | PostgreSQL store           | Alpha  |
-| `@conveyor/store-sqlite-node` | SQLite store (Node.js)     | Alpha  |
-| `@conveyor/store-sqlite-bun`  | SQLite store (Bun)         | Alpha  |
-| `@conveyor/store-sqlite-deno` | SQLite store (Deno)        | Alpha  |
-| `@conveyor/store-sqlite-core` | SQLite shared base         | Alpha  |
+| Package | Description | JSR |
+| --- | --- | --- |
+| `@conveyor/core` | Queue, Worker, Job, Events | [![JSR](https://jsr.io/badges/@conveyor/core)](https://jsr.io/@conveyor/core) |
+| `@conveyor/shared` | Types & utilities | [![JSR](https://jsr.io/badges/@conveyor/shared)](https://jsr.io/@conveyor/shared) |
+| `@conveyor/store-memory` | In-memory store | [![JSR](https://jsr.io/badges/@conveyor/store-memory)](https://jsr.io/@conveyor/store-memory) |
+| `@conveyor/store-pg` | PostgreSQL store | [![JSR](https://jsr.io/badges/@conveyor/store-pg)](https://jsr.io/@conveyor/store-pg) |
+| `@conveyor/store-sqlite-node` | SQLite store (Node.js) | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-node)](https://jsr.io/@conveyor/store-sqlite-node) |
+| `@conveyor/store-sqlite-bun` | SQLite store (Bun) | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-bun)](https://jsr.io/@conveyor/store-sqlite-bun) |
+| `@conveyor/store-sqlite-deno` | SQLite store (Deno) | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-deno)](https://jsr.io/@conveyor/store-sqlite-deno) |
+| `@conveyor/store-sqlite-core` | SQLite shared base | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-core)](https://jsr.io/@conveyor/store-sqlite-core) |
+| `@conveyor/dashboard` | Web dashboard (API + UI) | [![JSR](https://jsr.io/badges/@conveyor/dashboard)](https://jsr.io/@conveyor/dashboard) |
+| `@conveyor/dashboard-api` | Headless REST API | [![JSR](https://jsr.io/badges/@conveyor/dashboard-api)](https://jsr.io/@conveyor/dashboard-api) |
+| `@conveyor/dashboard-client` | Typed HTTP + SSE client | [![JSR](https://jsr.io/badges/@conveyor/dashboard-client)](https://jsr.io/@conveyor/dashboard-client) |
 
 ## API
 
