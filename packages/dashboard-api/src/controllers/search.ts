@@ -118,13 +118,17 @@ export function registerSearchRoutes(
     if (filterQueues && !effectiveQueue) {
       let allJobs: Awaited<ReturnType<NonNullable<typeof store.searchJobs>>>['jobs'] = [];
       for (const allowedQueue of filterQueues) {
-        const r = await store.searchJobs!({
-          name: name ?? undefined,
-          queueName: allowedQueue,
-          states,
-          createdAfter: afterDate,
-          createdBefore: beforeDate,
-        }, 0, 10_000);
+        const r = await store.searchJobs!(
+          {
+            name: name ?? undefined,
+            queueName: allowedQueue,
+            states,
+            createdAfter: afterDate,
+            createdBefore: beforeDate,
+          },
+          0,
+          10_000,
+        );
         allJobs = allJobs.concat(r.jobs);
       }
       allJobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -133,13 +137,17 @@ export function registerSearchRoutes(
       return jsonPaginated(c, paged, { total, start, end });
     }
 
-    const result = await store.searchJobs({
-      name: name ?? undefined,
-      queueName: effectiveQueue,
-      states,
-      createdAfter: afterDate,
-      createdBefore: beforeDate,
-    }, start, end);
+    const result = await store.searchJobs(
+      {
+        name: name ?? undefined,
+        queueName: effectiveQueue,
+        states,
+        createdAfter: afterDate,
+        createdBefore: beforeDate,
+      },
+      start,
+      end,
+    );
 
     return jsonPaginated(c, result.jobs, { total: result.total, start, end });
   });
