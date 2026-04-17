@@ -53,7 +53,7 @@ async function authAwareFetch(
       showToast(
         res.status === 401
           ? 'Session expired — refresh or sign in again'
-          : 'Action blocked — read-only mode or insufficient permissions',
+          : 'Request forbidden (403) — check permissions or read-only mode',
         'error',
       );
     }

@@ -1,11 +1,6 @@
 import { createContext, type ComponentChildren } from 'preact';
 import { useContext, useEffect, useState } from 'preact/hooks';
-import { client } from '../api/client';
-
-export interface DashboardConfig {
-  readOnly: boolean;
-  authRequired: boolean;
-}
+import { client, type DashboardConfig } from '../api/client';
 
 const DEFAULT_CONFIG: DashboardConfig = { readOnly: false, authRequired: false };
 
