@@ -1010,11 +1010,11 @@ export class BaseSqliteStore implements StoreInterface {
     }
     if (filter.createdAfter) {
       conditions.push('created_at >= ?');
-      params.push(filter.createdAfter.toISOString());
+      params.push(filter.createdAfter.getTime());
     }
     if (filter.createdBefore) {
       conditions.push('created_at <= ?');
-      params.push(filter.createdBefore.toISOString());
+      params.push(filter.createdBefore.getTime());
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

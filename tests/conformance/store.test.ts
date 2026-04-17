@@ -10,7 +10,7 @@
  */
 
 import { expect, test } from 'vitest';
-import type { StoreEvent, StoreInterface } from '@conveyor/shared';
+import type { SearchJobsFilter, StoreEvent, StoreInterface } from '@conveyor/shared';
 import { createJobData, hashPayload, MetricsDisabledError } from '@conveyor/shared';
 
 async function isMetricsEnabled(store: StoreInterface): Promise<boolean> {
@@ -1908,6 +1908,286 @@ export function runConformanceTests(
 
     const result = await store.cancelJob('cancel-q', 'non-existent');
     expect(result).toEqual(false);
+
+    await store.disconnect();
+  });
+
+  // ─── searchByName ──────────────────────────────────────────────────
+
+  test(`[${storeName}] searchByName matches substring case-insensitively`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchByName) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.saveJob('q1', createJobData('q1', 'SendEmail', {}));
+    await store.saveJob('q1', createJobData('q1', 'send-sms', {}));
+    await store.saveJob('q1', createJobData('q1', 'process-payment', {}));
+
+    const hits = await store.searchByName('send');
+    const names = hits.map((j) => j.name).sort();
+    expect(names).toEqual(['SendEmail', 'send-sms']);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] searchByName returns empty when no match`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchByName) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.saveJob('q1', createJobData('q1', 'foo', {}));
+    const hits = await store.searchByName('does-not-exist');
+    expect(hits).toEqual([]);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] searchByName restricts to queue when provided`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchByName) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.saveJob('q1', createJobData('q1', 'email-job', {}));
+    await store.saveJob('q2', createJobData('q2', 'email-job', {}));
+
+    const allQueues = await store.searchByName('email');
+    expect(allQueues.length).toEqual(2);
+
+    const onlyQ1 = await store.searchByName('email', 'q1');
+    expect(onlyQ1.length).toEqual(1);
+    expect(onlyQ1[0]!.queueName).toEqual('q1');
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] searchByName escapes LIKE wildcards`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchByName) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.saveJob('q1', createJobData('q1', 'test_job', {}));
+    await store.saveJob('q1', createJobData('q1', 'testXjob', {}));
+    await store.saveJob('q1', createJobData('q1', '100%done', {}));
+    await store.saveJob('q1', createJobData('q1', '100xdone', {}));
+
+    const underscore = await store.searchByName('_');
+    expect(underscore.map((j) => j.name).sort()).toEqual(['test_job']);
+
+    const percent = await store.searchByName('%');
+    expect(percent.map((j) => j.name).sort()).toEqual(['100%done']);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] searchByName respects limit`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchByName) {
+      await store.disconnect();
+      return;
+    }
+
+    for (let i = 0; i < 5; i++) {
+      await store.saveJob('q1', createJobData('q1', `match-${i}`, {}));
+    }
+
+    const hits = await store.searchByName('match', undefined, 2);
+    expect(hits.length).toEqual(2);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] searchByName sorts by createdAt DESC`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchByName) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.saveJob('q1', createJobData('q1', 'match-old', {}));
+    await new Promise((r) => setTimeout(r, 15));
+    await store.saveJob('q1', createJobData('q1', 'match-mid', {}));
+    await new Promise((r) => setTimeout(r, 15));
+    await store.saveJob('q1', createJobData('q1', 'match-new', {}));
+
+    const hits = await store.searchByName('match');
+    expect(hits.map((j) => j.name)).toEqual(['match-new', 'match-mid', 'match-old']);
+
+    await store.disconnect();
+  });
+
+  // ─── searchJobs ────────────────────────────────────────────────────
+
+  test(`[${storeName}] searchJobs with empty filter returns all, DESC`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchJobs) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.saveJob('q1', createJobData('q1', 'a', {}));
+    await new Promise((r) => setTimeout(r, 15));
+    await store.saveJob('q2', createJobData('q2', 'b', {}));
+    await new Promise((r) => setTimeout(r, 15));
+    await store.saveJob('q1', createJobData('q1', 'c', {}));
+
+    const { jobs, total } = await store.searchJobs({});
+    expect(total).toEqual(3);
+    expect(jobs.map((j) => j.name)).toEqual(['c', 'b', 'a']);
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] searchJobs filters by name substring`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchJobs) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.saveJob('q1', createJobData('q1', 'SendEmail', {}));
+    await store.saveJob('q1', createJobData('q1', 'process-payment', {}));
+
+    const { jobs, total } = await store.searchJobs({ name: 'email' });
+    expect(total).toEqual(1);
+    expect(jobs[0]!.name).toEqual('SendEmail');
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] searchJobs filters by queueName`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchJobs) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.saveJob('q1', createJobData('q1', 'a', {}));
+    await store.saveJob('q2', createJobData('q2', 'b', {}));
+
+    const { jobs, total } = await store.searchJobs({ queueName: 'q2' });
+    expect(total).toEqual(1);
+    expect(jobs[0]!.queueName).toEqual('q2');
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] searchJobs filters by states`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchJobs) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.saveJob('q1', createJobData('q1', 'waiting-job', {}));
+    await store.saveJob('q1', createJobData('q1', 'active-job', {}));
+    await store.fetchNextJob('q1', 'w1', 30_000);
+
+    const { jobs, total } = await store.searchJobs({ states: ['active'] });
+    expect(total).toEqual(1);
+    expect(jobs[0]!.state).toEqual('active');
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] searchJobs filters by date range`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchJobs) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.saveJob('q1', createJobData('q1', 'old', {}));
+    await new Promise((r) => setTimeout(r, 25));
+    const boundary = new Date();
+    await new Promise((r) => setTimeout(r, 25));
+    await store.saveJob('q1', createJobData('q1', 'new', {}));
+
+    const after = await store.searchJobs({ createdAfter: boundary });
+    expect(after.total).toEqual(1);
+    expect(after.jobs[0]!.name).toEqual('new');
+
+    const before = await store.searchJobs({ createdBefore: boundary });
+    expect(before.total).toEqual(1);
+    expect(before.jobs[0]!.name).toEqual('old');
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] searchJobs combines filters`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchJobs) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.saveJob('q1', createJobData('q1', 'email-a', {}));
+    await store.saveJob('q1', createJobData('q1', 'sms-a', {}));
+    await store.saveJob('q2', createJobData('q2', 'email-b', {}));
+
+    const filter: SearchJobsFilter = { name: 'email', queueName: 'q1' };
+    const { jobs, total } = await store.searchJobs(filter);
+    expect(total).toEqual(1);
+    expect(jobs[0]!.name).toEqual('email-a');
+    expect(jobs[0]!.queueName).toEqual('q1');
+
+    await store.disconnect();
+  });
+
+  test(`[${storeName}] searchJobs paginates via start/end`, async () => {
+    store = factory();
+    await store.connect();
+
+    if (!store.searchJobs) {
+      await store.disconnect();
+      return;
+    }
+
+    for (let i = 0; i < 5; i++) {
+      await store.saveJob('q1', createJobData('q1', `j-${i}`, {}));
+      await new Promise((r) => setTimeout(r, 10));
+    }
+
+    const page1 = await store.searchJobs({}, 0, 2);
+    expect(page1.total).toEqual(5);
+    expect(page1.jobs.length).toEqual(2);
+    expect(page1.jobs.map((j) => j.name)).toEqual(['j-4', 'j-3']);
+
+    const page2 = await store.searchJobs({}, 2, 4);
+    expect(page2.total).toEqual(5);
+    expect(page2.jobs.length).toEqual(2);
+    expect(page2.jobs.map((j) => j.name)).toEqual(['j-2', 'j-1']);
 
     await store.disconnect();
   });
