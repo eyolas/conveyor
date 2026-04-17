@@ -681,6 +681,7 @@ export class MemoryStore implements StoreInterface {
       }
       if (results.length >= limit) break;
     }
+    results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return Promise.resolve(results);
   }
 

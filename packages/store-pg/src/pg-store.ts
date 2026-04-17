@@ -875,11 +875,13 @@ export class PgStore implements StoreInterface {
           SELECT * FROM conveyor_jobs
           WHERE queue_name = ${queueName}
             AND name ILIKE ${pattern} ESCAPE '\\'
+          ORDER BY created_at DESC
           LIMIT ${limit}
         `
       : await this.sql<JobRow[]>`
           SELECT * FROM conveyor_jobs
           WHERE name ILIKE ${pattern} ESCAPE '\\'
+          ORDER BY created_at DESC
           LIMIT ${limit}
         `;
     return rows.map(rowToJobData);

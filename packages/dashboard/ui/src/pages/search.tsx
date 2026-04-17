@@ -43,6 +43,7 @@ export function SearchPage({ path: _path }: { path?: string }) {
   const [loading, setLoading] = useState(false);
   const [queues, setQueues] = useState<QueueInfo[]>([]);
   const [searched, setSearched] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Load queues for dropdown
   useEffect(() => {
@@ -50,16 +51,26 @@ export function SearchPage({ path: _path }: { path?: string }) {
   }, []);
 
   const doSearch = useCallback(async (pageNum = 0) => {
+    const filter: SearchJobsFilter = {};
+    if (nameFilter.trim()) filter.name = nameFilter.trim();
+    if (queueFilter) filter.queueName = queueFilter;
+    if (stateFilters.size > 0) filter.states = Array.from(stateFilters);
+    if (dateFrom) filter.createdAfter = new Date(dateFrom);
+    if (dateTo) filter.createdBefore = new Date(dateTo);
+
+    // Don't search without at least one filter
+    if (Object.keys(filter).length === 0) {
+      setSearched(false);
+      setJobs([]);
+      setTotal(0);
+      setError(null);
+      return;
+    }
+
     setLoading(true);
     setSearched(true);
+    setError(null);
     try {
-      const filter: SearchJobsFilter = {};
-      if (nameFilter.trim()) filter.name = nameFilter.trim();
-      if (queueFilter) filter.queueName = queueFilter;
-      if (stateFilters.size > 0) filter.states = Array.from(stateFilters);
-      if (dateFrom) filter.createdAfter = new Date(dateFrom);
-      if (dateTo) filter.createdBefore = new Date(dateTo);
-
       const start = pageNum * PAGE_SIZE;
       const end = start + PAGE_SIZE;
       const result = await searchJobs(filter, start, end);
@@ -69,6 +80,7 @@ export function SearchPage({ path: _path }: { path?: string }) {
     } catch {
       setJobs([]);
       setTotal(0);
+      setError('Search failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -260,6 +272,13 @@ export function SearchPage({ path: _path }: { path?: string }) {
           )}
         </div>
       </section>
+
+      {/* Error banner */}
+      {error && (
+        <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
+          {error}
+        </div>
+      )}
 
       {/* Results */}
       <div>

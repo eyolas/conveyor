@@ -974,8 +974,8 @@ export class BaseSqliteStore implements StoreInterface {
     const escaped = query.replace(/[%_\\]/g, '\\$&');
     const pattern = `%${escaped.toLowerCase()}%`;
     const sql = queueName
-      ? "SELECT * FROM conveyor_jobs WHERE queue_name = ? AND LOWER(name) LIKE ? ESCAPE '\\' LIMIT ?"
-      : "SELECT * FROM conveyor_jobs WHERE LOWER(name) LIKE ? ESCAPE '\\' LIMIT ?";
+      ? "SELECT * FROM conveyor_jobs WHERE queue_name = ? AND LOWER(name) LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT ?"
+      : "SELECT * FROM conveyor_jobs WHERE LOWER(name) LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT ?";
     const params = queueName ? [queueName, pattern, limit] : [pattern, limit];
     const rows = this.db.prepare(sql).all(...params) as unknown as JobRow[];
     return Promise.resolve(rows.map(rowToJobData));

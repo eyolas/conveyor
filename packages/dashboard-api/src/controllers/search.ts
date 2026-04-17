@@ -1,7 +1,7 @@
 /**
  * @module @conveyor/dashboard-api/controllers/search
  *
- * Cross-queue search endpoint for Cmd+K.
+ * Cross-queue search endpoints: Cmd+K quick search and advanced job search with combinable filters.
  */
 
 import type { Hono } from 'hono';
