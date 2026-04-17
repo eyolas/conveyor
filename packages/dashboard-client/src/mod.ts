@@ -36,6 +36,7 @@ export type {
   ClientOptions,
   ClientQueueDetail,
   ClientQueueInfo,
+  ClientSearchJobsFilter,
   DataResponse,
   ErrorResponse,
   PaginatedResponse,

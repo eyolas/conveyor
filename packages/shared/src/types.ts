@@ -537,6 +537,26 @@ export interface StoreOptions {
   metrics?: MetricsOptions;
 }
 
+/** Filter options for advanced job search. */
+export interface SearchJobsFilter {
+  /** Restrict to a specific queue. */
+  queueName?: string;
+  /** Filter by one or more states. */
+  states?: JobState[];
+  /** Substring match on job name (case-insensitive). */
+  name?: string;
+  /** Jobs created at or after this date. */
+  createdAfter?: Date;
+  /** Jobs created at or before this date. */
+  createdBefore?: Date;
+}
+
+/** Result of an advanced job search. */
+export interface SearchJobsResult {
+  jobs: JobData[];
+  total: number;
+}
+
 /**
  * The contract that all storage backends must implement.
  * The core Queue and Worker classes only interact with this interface.
@@ -927,6 +947,17 @@ export interface StoreInterface {
   searchByPayload?(queueName: string, query: string, limit?: number): Promise<JobData[]>;
 
   /**
+   * Search jobs by name across all queues (or a specific queue).
+   * Optional — returns matching jobs by name substring.
+   *
+   * @param query - The search string to match against job names.
+   * @param queueName - Optional queue to restrict the search.
+   * @param limit - Maximum number of results (default 50).
+   * @returns Matching jobs.
+   */
+  searchByName?(query: string, queueName?: string, limit?: number): Promise<JobData[]>;
+
+  /**
    * List all flow parent jobs (jobs with childrenIds).
    * Optional — returns flow parents across all states.
    *
@@ -934,6 +965,21 @@ export interface StoreInterface {
    * @param limit - Max results (default 100).
    */
   listFlowParents?(state?: JobState, limit?: number): Promise<JobData[]>;
+
+  /**
+   * Advanced job search with combinable filters.
+   * Optional — returns matching jobs with total count for pagination.
+   *
+   * @param filter - The search filter criteria.
+   * @param start - Pagination offset (default: 0).
+   * @param end - Pagination end (default: 50).
+   * @returns Matching jobs with total count.
+   */
+  searchJobs?(
+    filter: SearchJobsFilter,
+    start?: number,
+    end?: number,
+  ): Promise<SearchJobsResult>;
 }
 
 /**

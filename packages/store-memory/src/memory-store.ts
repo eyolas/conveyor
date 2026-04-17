@@ -16,6 +16,8 @@ import type {
   MetricsBucket,
   MetricsQueryOptions,
   QueueInfo,
+  SearchJobsFilter,
+  SearchJobsResult,
   StoreEvent,
   StoreInterface,
   StoreOptions,
@@ -666,6 +668,21 @@ export class MemoryStore implements StoreInterface {
     return Promise.resolve(results);
   }
 
+  searchByName(query: string, queueName?: string, limit = 50): Promise<JobData[]> {
+    const lowerQuery = query.toLowerCase();
+    const results: JobData[] = [];
+    const queues = queueName ? [this.getQueue(queueName)] : this.jobs.values();
+    for (const queue of queues) {
+      for (const job of queue.values()) {
+        if (job.name.toLowerCase().includes(lowerQuery)) {
+          results.push(structuredClone(job));
+        }
+      }
+    }
+    results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return Promise.resolve(results.slice(0, limit));
+  }
+
   listFlowParents(state?: JobState, limit = 100): Promise<JobData[]> {
     const results: JobData[] = [];
     for (const queue of this.jobs.values()) {
@@ -679,6 +696,27 @@ export class MemoryStore implements StoreInterface {
     }
     results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     return Promise.resolve(results);
+  }
+
+  searchJobs(filter: SearchJobsFilter, start = 0, end = 50): Promise<SearchJobsResult> {
+    const results: JobData[] = [];
+    const queues = filter.queueName ? [this.getQueue(filter.queueName)] : this.jobs.values();
+    for (const queue of queues) {
+      for (const job of queue.values()) {
+        if (filter.states && filter.states.length > 0 && !filter.states.includes(job.state)) {
+          continue;
+        }
+        if (filter.name && !job.name.toLowerCase().includes(filter.name.toLowerCase())) continue;
+        if (filter.createdAfter && job.createdAt < filter.createdAfter) continue;
+        if (filter.createdBefore && job.createdAt > filter.createdBefore) continue;
+        results.push(structuredClone(job));
+      }
+    }
+    results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return Promise.resolve({
+      jobs: results.slice(start, end),
+      total: results.length,
+    });
   }
 
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {

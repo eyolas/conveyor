@@ -33,6 +33,18 @@ export function Sidebar({ collapsed, onToggle, activeQueue }: SidebarProps) {
     ? queues.filter((q) => q.name.toLowerCase().includes(search.toLowerCase()))
     : queues;
 
+  const path = typeof location !== 'undefined' ? location.pathname : '';
+  const isQueuesView = path === '/' || path.startsWith('/queues');
+  const isFlowsView = path === '/flows' || path.startsWith('/flows/');
+  const isSearchView = path === '/search';
+
+  const navItemClass = (active: boolean) =>
+    `group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left font-display text-xs font-semibold transition-all duration-200 ${
+      active
+        ? 'bg-accent/10 text-accent shadow-[inset_3px_0_0_0_var(--color-accent)] dark:bg-accent-glow-strong dark:text-accent-bright dark:shadow-[inset_3px_0_0_0_var(--color-accent-bright)]'
+        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-text-muted dark:hover:bg-surface-2 dark:hover:text-text-secondary'
+    }`;
+
   if (collapsed) {
     return (
       <aside class="flex h-full w-14 flex-col items-center border-r border-slate-200 bg-white py-3 dark:border-border-dim dark:bg-surface-1">
@@ -98,130 +110,170 @@ export function Sidebar({ collapsed, onToggle, activeQueue }: SidebarProps) {
         </button>
       </div>
 
-      {/* Nav tabs */}
-      <div class="flex gap-1 border-b border-slate-200 px-3 py-2 dark:border-border-dim">
-        <a
-          href="/"
-          class={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-display text-xs font-semibold transition-colors ${
-            typeof location !== 'undefined' && location.pathname !== '/flows'
-              ? 'bg-accent/10 text-accent dark:bg-accent-glow-strong dark:text-accent-bright'
-              : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600 dark:text-text-muted dark:hover:bg-surface-2'
-          }`}
-        >
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-          </svg>
-          Queues
-          <span class="rounded-full bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-slate-500 dark:bg-surface-3 dark:text-text-muted">
-            {queues.length}
-          </span>
-        </a>
-        <a
-          href="/flows"
-          class={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2 font-display text-xs font-semibold transition-colors ${
-            typeof location !== 'undefined' && location.pathname === '/flows'
-              ? 'bg-accent/10 text-accent dark:bg-accent-glow-strong dark:text-accent-bright'
-              : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600 dark:text-text-muted dark:hover:bg-surface-2'
-          }`}
-        >
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z" />
-          </svg>
-          Flows
-        </a>
+      {/* Primary views — full-width rail list (readable on narrow sidebar) */}
+      <div class="border-b border-slate-200 px-3 pb-3 pt-2 dark:border-border-dim">
+        <p class="mb-2 px-1 font-display text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-text-muted">
+          Workspace
+        </p>
+        <nav class="flex flex-col gap-0.5" aria-label="Main views">
+          <a href="/" class={navItemClass(isQueuesView)}>
+            <span
+              class={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border transition-colors ${
+                isQueuesView
+                  ? 'border-accent/25 bg-accent/5 text-accent dark:border-accent/30 dark:bg-accent/10 dark:text-accent-bright'
+                  : 'border-slate-200/80 bg-slate-50 text-slate-500 group-hover:border-slate-300 group-hover:text-slate-700 dark:border-border-default dark:bg-surface-2 dark:text-text-muted dark:group-hover:border-border-bright'
+              }`}
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+                />
+              </svg>
+            </span>
+            <span class="min-w-0 flex-1 truncate">Queues</span>
+            <span class="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-medium tabular-nums text-slate-500 dark:bg-surface-3 dark:text-text-muted">
+              {queues.length}
+            </span>
+          </a>
+          <a href="/flows" class={navItemClass(isFlowsView)}>
+            <span
+              class={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border transition-colors ${
+                isFlowsView
+                  ? 'border-accent/25 bg-accent/5 text-accent dark:border-accent/30 dark:bg-accent/10 dark:text-accent-bright'
+                  : 'border-slate-200/80 bg-slate-50 text-slate-500 group-hover:border-slate-300 group-hover:text-slate-700 dark:border-border-default dark:bg-surface-2 dark:text-text-muted dark:group-hover:border-border-bright'
+              }`}
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z"
+                />
+              </svg>
+            </span>
+            <span class="min-w-0 flex-1 truncate">Flows</span>
+          </a>
+          <a href="/search" class={navItemClass(isSearchView)}>
+            <span
+              class={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border transition-colors ${
+                isSearchView
+                  ? 'border-accent/25 bg-accent/5 text-accent dark:border-accent/30 dark:bg-accent/10 dark:text-accent-bright'
+                  : 'border-slate-200/80 bg-slate-50 text-slate-500 group-hover:border-slate-300 group-hover:text-slate-700 dark:border-border-default dark:bg-surface-2 dark:text-text-muted dark:group-hover:border-border-bright'
+              }`}
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </span>
+            <span class="min-w-0 flex-1 truncate">Search</span>
+          </a>
+        </nav>
       </div>
 
-      {/* Search */}
-      <div class="p-3">
-        <div class="relative">
-          <svg
-            class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-text-muted"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Filter..."
-            value={search}
-            onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
-            class="h-8 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-accent focus:bg-white focus:outline-none focus:ring-1 focus:ring-accent/30 dark:border-border-default dark:bg-surface-2 dark:text-text-primary dark:placeholder-text-muted dark:focus:border-accent dark:focus:bg-surface-3"
-          />
-        </div>
-      </div>
-
-      {/* Queue list */}
-      <nav class="flex-1 overflow-y-auto px-2 pb-3">
-        <div class="space-y-0.5">
-          {filtered.map((q) => {
-            const isActive = q.name === activeQueue;
-            const total = Object.values(q.counts).reduce((a, b) => a + b, 0);
-            const failedCount = q.counts.failed ?? 0;
-            const activeCount = q.counts.active ?? 0;
-
-            return (
-              <button
-                key={q.name}
-                onClick={() => route(`/queues/${encodeURIComponent(q.name)}`)}
-                class={`group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-all duration-150 ${
-                  isActive
-                    ? 'bg-accent/10 text-accent dark:bg-accent-glow-strong dark:text-accent-bright'
-                    : 'text-slate-600 hover:bg-slate-50 dark:text-text-secondary dark:hover:bg-surface-2'
-                }`}
+      {isQueuesView ? (
+        <>
+          {/* Filter queues (Queues view only) */}
+          <div class="border-b border-slate-200 p-3 dark:border-border-dim">
+            <p class="mb-2 px-1 font-display text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-text-muted">
+              Queues
+            </p>
+            <div class="relative">
+              <svg
+                class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-text-muted"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
               >
-                <span class="flex items-center gap-2.5 truncate">
-                  {/* Status indicator */}
-                  <span
-                    class={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-[10px] font-bold uppercase ${
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Filter queues..."
+                value={search}
+                onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
+                class="h-8 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-accent focus:bg-white focus:outline-none focus:ring-1 focus:ring-accent/30 dark:border-border-default dark:bg-surface-2 dark:text-text-primary dark:placeholder-text-muted dark:focus:border-accent dark:focus:bg-surface-3"
+              />
+            </div>
+          </div>
+
+          <nav class="flex-1 overflow-y-auto px-2 pb-3 pt-2" aria-label="Queues">
+            <div class="space-y-0.5">
+              {filtered.map((q) => {
+                const isActive = q.name === activeQueue;
+                const total = Object.values(q.counts).reduce((a, b) => a + b, 0);
+                const failedCount = q.counts.failed ?? 0;
+                const activeCount = q.counts.active ?? 0;
+
+                return (
+                  <button
+                    key={q.name}
+                    onClick={() => route(`/queues/${encodeURIComponent(q.name)}`)}
+                    class={`group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-all duration-200 ${
                       isActive
-                        ? 'bg-accent/20 text-accent dark:bg-accent/20 dark:text-accent'
-                        : failedCount > 0
-                          ? 'bg-rose/10 text-rose dark:bg-rose-glow dark:text-rose'
-                          : 'bg-slate-100 text-slate-400 dark:bg-surface-3 dark:text-text-muted'
+                        ? 'bg-accent/10 text-accent shadow-[inset_3px_0_0_0_var(--color-accent)] dark:bg-accent-glow-strong dark:text-accent-bright dark:shadow-[inset_3px_0_0_0_var(--color-accent-bright)]'
+                        : 'text-slate-600 hover:bg-slate-50 dark:text-text-secondary dark:hover:bg-surface-2'
                     }`}
                   >
-                    {q.name.charAt(0)}
-                  </span>
-                  <span class="truncate font-medium">{q.name}</span>
-                  {q.isPaused && (
-                    <svg class="h-3 w-3 flex-shrink-0 text-amber dark:text-amber" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                    </svg>
-                  )}
-                </span>
-                <span class="flex items-center gap-1.5">
-                  {activeCount > 0 && (
-                    <span class="flex h-4 items-center rounded-full bg-amber/10 px-1.5 font-mono text-[10px] font-semibold tabular-nums text-amber dark:bg-amber-glow dark:text-amber">
-                      {activeCount}
+                    <span class="flex items-center gap-2.5 truncate">
+                      <span
+                        class={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-[10px] font-bold uppercase ${
+                          isActive
+                            ? 'bg-accent/20 text-accent dark:bg-accent/20 dark:text-accent'
+                            : failedCount > 0
+                              ? 'bg-rose/10 text-rose dark:bg-rose-glow dark:text-rose'
+                              : 'bg-slate-100 text-slate-400 dark:bg-surface-3 dark:text-text-muted'
+                        }`}
+                      >
+                        {q.name.charAt(0)}
+                      </span>
+                      <span class="truncate font-medium">{q.name}</span>
+                      {q.isPaused && (
+                        <svg class="h-3 w-3 flex-shrink-0 text-amber dark:text-amber" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                        </svg>
+                      )}
                     </span>
-                  )}
-                  {failedCount > 0 && (
-                    <span class="flex h-4 items-center rounded-full bg-rose/10 px-1.5 font-mono text-[10px] font-semibold tabular-nums text-rose dark:bg-rose-glow dark:text-rose">
-                      {failedCount}
+                    <span class="flex items-center gap-1.5">
+                      {activeCount > 0 && (
+                        <span class="flex h-4 items-center rounded-full bg-amber/10 px-1.5 font-mono text-[10px] font-semibold tabular-nums text-amber dark:bg-amber-glow dark:text-amber">
+                          {activeCount}
+                        </span>
+                      )}
+                      {failedCount > 0 && (
+                        <span class="flex h-4 items-center rounded-full bg-rose/10 px-1.5 font-mono text-[10px] font-semibold tabular-nums text-rose dark:bg-rose-glow dark:text-rose">
+                          {failedCount}
+                        </span>
+                      )}
+                      <span class="font-mono text-xs tabular-nums text-slate-400 dark:text-text-muted">
+                        {total}
+                      </span>
                     </span>
-                  )}
-                  <span class="font-mono text-xs tabular-nums text-slate-400 dark:text-text-muted">
-                    {total}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        {filtered.length === 0 && (
-          <div class="flex flex-col items-center gap-1 py-8 text-center">
-            <svg class="h-8 w-8 text-slate-300 dark:text-surface-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-            </svg>
-            <p class="text-sm text-slate-400 dark:text-text-muted">
-              {queues.length === 0 ? 'No queues' : 'No matches'}
-            </p>
-          </div>
-        )}
-      </nav>
+                  </button>
+                );
+              })}
+            </div>
+            {filtered.length === 0 && (
+              <div class="flex flex-col items-center gap-1 py-8 text-center">
+                <svg class="h-8 w-8 text-slate-300 dark:text-surface-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+                <p class="text-sm text-slate-400 dark:text-text-muted">
+                  {queues.length === 0 ? 'No queues' : 'No matches'}
+                </p>
+              </div>
+            )}
+          </nav>
+        </>
+      ) : (
+        <div class="flex-1" aria-hidden="true" />
+      )}
 
     </aside>
   );

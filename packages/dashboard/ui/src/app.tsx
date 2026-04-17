@@ -10,6 +10,7 @@ import { FlowsPage } from './pages/flows';
 import { HomePage } from './pages/home';
 import { QueuePage } from './pages/queue';
 import { JobPage } from './pages/job';
+import { SearchPage } from './pages/search';
 
 export function App() {
   const [url, setUrl] = useState(getCurrentUrl());
@@ -37,11 +38,12 @@ export function App() {
     >
       <Layout url={url}>
         <Router onChange={(e) => setUrl(e.url)}>
-          <HomePage path="/" />
+          <SearchPage path="/search" />
           <FlowsPage path="/flows" />
           <FlowDetailPage path="/flows/:name/:id" />
-          <QueuePage path="/queues/:name" />
           <JobPage path="/queues/:name/jobs/:id" />
+          <QueuePage path="/queues/:name" />
+          <HomePage path="/" />
         </Router>
       </Layout>
     </LiveUpdatesContext.Provider>

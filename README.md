@@ -69,19 +69,19 @@ await queue.close();
 
 ## Packages
 
-| Package | Description | JSR |
-| --- | --- | --- |
-| `@conveyor/core` | Queue, Worker, Job, Events | [![JSR](https://jsr.io/badges/@conveyor/core)](https://jsr.io/@conveyor/core) |
-| `@conveyor/shared` | Types & utilities | [![JSR](https://jsr.io/badges/@conveyor/shared)](https://jsr.io/@conveyor/shared) |
-| `@conveyor/store-memory` | In-memory store | [![JSR](https://jsr.io/badges/@conveyor/store-memory)](https://jsr.io/@conveyor/store-memory) |
-| `@conveyor/store-pg` | PostgreSQL store | [![JSR](https://jsr.io/badges/@conveyor/store-pg)](https://jsr.io/@conveyor/store-pg) |
-| `@conveyor/store-sqlite-node` | SQLite store (Node.js) | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-node)](https://jsr.io/@conveyor/store-sqlite-node) |
-| `@conveyor/store-sqlite-bun` | SQLite store (Bun) | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-bun)](https://jsr.io/@conveyor/store-sqlite-bun) |
-| `@conveyor/store-sqlite-deno` | SQLite store (Deno) | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-deno)](https://jsr.io/@conveyor/store-sqlite-deno) |
-| `@conveyor/store-sqlite-core` | SQLite shared base | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-core)](https://jsr.io/@conveyor/store-sqlite-core) |
-| `@conveyor/dashboard` | Web dashboard (API + UI) | [![JSR](https://jsr.io/badges/@conveyor/dashboard)](https://jsr.io/@conveyor/dashboard) |
-| `@conveyor/dashboard-api` | Headless REST API | [![JSR](https://jsr.io/badges/@conveyor/dashboard-api)](https://jsr.io/@conveyor/dashboard-api) |
-| `@conveyor/dashboard-client` | Typed HTTP + SSE client | [![JSR](https://jsr.io/badges/@conveyor/dashboard-client)](https://jsr.io/@conveyor/dashboard-client) |
+| Package                       | Description                | JSR                                                                                                     |
+| ----------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `@conveyor/core`              | Queue, Worker, Job, Events | [![JSR](https://jsr.io/badges/@conveyor/core)](https://jsr.io/@conveyor/core)                           |
+| `@conveyor/shared`            | Types & utilities          | [![JSR](https://jsr.io/badges/@conveyor/shared)](https://jsr.io/@conveyor/shared)                       |
+| `@conveyor/store-memory`      | In-memory store            | [![JSR](https://jsr.io/badges/@conveyor/store-memory)](https://jsr.io/@conveyor/store-memory)           |
+| `@conveyor/store-pg`          | PostgreSQL store           | [![JSR](https://jsr.io/badges/@conveyor/store-pg)](https://jsr.io/@conveyor/store-pg)                   |
+| `@conveyor/store-sqlite-node` | SQLite store (Node.js)     | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-node)](https://jsr.io/@conveyor/store-sqlite-node) |
+| `@conveyor/store-sqlite-bun`  | SQLite store (Bun)         | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-bun)](https://jsr.io/@conveyor/store-sqlite-bun)   |
+| `@conveyor/store-sqlite-deno` | SQLite store (Deno)        | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-deno)](https://jsr.io/@conveyor/store-sqlite-deno) |
+| `@conveyor/store-sqlite-core` | SQLite shared base         | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-core)](https://jsr.io/@conveyor/store-sqlite-core) |
+| `@conveyor/dashboard`         | Web dashboard (API + UI)   | [![JSR](https://jsr.io/badges/@conveyor/dashboard)](https://jsr.io/@conveyor/dashboard)                 |
+| `@conveyor/dashboard-api`     | Headless REST API          | [![JSR](https://jsr.io/badges/@conveyor/dashboard-api)](https://jsr.io/@conveyor/dashboard-api)         |
+| `@conveyor/dashboard-client`  | Typed HTTP + SSE client    | [![JSR](https://jsr.io/badges/@conveyor/dashboard-client)](https://jsr.io/@conveyor/dashboard-client)   |
 
 ## API
 

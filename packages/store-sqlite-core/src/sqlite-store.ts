@@ -12,6 +12,8 @@ import type {
   MetricsBucket,
   MetricsQueryOptions,
   QueueInfo,
+  SearchJobsFilter,
+  SearchJobsResult,
   StoreEvent,
   StoreInterface,
   StoreOptions,
@@ -968,6 +970,17 @@ export class BaseSqliteStore implements StoreInterface {
     return Promise.resolve(rows.map(rowToJobData));
   }
 
+  searchByName(query: string, queueName?: string, limit = 50): Promise<JobData[]> {
+    const escaped = query.replace(/[%_\\]/g, '\\$&');
+    const pattern = `%${escaped.toLowerCase()}%`;
+    const sql = queueName
+      ? "SELECT * FROM conveyor_jobs WHERE queue_name = ? AND LOWER(name) LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT ?"
+      : "SELECT * FROM conveyor_jobs WHERE LOWER(name) LIKE ? ESCAPE '\\' ORDER BY created_at DESC LIMIT ?";
+    const params = queueName ? [queueName, pattern, limit] : [pattern, limit];
+    const rows = this.db.prepare(sql).all(...params) as unknown as JobRow[];
+    return Promise.resolve(rows.map(rowToJobData));
+  }
+
   listFlowParents(state?: JobState, limit = 100): Promise<JobData[]> {
     const sql = state
       ? "SELECT * FROM conveyor_jobs WHERE children_ids != '[]' AND state = ? ORDER BY created_at DESC LIMIT ?"
@@ -975,6 +988,47 @@ export class BaseSqliteStore implements StoreInterface {
     const params = state ? [state, limit] : [limit];
     const rows = this.db.prepare(sql).all(...params) as unknown as JobRow[];
     return Promise.resolve(rows.map(rowToJobData));
+  }
+
+  searchJobs(filter: SearchJobsFilter, start = 0, end = 50): Promise<SearchJobsResult> {
+    const limit = Math.max(0, end - start);
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filter.queueName) {
+      conditions.push('queue_name = ?');
+      params.push(filter.queueName);
+    }
+    if (filter.states && filter.states.length > 0) {
+      conditions.push(`state IN (${filter.states.map(() => '?').join(', ')})`);
+      params.push(...filter.states);
+    }
+    if (filter.name) {
+      const escaped = filter.name.replace(/[%_\\]/g, '\\$&');
+      conditions.push("LOWER(name) LIKE ? ESCAPE '\\'");
+      params.push(`%${escaped.toLowerCase()}%`);
+    }
+    if (filter.createdAfter) {
+      conditions.push('created_at >= ?');
+      params.push(filter.createdAfter.getTime());
+    }
+    if (filter.createdBefore) {
+      conditions.push('created_at <= ?');
+      params.push(filter.createdBefore.getTime());
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countRow = this.db.prepare(
+      `SELECT COUNT(*) AS count FROM conveyor_jobs ${where}`,
+    ).get(...params) as unknown as { count: number | bigint };
+    const total = Number(countRow?.count ?? 0);
+
+    const rows = this.db.prepare(
+      `SELECT * FROM conveyor_jobs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+    ).all(...params, limit, start) as unknown as JobRow[];
+
+    return Promise.resolve({ jobs: rows.map(rowToJobData), total });
   }
 
   async cancelJob(queueName: string, jobId: string): Promise<boolean> {

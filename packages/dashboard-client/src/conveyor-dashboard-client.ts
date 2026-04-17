@@ -25,6 +25,7 @@ import type {
   ClientOptions,
   ClientQueueDetail,
   ClientQueueInfo,
+  ClientSearchJobsFilter,
   DataResponse,
   ErrorResponse,
   PaginatedResponse,
@@ -281,6 +282,44 @@ export class ConveyorDashboardClient {
       `/search?type=queue&q=${encodeURIComponent(query)}`,
     );
     return res.data;
+  }
+
+  /**
+   * Search jobs by name across all queues or within a specific queue.
+   * @param query - Substring to match against job names.
+   * @param queueName - Optional queue to restrict the search.
+   */
+  async searchByName(query: string, queueName?: string): Promise<ClientJobData[]> {
+    const params = new URLSearchParams({ type: 'name', q: query });
+    if (queueName) params.set('queue', queueName);
+    const res = await this.#request<DataResponse<ClientJobData[]>>(
+      `/search?${params}`,
+    );
+    return res.data;
+  }
+
+  /**
+   * Advanced job search with combinable filters.
+   * @param filter - Search criteria (name, queue, states, date range).
+   * @param start - Pagination offset (default: `0`).
+   * @param end - Pagination limit (default: `50`).
+   */
+  async searchJobs(
+    filter: ClientSearchJobsFilter,
+    start = 0,
+    end = 50,
+  ): Promise<PaginatedResponse<ClientJobData>> {
+    const params = new URLSearchParams();
+    if (filter.name) params.set('name', filter.name);
+    if (filter.queueName) params.set('queue', filter.queueName);
+    if (filter.states && filter.states.length > 0) params.set('state', filter.states.join(','));
+    if (filter.createdAfter) params.set('after', filter.createdAfter.toISOString());
+    if (filter.createdBefore) params.set('before', filter.createdBefore.toISOString());
+    params.set('start', String(start));
+    params.set('end', String(end));
+    return await this.#request<PaginatedResponse<ClientJobData>>(
+      `/jobs/search?${params}`,
+    );
   }
 
   // ─── Flows ───────────────────────────────────────────────────────

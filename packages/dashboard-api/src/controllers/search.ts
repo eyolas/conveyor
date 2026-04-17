@@ -1,12 +1,13 @@
 /**
  * @module @conveyor/dashboard-api/controllers/search
  *
- * Cross-queue search endpoint for Cmd+K.
+ * Cross-queue search endpoints: Cmd+K quick search and advanced job search with combinable filters.
  */
 
 import type { Hono } from 'hono';
-import type { StoreInterface } from '@conveyor/shared';
-import { jsonData, jsonError } from '../helpers.ts';
+import type { JobState, StoreInterface } from '@conveyor/shared';
+import { JOB_STATES } from '@conveyor/shared';
+import { jsonData, jsonError, jsonPaginated } from '../helpers.ts';
 
 export function registerSearchRoutes(
   app: Hono,
@@ -54,6 +55,102 @@ export function registerSearchRoutes(
       return jsonData(c, results);
     }
 
-    return jsonError(c, 'BAD_REQUEST', 'type must be "job", "queue", or "payload"');
+    if (type === 'name') {
+      if (!store.searchByName) {
+        return jsonData(c, []);
+      }
+      const queueName = c.req.query('queue');
+      const results = await store.searchByName(query, queueName ?? undefined, 50);
+      if (filterQueues) {
+        return jsonData(c, results.filter((j) => filterQueues.includes(j.queueName)));
+      }
+      return jsonData(c, results);
+    }
+
+    return jsonError(c, 'BAD_REQUEST', 'type must be "job", "queue", "payload", or "name"');
+  });
+
+  // GET /api/jobs/search — advanced job search with combinable filters
+  app.get(`${apiBase}/jobs/search`, async (c) => {
+    if (!store.searchJobs) {
+      return jsonPaginated(c, [], { total: 0, start: 0, end: 0 });
+    }
+
+    const name = c.req.query('name');
+    const queueName = c.req.query('queue');
+    const stateParam = c.req.query('state');
+    const after = c.req.query('after');
+    const before = c.req.query('before');
+    const start = Math.max(0, parseInt(c.req.query('start') ?? '0', 10) || 0);
+    const end = Math.max(start, parseInt(c.req.query('end') ?? '50', 10) || 50);
+
+    if (end - start > 1000) {
+      return jsonError(c, 'BAD_REQUEST', 'Page size too large (max 1000)');
+    }
+
+    // Parse states (comma-separated)
+    let states: JobState[] | undefined;
+    if (stateParam) {
+      const raw = stateParam.split(',').filter((s) => s.length > 0);
+      const parsed = raw.filter((s): s is JobState => JOB_STATES.includes(s as JobState));
+      if (raw.length > 0 && parsed.length === 0) {
+        return jsonError(c, 'BAD_REQUEST', 'No valid job state in "state" parameter');
+      }
+      states = parsed.length > 0 ? parsed : undefined;
+    }
+
+    // Parse and validate dates
+    const afterDate = after ? new Date(after) : undefined;
+    const beforeDate = before ? new Date(before) : undefined;
+    if (afterDate && Number.isNaN(afterDate.getTime())) {
+      return jsonError(c, 'BAD_REQUEST', 'Invalid "after" date');
+    }
+    if (beforeDate && Number.isNaN(beforeDate.getTime())) {
+      return jsonError(c, 'BAD_REQUEST', 'Invalid "before" date');
+    }
+
+    // Respect filterQueues option
+    const effectiveQueue = queueName ?? undefined;
+    if (effectiveQueue && filterQueues && !filterQueues.includes(effectiveQueue)) {
+      return jsonPaginated(c, [], { total: 0, start, end });
+    }
+
+    // When filterQueues is set and no specific queue requested,
+    // run individual searches per allowed queue and merge results
+    if (filterQueues && !effectiveQueue) {
+      let allJobs: Awaited<ReturnType<NonNullable<typeof store.searchJobs>>>['jobs'] = [];
+      for (const allowedQueue of filterQueues) {
+        const r = await store.searchJobs!(
+          {
+            name: name ?? undefined,
+            queueName: allowedQueue,
+            states,
+            createdAfter: afterDate,
+            createdBefore: beforeDate,
+          },
+          0,
+          10_000,
+        );
+        allJobs = allJobs.concat(r.jobs);
+      }
+      allJobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const total = allJobs.length;
+      const paged = allJobs.slice(start, end);
+      return jsonPaginated(c, paged, { total, start, end });
+    }
+
+    const result = await store.searchJobs(
+      {
+        name: name ?? undefined,
+        queueName: effectiveQueue,
+        states,
+        createdAfter: afterDate,
+        createdBefore: beforeDate,
+      },
+      start,
+      end,
+    );
+
+    return jsonPaginated(c, result.jobs, { total: result.total, start, end });
   });
 }

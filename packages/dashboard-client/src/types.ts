@@ -124,6 +124,22 @@ export interface ClientMetricsBucket {
   maxProcessMs: number | null;
 }
 
+// ─── Search Types ───────────────────────────────────────────────────
+
+/** Filter options for advanced job search. */
+export interface ClientSearchJobsFilter {
+  /** Restrict to a specific queue. */
+  queueName?: string;
+  /** Filter by one or more states. */
+  states?: JobState[];
+  /** Substring match on job name (case-insensitive). */
+  name?: string;
+  /** Jobs created at or after this date. */
+  createdAfter?: Date;
+  /** Jobs created at or before this date. */
+  createdBefore?: Date;
+}
+
 // ─── SSE Types ──────────────────────────────────────────────────────
 
 /** SSE event as delivered to the subscription callback. */

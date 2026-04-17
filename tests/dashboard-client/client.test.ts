@@ -180,6 +180,128 @@ test('ConveyorDashboardClient.searchJob returns null for unknown ID', async () =
   await store.disconnect();
 });
 
+// ─── Search by Name ─────────────────────────────────────────────────
+
+test('ConveyorDashboardClient.searchByName finds jobs by name', async () => {
+  const { store, client } = setup();
+  await store.connect();
+
+  await client.addJob('emails', 'send-welcome', { to: 'a@b.com' });
+  await client.addJob('emails', 'send-reset', { to: 'c@d.com' });
+  await client.addJob('images', 'send-notification', { to: 'e@f.com' });
+
+  const results = await client.searchByName('send');
+  expect(results.length).toBe(3);
+
+  await store.disconnect();
+});
+
+test('ConveyorDashboardClient.searchByName filters by queue', async () => {
+  const { store, client } = setup();
+  await store.connect();
+
+  await client.addJob('emails', 'send-welcome', { to: 'a@b.com' });
+  await client.addJob('images', 'send-notification', { to: 'e@f.com' });
+
+  const results = await client.searchByName('send', 'emails');
+  expect(results.length).toBe(1);
+  expect(results[0]!.queueName).toBe('emails');
+
+  await store.disconnect();
+});
+
+test('ConveyorDashboardClient.searchByName returns empty for no match', async () => {
+  const { store, client } = setup();
+  await store.connect();
+
+  await client.addJob('emails', 'send-welcome', {});
+
+  const results = await client.searchByName('nonexistent');
+  expect(results.length).toBe(0);
+
+  await store.disconnect();
+});
+
+// ─── Advanced Search ────────────────────────────────────────────────
+
+test('ConveyorDashboardClient.searchJobs returns all jobs with empty filter', async () => {
+  const { store, client } = setup();
+  await store.connect();
+
+  await client.addJob('emails', 'send', { to: 'a@b.com' });
+  await client.addJob('emails', 'notify', { to: 'c@d.com' });
+
+  const result = await client.searchJobs({});
+  expect(result.data.length).toBe(2);
+  expect(result.meta.total).toBe(2);
+
+  await store.disconnect();
+});
+
+test('ConveyorDashboardClient.searchJobs filters by name', async () => {
+  const { store, client } = setup();
+  await store.connect();
+
+  await client.addJob('emails', 'send-welcome', {});
+  await client.addJob('emails', 'send-reset', {});
+  await client.addJob('emails', 'process-image', {});
+
+  const result = await client.searchJobs({ name: 'send' });
+  expect(result.data.length).toBe(2);
+  expect(result.meta.total).toBe(2);
+
+  await store.disconnect();
+});
+
+test('ConveyorDashboardClient.searchJobs filters by queue', async () => {
+  const { store, client } = setup();
+  await store.connect();
+
+  await client.addJob('emails', 'send', {});
+  await client.addJob('images', 'resize', {});
+
+  const result = await client.searchJobs({ queueName: 'emails' });
+  expect(result.data.length).toBe(1);
+  expect(result.data[0]!.queueName).toBe('emails');
+
+  await store.disconnect();
+});
+
+test('ConveyorDashboardClient.searchJobs filters by state', async () => {
+  const { store, client } = setup();
+  await store.connect();
+
+  await client.addJob('emails', 'send', {});
+  await client.addJob('emails', 'notify', {});
+
+  // Both are 'waiting' state
+  const result = await client.searchJobs({ states: ['waiting'] });
+  expect(result.data.length).toBe(2);
+
+  const noResults = await client.searchJobs({ states: ['completed'] });
+  expect(noResults.data.length).toBe(0);
+
+  await store.disconnect();
+});
+
+test('ConveyorDashboardClient.searchJobs supports pagination', async () => {
+  const { store, client } = setup();
+  await store.connect();
+
+  for (let i = 0; i < 5; i++) {
+    await client.addJob('emails', `job-${i}`, {});
+  }
+
+  const page1 = await client.searchJobs({}, 0, 2);
+  expect(page1.data.length).toBe(2);
+  expect(page1.meta.total).toBe(5);
+
+  const page2 = await client.searchJobs({}, 2, 4);
+  expect(page2.data.length).toBe(2);
+
+  await store.disconnect();
+});
+
 // ─── Error Handling ─────────────────────────────────────────────────
 
 test('ConveyorDashboardClient throws ConveyorApiError on 404', async () => {
