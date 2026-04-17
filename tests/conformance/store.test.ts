@@ -1995,7 +1995,7 @@ export function runConformanceTests(
     await store.disconnect();
   });
 
-  test(`[${storeName}] searchByName respects limit`, async () => {
+  test(`[${storeName}] searchByName limit returns N most recent matches`, async () => {
     store = factory();
     await store.connect();
 
@@ -2006,10 +2006,11 @@ export function runConformanceTests(
 
     for (let i = 0; i < 5; i++) {
       await store.saveJob('q1', createJobData('q1', `match-${i}`, {}));
+      await new Promise((r) => setTimeout(r, 10));
     }
 
     const hits = await store.searchByName('match', undefined, 2);
-    expect(hits.length).toEqual(2);
+    expect(hits.map((j) => j.name)).toEqual(['match-4', 'match-3']);
 
     await store.disconnect();
   });

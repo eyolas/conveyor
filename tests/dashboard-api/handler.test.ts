@@ -711,3 +711,32 @@ test('GET /api/metrics/sparklines returns batch data', async () => {
 
   await store.disconnect();
 });
+
+// ─── Advanced Search ──────────────────────────────────────────────────
+
+test('GET /api/jobs/search rejects state with only invalid values', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const res = await handler(new Request('http://localhost/api/jobs/search?state=bogus'));
+  expect(res.status).toBe(400);
+  const body = await json(res);
+  expect(body.error.code).toBe('BAD_REQUEST');
+
+  await store.disconnect();
+});
+
+test('GET /api/jobs/search ignores invalid state values when mixed with valid', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  await store.saveJob('q1', createJobData('q1', 'job-1', {}));
+  const res = await handler(
+    new Request('http://localhost/api/jobs/search?state=waiting,bogus'),
+  );
+  expect(res.status).toBe(200);
+  const body = await json(res);
+  expect(body.meta.total).toBe(1);
+
+  await store.disconnect();
+});

@@ -91,10 +91,12 @@ export function registerSearchRoutes(
     // Parse states (comma-separated)
     let states: JobState[] | undefined;
     if (stateParam) {
-      states = stateParam.split(',').filter((s): s is JobState =>
-        JOB_STATES.includes(s as JobState)
-      );
-      if (states.length === 0) states = undefined;
+      const raw = stateParam.split(',').filter((s) => s.length > 0);
+      const parsed = raw.filter((s): s is JobState => JOB_STATES.includes(s as JobState));
+      if (raw.length > 0 && parsed.length === 0) {
+        return jsonError(c, 'BAD_REQUEST', 'No valid job state in "state" parameter');
+      }
+      states = parsed.length > 0 ? parsed : undefined;
     }
 
     // Parse and validate dates

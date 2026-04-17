@@ -676,13 +676,11 @@ export class MemoryStore implements StoreInterface {
       for (const job of queue.values()) {
         if (job.name.toLowerCase().includes(lowerQuery)) {
           results.push(structuredClone(job));
-          if (results.length >= limit) break;
         }
       }
-      if (results.length >= limit) break;
     }
     results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    return Promise.resolve(results);
+    return Promise.resolve(results.slice(0, limit));
   }
 
   listFlowParents(state?: JobState, limit = 100): Promise<JobData[]> {
