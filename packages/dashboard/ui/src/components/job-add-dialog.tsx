@@ -54,7 +54,7 @@ export function JobAddDialog({ open, queueName, onClose, onAdded }: JobAddDialog
   const [dedupTtl, setDedupTtl] = useState('');
   const [removeOnComplete, setRemoveOnComplete] = useState('');
   const [removeOnFail, setRemoveOnFail] = useState('');
-  const [timeout, setTimeout_] = useState('');
+  const [timeoutMs, setTimeoutMs] = useState('');
 
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -81,7 +81,7 @@ export function JobAddDialog({ open, queueName, onClose, onAdded }: JobAddDialog
     setDedupTtl('');
     setRemoveOnComplete('');
     setRemoveOnFail('');
-    setTimeout_('');
+    setTimeoutMs('');
     const timer = window.setTimeout(() => nameRef.current?.focus(), 50);
     return () => window.clearTimeout(timer);
   }, [open]);
@@ -150,7 +150,7 @@ export function JobAddDialog({ open, queueName, onClose, onAdded }: JobAddDialog
     const rof = parseRemoveOn(removeOnFail);
     if (rof !== undefined) opts.removeOnFail = rof;
 
-    const t = parseIntInput(timeout);
+    const t = parseIntInput(timeoutMs);
     if (t !== undefined) opts.timeout = t;
 
     return opts;
@@ -416,8 +416,8 @@ export function JobAddDialog({ open, queueName, onClose, onAdded }: JobAddDialog
                 />
                 <Field
                   label="Timeout (ms)"
-                  value={timeout}
-                  onChange={setTimeout_}
+                  value={timeoutMs}
+                  onChange={setTimeoutMs}
                   placeholder="30000"
                   type="number"
                 />

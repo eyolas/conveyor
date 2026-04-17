@@ -1,6 +1,6 @@
 import type { JobData } from '../api/client';
 
-const CSV_COLUMNS: Array<keyof JobData | 'opts'> = [
+const CSV_COLUMNS: Array<keyof JobData> = [
   'id',
   'queueName',
   'name',
@@ -18,9 +18,10 @@ const CSV_COLUMNS: Array<keyof JobData | 'opts'> = [
 
 function csvEscape(value: unknown): string {
   if (value === null || value === undefined) return '';
-  const s = typeof value === 'string' ? value : JSON.stringify(value);
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
+  const stringified = typeof value === 'string' ? value : JSON.stringify(value);
+  if (stringified === undefined) return '';
+  if (/[",\n\r]/.test(stringified)) return `"${stringified.replace(/"/g, '""')}"`;
+  return stringified;
 }
 
 export function jobsToCsv(jobs: JobData[]): string {

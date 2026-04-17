@@ -15,8 +15,10 @@ export function ConfigProvider({ children }: { children: ComponentChildren }) {
       .then((c) => {
         if (!cancelled) setConfig(c);
       })
-      .catch(() => {
-        // Older backends without /api/config — keep defaults.
+      .catch((err) => {
+        // Older backends without /api/config — keep defaults silently.
+        // Surface everything else so misconfig is visible in dev.
+        console.warn('[Conveyor] Failed to load /api/config — using defaults', err);
       });
     return () => {
       cancelled = true;
