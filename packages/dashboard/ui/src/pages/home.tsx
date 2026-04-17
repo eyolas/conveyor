@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { route } from 'preact-router';
+import { useConfig } from '../hooks/config-context';
 import { useLiveUpdatesContext } from '../hooks/live-updates-context';
 import {
   getMetricsStatus,
@@ -88,6 +89,7 @@ export function HomePage() {
   }, [queues, metricsEnabled, loadSparklines]);
 
   const { liveUpdates, onRefresh } = useLiveUpdatesContext();
+  const { readOnly } = useConfig();
   useSSE({ onEvent: () => loadQueues(), paused: !liveUpdates });
 
   // Manual refresh support
@@ -230,21 +232,23 @@ export function HomePage() {
                 </div>
                 <div class="flex items-center gap-1.5">
                   {q.isPaused && <Badge state="paused" />}
-                  <button
-                    onClick={(e) => togglePause(q, e)}
-                    class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 opacity-0 transition-all hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100 dark:text-text-muted dark:hover:bg-surface-3 dark:hover:text-text-secondary"
-                    title={q.isPaused ? 'Resume' : 'Pause'}
-                  >
-                    {q.isPaused ? (
-                      <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                    ) : (
-                      <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                      </svg>
-                    )}
-                  </button>
+                  {!readOnly && (
+                    <button
+                      onClick={(e) => togglePause(q, e)}
+                      class="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 opacity-0 transition-all hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100 dark:text-text-muted dark:hover:bg-surface-3 dark:hover:text-text-secondary"
+                      title={q.isPaused ? 'Resume' : 'Pause'}
+                    >
+                      {q.isPaused ? (
+                        <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      ) : (
+                        <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
 

@@ -831,7 +831,7 @@ A **single test suite** that runs against **each store** to guarantee identical 
 
 ### Phase 6 — Tooling & Ecosystem
 
-- [ ] Web dashboard UI
+- [x] Web dashboard UI
 - [ ] Decoupled notification channels (Option B)
 - [ ] Sandboxed workers
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { getCurrentUrl } from 'preact-router';
 import type { ComponentChildren } from 'preact';
+import { useConfig } from '../hooks/config-context';
 import { useLiveUpdatesContext } from '../hooks/live-updates-context';
 import { Sidebar } from './sidebar';
 import { ThemeToggle } from './theme-toggle';
@@ -23,6 +24,7 @@ export function Layout({ children, url }: LayoutProps) {
 
   const activeQueue = extractQueue(url ?? getCurrentUrl());
   const { liveUpdates, toggleLiveUpdates, refresh } = useLiveUpdatesContext();
+  const { readOnly } = useConfig();
 
   const onKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -56,6 +58,14 @@ export function Layout({ children, url }: LayoutProps) {
             <span class="hidden rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 sm:inline dark:bg-surface-3 dark:text-text-muted">
               dashboard
             </span>
+            {readOnly && (
+              <span
+                class="hidden rounded-md border border-amber/30 bg-amber/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-amber-dim sm:inline dark:text-amber"
+                title="Read-only mode — mutations are disabled"
+              >
+                read-only
+              </span>
+            )}
           </a>
 
           <div class="flex items-center gap-2">

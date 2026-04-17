@@ -8,8 +8,10 @@
 import {
   ConveyorDashboardClient,
 } from '@conveyor/dashboard-client';
+import { showToast } from '../components/toast';
 
 import type {
+  ClientDashboardConfig,
   ClientGroupInfo,
   ClientJobData,
   ClientMetricsBucket,
@@ -28,15 +30,41 @@ export type JobData = ClientJobData;
 export type GroupInfo = ClientGroupInfo;
 export type MetricsBucket = ClientMetricsBucket;
 export type SearchJobsFilter = ClientSearchJobsFilter;
+export type DashboardConfig = ClientDashboardConfig;
 export type { SSEEvent, PaginatedResponse };
 
 // ─── Singleton Client ───────────────────────────────────────────────
 
 const BASE = import.meta.env.VITE_API_BASE ?? '';
 
+// Central auth-error toast. Dispatched on the first 401/403 within a 5s
+// window so a burst of failing requests does not spam the user.
+let lastAuthToastAt = 0;
+
+async function authAwareFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const res = await fetch(input, init);
+  if (res.status === 401 || res.status === 403) {
+    const now = Date.now();
+    if (now - lastAuthToastAt > 5000) {
+      lastAuthToastAt = now;
+      showToast(
+        res.status === 401
+          ? 'Session expired — refresh or sign in again'
+          : 'Action blocked — read-only mode or insufficient permissions',
+        'error',
+      );
+    }
+  }
+  return res;
+}
+
 /** Shared client instance used by all API functions and the SSE hook. */
 export const client = new ConveyorDashboardClient({
   baseUrl: BASE,
+  fetch: authAwareFetch,
 });
 
 // ─── Queues ─────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import {
   type SearchJobsFilter,
 } from '../api/client';
 import { Badge } from '../components/badge';
+import { ExportButton } from '../components/export-button';
 import { JobTypeTags } from '../components/job-type-tags';
 import { Pagination } from '../components/pagination';
 
@@ -282,6 +283,11 @@ export function SearchPage({ path: _path }: { path?: string }) {
 
       {/* Results */}
       <div>
+        {jobs.length > 0 && (
+          <div class="mb-3 flex justify-end">
+            <ExportButton jobs={jobs} basename="search" />
+          </div>
+        )}
         {/* Table */}
         {jobs.length > 0 && (
           <table class="w-full text-left text-sm">

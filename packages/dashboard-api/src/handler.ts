@@ -16,6 +16,7 @@ import { registerJobRoutes } from './controllers/jobs.ts';
 import { registerEventRoutes } from './controllers/events.ts';
 import { registerSearchRoutes } from './controllers/search.ts';
 import { registerMetricsRoutes } from './controllers/metrics.ts';
+import { registerConfigRoutes } from './controllers/config.ts';
 
 /**
  * Create a dashboard API handler.
@@ -43,6 +44,11 @@ export function createDashboardHandler(options: DashboardOptions): DashboardHand
   // CORS
   app.use(`${normalizedBase}/api/*`, cors());
 
+  // Public config endpoint — registered before auth so the UI can read the
+  // flags it needs (readOnly, authRequired) to render the login/banner UI.
+  const apiBase = `${normalizedBase}/api`;
+  registerConfigRoutes(app, apiBase, { readOnly, authRequired: auth !== undefined });
+
   // Auth middleware (if provided)
   if (auth) {
     app.use(`${normalizedBase}/api/*`, createAuthMiddleware(auth));
@@ -54,7 +60,6 @@ export function createDashboardHandler(options: DashboardOptions): DashboardHand
   }
 
   // Register all routes directly on the app
-  const apiBase = `${normalizedBase}/api`;
   registerQueueRoutes(app, apiBase, store, filterQueues);
   registerJobRoutes(app, apiBase, store);
   registerEventRoutes(app, apiBase, store, filterQueues);

@@ -46,12 +46,16 @@ export class EventSubscription {
   #eventSource: EventSource | null = null;
   #disposed = false;
   #reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  #reconnectAttempts = 0;
+  #gaveUp = false;
 
   readonly #url: string;
   readonly #onEvent: SubscribeOptions['onEvent'];
   readonly #onError: SubscribeOptions['onError'];
+  readonly #onGiveUp: SubscribeOptions['onGiveUp'];
   readonly #eventTypes: readonly StoreEventType[];
   readonly #reconnectDelay: number;
+  readonly #maxReconnectAttempts: number;
   readonly #factory: (url: string) => EventSource;
 
   /** @internal */
@@ -63,8 +67,10 @@ export class EventSubscription {
     this.#url = url;
     this.#onEvent = options.onEvent;
     this.#onError = options.onError;
+    this.#onGiveUp = options.onGiveUp;
     this.#eventTypes = options.eventTypes ?? SSE_EVENT_TYPES;
     this.#reconnectDelay = options.reconnectDelay ?? DEFAULT_RECONNECT_DELAY;
+    this.#maxReconnectAttempts = options.maxReconnectAttempts ?? Infinity;
     this.#factory = factory;
 
     this.#connect();
@@ -107,12 +113,24 @@ export class EventSubscription {
       es.addEventListener(eventType, handler as EventListener);
     }
 
+    // Reset attempt counter once the connection opens successfully.
+    es.onopen = () => {
+      this.#reconnectAttempts = 0;
+    };
+
     es.onerror = (e: Event) => {
       this.#onError?.(e);
       es.close();
-      if (!this.#disposed && this.#reconnectDelay > 0) {
-        this.#reconnectTimer = setTimeout(() => this.#connect(), this.#reconnectDelay);
+      if (this.#disposed || this.#reconnectDelay <= 0) return;
+      this.#reconnectAttempts++;
+      if (this.#reconnectAttempts >= this.#maxReconnectAttempts) {
+        if (!this.#gaveUp) {
+          this.#gaveUp = true;
+          this.#onGiveUp?.();
+        }
+        return;
       }
+      this.#reconnectTimer = setTimeout(() => this.#connect(), this.#reconnectDelay);
     };
   }
 }

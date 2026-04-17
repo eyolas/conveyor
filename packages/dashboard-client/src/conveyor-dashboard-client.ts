@@ -19,6 +19,7 @@
  */
 
 import type {
+  ClientDashboardConfig,
   ClientGroupInfo,
   ClientJobData,
   ClientMetricsBucket,
@@ -51,6 +52,14 @@ export class ConveyorDashboardClient {
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.#eventSourceFactory = options.eventSourceFactory ??
       ((url: string) => new EventSource(url));
+  }
+
+  // ─── Config ──────────────────────────────────────────────────────
+
+  /** Fetch runtime config exposed by the dashboard (readOnly, authRequired). */
+  async getConfig(): Promise<ClientDashboardConfig> {
+    const res = await this.#request<DataResponse<ClientDashboardConfig>>('/config');
+    return res.data;
   }
 
   // ─── Queues ──────────────────────────────────────────────────────

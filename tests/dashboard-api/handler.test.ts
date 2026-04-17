@@ -712,6 +712,46 @@ test('GET /api/metrics/sparklines returns batch data', async () => {
   await store.disconnect();
 });
 
+// ─── Config Endpoint ──────────────────────────────────────────────────
+
+test('GET /api/config returns default flags', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const res = await handler(new Request('http://localhost/api/config'));
+  expect(res.status).toBe(200);
+  const body = await json(res);
+  expect(body.data).toEqual({ readOnly: false, authRequired: false });
+
+  await store.disconnect();
+});
+
+test('GET /api/config reflects readOnly option', async () => {
+  const { store, handler } = createHandler({ readOnly: true });
+  await store.connect();
+
+  const res = await handler(new Request('http://localhost/api/config'));
+  expect(res.status).toBe(200);
+  const body = await json(res);
+  expect(body.data.readOnly).toBe(true);
+
+  await store.disconnect();
+});
+
+test('GET /api/config is public when auth is configured', async () => {
+  const { store, handler } = createHandler({
+    auth: (req) => req.headers.get('Authorization') === 'Bearer secret',
+  });
+  await store.connect();
+
+  const res = await handler(new Request('http://localhost/api/config'));
+  expect(res.status).toBe(200);
+  const body = await json(res);
+  expect(body.data.authRequired).toBe(true);
+
+  await store.disconnect();
+});
+
 // ─── Advanced Search ──────────────────────────────────────────────────
 
 test('GET /api/jobs/search rejects state with only invalid values', async () => {

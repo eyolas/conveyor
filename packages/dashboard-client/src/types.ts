@@ -140,6 +140,14 @@ export interface ClientSearchJobsFilter {
   createdBefore?: Date;
 }
 
+/** Runtime configuration exposed by the dashboard API. */
+export interface ClientDashboardConfig {
+  /** When `true`, the API rejects all mutation requests with 403. */
+  readOnly: boolean;
+  /** When `true`, the API requires authentication headers for protected routes. */
+  authRequired: boolean;
+}
+
 // ─── SSE Types ──────────────────────────────────────────────────────
 
 /** SSE event as delivered to the subscription callback. */
@@ -167,4 +175,13 @@ export interface SubscribeOptions {
 
   /** Auto-reconnect delay in ms. Default: `3000`. Set to `0` to disable. */
   reconnectDelay?: number;
+
+  /**
+   * Maximum number of consecutive reconnect attempts before giving up.
+   * Default: unlimited. Useful to stop retrying after auth failures.
+   */
+  maxReconnectAttempts?: number;
+
+  /** Called once when `maxReconnectAttempts` is reached. */
+  onGiveUp?: () => void;
 }
