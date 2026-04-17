@@ -78,6 +78,11 @@ tasks:
     status: next-major-candidate
     file: tasks/job-schedulers-api.md
 
+  workers-view:
+    description: 'Worker registry + /workers dashboard page: heartbeat, live/stale status, current job, concurrency, uptime'
+    status: planned
+    file: tasks/workers-view.md
+
 # ─── PRD Roadmap ──────────────────────────────────────────────────────────────
 
 roadmap:
