@@ -291,13 +291,18 @@ promote) lands first so reviewers can focus on the atomic `fetchNextJob` script 
 
 - **PR #55** — foundation (Phase 3 dedup hardening, Lua infra, pause/resume, extendLock /
   releaseLock / getActiveCount, delayed scheduling).
-- **PR TBD (phase-4b)** — `fetchNextJob.lua` + wiring + leasing tests.
+- **PR #56** — `fetchNextJob.lua` + wiring + leasing tests.
 
 ### Phase 5 — advanced
 
 - [ ] Flows: `saveFlow`, `notifyChildCompleted`, `failParentOnChildFailure`, `getChildrenJobs`.
-- [ ] Groups: `getGroupActiveCount`, `getWaitingGroupCount`.
-- [ ] Stalled detection: `getStalledJobs`, `clean`, `drain`, `obliterate`.
+- [x] Groups: `getGroupActiveCount`, `getWaitingGroupCount` — backed by a `group:<gid>:waiting` ZSET
+      maintained by `addToStateIndex` / `removeFromStateIndex`, `fetchNextJob.lua`, and
+      `promote-delayed.lua`.
+- [x] Stalled detection: `getStalledJobs`, `clean`, `drain`, `obliterate`.
+
+**Phase 5a (PR TBD)** ships group counts, stalled, clean, drain, obliterate + the
+`group:<gid>:waiting` refactor. Phase 5b will add flows.
 
 ### Phase 6 — events
 

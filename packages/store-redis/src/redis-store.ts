@@ -18,7 +18,13 @@ import type {
 } from '@conveyor/shared';
 import { generateId, InvalidJobStateError, noopLogger } from '@conveyor/shared';
 import { createClient, ErrorReply } from 'redis';
-import { createKeys, DEFAULT_PREFIX, type Keys } from './keys.ts';
+import {
+  createKeys,
+  DEFAULT_PREFIX,
+  GROUP_ACTIVE_SUFFIX,
+  GROUP_WAITING_SUFFIX,
+  type Keys,
+} from './keys.ts';
 import { loadScriptSources, type ScriptName } from './lua/index.ts';
 import { hashToJobData, jobDataToHash } from './mapping.ts';
 
@@ -385,7 +391,7 @@ export class RedisStore {
     multi.hSet(this.keys.job(queueName, jobId), hash);
 
     if (updates.state !== undefined && updates.state !== current.state) {
-      this.removeFromStateIndex(multi, queueName, current.state, jobId);
+      this.removeFromStateIndex(multi, queueName, current.state, jobId, current.groupId);
       this.addToStateIndex(multi, queueName, merged, jobId);
     } else if (
       merged.state === 'delayed' &&
@@ -418,7 +424,7 @@ export class RedisStore {
 
     const multi = client.multi();
     multi.del(this.keys.job(queueName, jobId));
-    this.removeFromStateIndex(multi, queueName, current.state, jobId);
+    this.removeFromStateIndex(multi, queueName, current.state, jobId, current.groupId);
     if (current.deduplicationKey) {
       multi.del(this.keys.dedup(queueName, current.deduplicationKey));
     }
@@ -468,7 +474,6 @@ export class RedisStore {
     const groupCap = opts?.groupConcurrency ?? -1;
     const scanBatch = 200;
 
-    const [groupActivePrefix, groupActiveSuffix] = this.keys.groupActiveParts(queueName);
     const argv: (string | number)[] = [
       workerId,
       lockDuration,
@@ -481,10 +486,12 @@ export class RedisStore {
       excludeGroups.length,
       ...excludeGroups,
       this.keys.jobPrefix(queueName),
-      // `group:<gid>:active` is built inside Lua from prefix + gid + suffix
-      // so the script stays agnostic of the key shape we chose in keys.ts.
-      groupActivePrefix,
-      groupActiveSuffix,
+      // Lua reconstructs `group:<gid>:active` and `group:<gid>:waiting` by
+      // concatenating `prefix .. gid .. suffix`, so the script stays
+      // agnostic of the key shape chosen in keys.ts.
+      this.keys.groupPrefix(queueName),
+      GROUP_ACTIVE_SUFFIX,
+      GROUP_WAITING_SUFFIX,
       this.keys.lockPrefix(queueName),
       scanBatch,
     ];
@@ -569,7 +576,13 @@ export class RedisStore {
     return await this.evalScript<number>(
       'promoteDelayed',
       [this.keys.delayed(queueName), this.keys.waiting(queueName)],
-      [String(timestamp), this.keys.jobPrefix(queueName)],
+      [
+        String(timestamp),
+        this.keys.jobPrefix(queueName),
+        this.keys.groupPrefix(queueName),
+        GROUP_WAITING_SUFFIX,
+        Date.now(),
+      ],
     );
   }
 
@@ -582,8 +595,169 @@ export class RedisStore {
     return await this.evalScript<number>(
       'promoteDelayed',
       [this.keys.delayed(queueName), this.keys.waiting(queueName)],
-      ['+inf', this.keys.jobPrefix(queueName)],
+      [
+        '+inf',
+        this.keys.jobPrefix(queueName),
+        this.keys.groupPrefix(queueName),
+        GROUP_WAITING_SUFFIX,
+        Date.now(),
+      ],
     );
+  }
+
+  // ─── Groups ──────────────────────────────────────────────────────────
+
+  async getGroupActiveCount(queueName: string, groupId: string): Promise<number> {
+    const client = this.getClient();
+    return await client.sCard(this.keys.groupActive(queueName, groupId));
+  }
+
+  async getWaitingGroupCount(queueName: string, groupId: string): Promise<number> {
+    const client = this.getClient();
+    return await client.zCard(this.keys.groupWaiting(queueName, groupId));
+  }
+
+  // ─── Maintenance ─────────────────────────────────────────────────────
+
+  /**
+   * Return every active job whose lease expired. Matches MemoryStore: the
+   * `stalledThreshold` argument is accepted for API parity but not used —
+   * the hash's `lockUntil` field is authoritative.
+   */
+  async getStalledJobs(queueName: string, _stalledThreshold: number): Promise<JobData[]> {
+    const client = this.getClient();
+    const ids = await client.sMembers(this.keys.active(queueName));
+    if (ids.length === 0) return [];
+    const jobs = await this.hydrateJobs(queueName, ids);
+    const now = Date.now();
+    return jobs.filter(
+      (j) => j.state === 'active' && j.lockUntil !== null && j.lockUntil.getTime() < now,
+    );
+  }
+
+  /**
+   * Remove jobs in `state` that have been sitting past the grace window.
+   *
+   * Timestamp used for the age check matches MemoryStore / PgStore:
+   * - `completed` / `failed`: terminal timestamp (the ZSET score).
+   * - `waiting` / `waiting-children` / `delayed`: `createdAt` on the hash.
+   * - `active`: `processedAt` on the hash (the worker claim time).
+   *
+   * Cleanup reuses {@linkcode removeJob} so state-index, dedup, lock, and
+   * group bookkeeping stay consistent.
+   */
+  async clean(queueName: string, state: JobState, grace: number): Promise<number> {
+    const client = this.getClient();
+    const now = Date.now();
+    const cutoff = now - grace;
+
+    let ids: string[] = [];
+    switch (state) {
+      case 'completed':
+        ids = await client.zRangeByScore(this.keys.completed(queueName), '-inf', cutoff);
+        break;
+      case 'failed':
+        ids = await client.zRangeByScore(this.keys.failed(queueName), '-inf', cutoff);
+        break;
+      case 'delayed': {
+        const all = await client.zRange(this.keys.delayed(queueName), 0, -1);
+        ids = await this.filterByTimestamp(queueName, all, 'createdAt', cutoff);
+        break;
+      }
+      case 'waiting': {
+        const all = await client.lRange(this.keys.waiting(queueName), 0, -1);
+        ids = await this.filterByTimestamp(queueName, all, 'createdAt', cutoff);
+        break;
+      }
+      case 'waiting-children': {
+        const all = await client.lRange(this.keys.waitingChildren(queueName), 0, -1);
+        ids = await this.filterByTimestamp(queueName, all, 'createdAt', cutoff);
+        break;
+      }
+      case 'active': {
+        const all = await client.sMembers(this.keys.active(queueName));
+        ids = await this.filterByTimestamp(queueName, all, 'processedAt', cutoff);
+        break;
+      }
+      default: {
+        const _exhaustive: never = state;
+        throw new Error(`[Conveyor] Unhandled JobState in clean: ${String(_exhaustive)}`);
+      }
+    }
+
+    for (const id of ids) {
+      await this.removeJob(queueName, id);
+    }
+    return ids.length;
+  }
+
+  /**
+   * Remove every waiting and delayed job from the queue. Terminal states
+   * (completed, failed) and in-flight active jobs are preserved.
+   */
+  async drain(queueName: string): Promise<void> {
+    const client = this.getClient();
+    const waiting = await client.lRange(this.keys.waiting(queueName), 0, -1);
+    const waitingChildren = await client.lRange(
+      this.keys.waitingChildren(queueName),
+      0,
+      -1,
+    );
+    const delayed = await client.zRange(this.keys.delayed(queueName), 0, -1);
+    const ids = [...waiting, ...waitingChildren, ...delayed];
+    for (const id of ids) {
+      await this.removeJob(queueName, id);
+    }
+  }
+
+  /**
+   * Nuke every key under the queue's hash-tag namespace. Refuses when
+   * active jobs exist unless `opts.force` is set — same contract as
+   * MemoryStore / PgStore.
+   *
+   * Uses `SCAN` with the queue's hash-tag pattern so the delete stays on
+   * one cluster slot (the hash tag `{prefix:queueName}` is what makes it
+   * safe to do in one shot).
+   */
+  async obliterate(queueName: string, opts?: { force?: boolean }): Promise<void> {
+    const client = this.getClient();
+    if (!opts?.force) {
+      const activeCount = await client.sCard(this.keys.active(queueName));
+      if (activeCount > 0) {
+        throw new Error(
+          `[Conveyor] Cannot obliterate queue "${queueName}": active jobs exist. ` +
+            'Use { force: true } to override.',
+        );
+      }
+    }
+    const pattern = `${this.keys.jobPrefix(queueName).slice(0, -5)}*`;
+    // `jobPrefix` returns `{conveyor:q}:job:`; strip the trailing `:job:`
+    // (5 chars) so the scan covers every key under `{conveyor:q}…`.
+    for await (const batch of client.scanIterator({ MATCH: pattern, COUNT: 200 })) {
+      if (batch.length > 0) await client.del(batch);
+    }
+    await client.sRem(this.keys.queueIndex(), queueName);
+  }
+
+  /**
+   * Hydrate `ids` and return those whose `field` timestamp is older than
+   * `cutoff` (ms epoch). Used by `clean` for states whose native index
+   * doesn't sort by `createdAt` / `processedAt`.
+   */
+  private async filterByTimestamp(
+    queueName: string,
+    ids: string[],
+    field: 'createdAt' | 'processedAt',
+    cutoff: number,
+  ): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const jobs = await this.hydrateJobs(queueName, ids);
+    return jobs
+      .filter((j) => {
+        const ts = j[field];
+        return ts !== null && ts.getTime() <= cutoff;
+      })
+      .map((j) => j.id);
   }
 
   // ─── Pause / Resume ──────────────────────────────────────────────────
@@ -774,12 +948,21 @@ export class RedisStore {
     switch (job.state) {
       case 'waiting':
         multi.rPush(this.keys.waiting(queueName), id);
+        if (job.groupId) {
+          multi.zAdd(this.keys.groupWaiting(queueName, job.groupId), {
+            score: job.createdAt.getTime(),
+            value: id,
+          });
+        }
         return;
       case 'waiting-children':
         multi.rPush(this.keys.waitingChildren(queueName), id);
         return;
       case 'active':
         multi.sAdd(this.keys.active(queueName), id);
+        if (job.groupId) {
+          multi.sAdd(this.keys.groupActive(queueName, job.groupId), id);
+        }
         return;
       case 'delayed':
         multi.zAdd(this.keys.delayed(queueName), {
@@ -802,21 +985,30 @@ export class RedisStore {
     }
   }
 
+  /**
+   * Reverse of {@linkcode addToStateIndex}. Takes `groupId` explicitly — the
+   * caller always has the `JobData` they're transitioning away from, so
+   * threading the id through keeps the group-set cleanup on the same side
+   * as the primary state bucket.
+   */
   private removeFromStateIndex(
     multi: RedisMulti,
     queueName: string,
     state: JobState,
     id: string,
+    groupId: string | null = null,
   ): void {
     switch (state) {
       case 'waiting':
         multi.lRem(this.keys.waiting(queueName), 0, id);
+        if (groupId) multi.zRem(this.keys.groupWaiting(queueName, groupId), id);
         return;
       case 'waiting-children':
         multi.lRem(this.keys.waitingChildren(queueName), 0, id);
         return;
       case 'active':
         multi.sRem(this.keys.active(queueName), id);
+        if (groupId) multi.sRem(this.keys.groupActive(queueName, groupId), id);
         return;
       case 'delayed':
         multi.zRem(this.keys.delayed(queueName), id);

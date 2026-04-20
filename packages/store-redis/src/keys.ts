@@ -11,6 +11,10 @@
 /** Root key prefix used for all Conveyor keys. */
 export const DEFAULT_PREFIX = 'conveyor';
 
+/** Key-shape suffixes used by both TS and Lua when building per-group keys. */
+export const GROUP_ACTIVE_SUFFIX = ':active';
+export const GROUP_WAITING_SUFFIX = ':waiting';
+
 /**
  * Returns a function set that builds every Redis key this store uses.
  *
@@ -75,14 +79,15 @@ export function createKeys(prefix: string = DEFAULT_PREFIX) {
     /** Active job IDs within a group. */
     groupActive: (queueName: string, groupId: string) =>
       `${qns(queueName)}:group:${groupId}:active`,
-    /**
-     * Prefix + suffix to reconstruct `groupActive(queueName, gid)` in Lua.
-     * The script builds the key as `prefix .. gid .. suffix`.
-     */
-    groupActiveParts: (queueName: string) => [`${qns(queueName)}:group:`, ':active'] as const,
     /** Waiting job IDs within a group, scored by enqueue timestamp. */
     groupWaiting: (queueName: string, groupId: string) =>
       `${qns(queueName)}:group:${groupId}:waiting`,
+    /**
+     * Prefix Lua scripts concatenate with `groupId` + a suffix to reach
+     * `group:<gid>:active` or `group:<gid>:waiting`. Suffixes are exported
+     * as {@linkcode GROUP_ACTIVE_SUFFIX} and {@linkcode GROUP_WAITING_SUFFIX}.
+     */
+    groupPrefix: (queueName: string) => `${qns(queueName)}:group:`,
 
     /** Children job IDs (queue:id tuples) for a parent flow job. */
     flowChildren: (queueName: string, parentId: string) =>
