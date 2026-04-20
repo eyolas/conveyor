@@ -2,10 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.4.0] - 2026-04-20
+
+### Features
+
+- **dashboard**: Harden UX — readOnly, auth errors, full job form, export
+  (#48)([c5682ba](https://github.com/eyolas/conveyor/commit/c5682ba4580f7566ed23dd808a2a5a3832632bf5))
+- Add search by job name
+  (#46)([cb57fde](https://github.com/eyolas/conveyor/commit/cb57fde293e8d508e532d8c486a5084d2ec01557))
+
+### Bug Fixes
+
+- **ci**: Deploy docs from main branch instead of tag
+  ref([bcd0d0d](https://github.com/eyolas/conveyor/commit/bcd0d0d6f8c6632303e808ec8301a84b94981124))
 
 ### Documentation
 
+- **dashboard**: Cover /api/config, advanced search, export, SSE reconnect cap
+  (#50)([5262493](https://github.com/eyolas/conveyor/commit/5262493056bff40562e0e817d1e979f61f69523b))
+- **tasks**: Plan workers-view (worker registry + /workers dashboard page)
+  (#49)([3f51d79](https://github.com/eyolas/conveyor/commit/3f51d79914e22f226bd5cd0e7d68cdeaf55dac3e))
+- Add website links, JSR badges, and dashboard packages to
+  README([3dce3e5](https://github.com/eyolas/conveyor/commit/3dce3e53e8e830299b0b3e34e34f24fb02aa69c0))
+- **dashboard**: Add Client SDK page for
+  @conveyor/dashboard-client([4a24919](https://github.com/eyolas/conveyor/commit/4a24919be237c68bab13a0aea52648340b310c76))
+- Update CHANGELOG.md for
+  v1.3.0([0ab955d](https://github.com/eyolas/conveyor/commit/0ab955d819a9bb41e8295319643841d003e6027c))
 - Update version to
   v1([6e9e52c](https://github.com/eyolas/conveyor/commit/6e9e52c4872621dbf9ef8489f199f8fcbeba5325))
 
