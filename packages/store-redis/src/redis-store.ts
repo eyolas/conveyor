@@ -448,6 +448,12 @@ export class RedisStore {
    * not yet modelled (waiting is a LIST, not a ZSET) — the conformance
    * harness will enforce that parity in a later pass; today priority is
    * respected only by Memory / Pg.
+   *
+   * Scan depth: the script inspects at most 200 ids per call (see
+   * `scanBatch` in `fetch-next-job.lua`). If every one of the head 200 ids
+   * is filtered out (all names paused, all groups capped, etc.) the call
+   * returns `null` even when a ready job sits deeper. Acceptable for v1 —
+   * the limit is revisited with the waiting-as-ZSET migration.
    */
   async fetchNextJob(
     queueName: string,

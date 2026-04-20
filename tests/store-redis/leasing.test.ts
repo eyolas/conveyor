@@ -374,6 +374,23 @@ describe.skipIf(!available)('RedisStore — Phase 4 leasing', () => {
     expect(members).toEqual([picked!.id]);
   });
 
+  test('fetchNextJob self-heals ghost ids in waiting (hash missing)', async () => {
+    // Push an id that points at no hash. Could happen if someone removed
+    // the hash out-of-band. The script should drop it from waiting and
+    // move on to the next candidate.
+    const probe = createClient({ url: REDIS_URL });
+    await probe.connect();
+    await probe.rPush(`{${TEST_PREFIX}:${QUEUE}}:waiting`, 'ghost-id');
+    await probe.quit();
+
+    const realId = await store.saveJob(QUEUE, createJobData(QUEUE, 'w', {}));
+    const picked = await store.fetchNextJob(QUEUE, 'w-1', 10_000);
+    expect(picked!.id).toBe(realId);
+
+    // Ghost id was LREM'd, only the real one was consumed — queue empty
+    expect(await store.countJobs(QUEUE, 'waiting')).toBe(0);
+  });
+
   test('fetchNextJob writes the lock string with the matching worker id', async () => {
     const id = await store.saveJob(QUEUE, createJobData(QUEUE, 'w', {}));
     await store.fetchNextJob(QUEUE, 'worker-42', 5_000);

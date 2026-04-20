@@ -56,7 +56,12 @@ export function createKeys(prefix: string = DEFAULT_PREFIX) {
     cancelled: (queueName: string) => `${qns(queueName)}:cancelled`,
     /** Set of paused job names (contains `__all__` when the whole queue is paused). */
     paused: (queueName: string) => `${qns(queueName)}:paused`,
-    /** Lock key for one job (string value = `workerId:token`, TTL = lockDuration). */
+    /**
+     * Lock key for one job. Value is the owning worker id (plain string, no
+     * token suffix in Phase 4 — the planned `workerId:randomToken` shape
+     * will land when `extendLock` / `releaseLock` start enforcing ownership
+     * in Lua). TTL = `lockDuration`.
+     */
     lock: (queueName: string, id: string) => `${qns(queueName)}:lock:${id}`,
     /** Prefix to concatenate with an id to reach the lock key. */
     lockPrefix: (queueName: string) => `${qns(queueName)}:lock:`,

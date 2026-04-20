@@ -33,10 +33,17 @@
 -- the hash inline saves a follow-up round trip and closes the theoretical
 -- window where the job could disappear between lease and hydrate.
 --
--- Limits (documented, deferred): priority ordering is not modelled (waiting
--- is a plain LIST in this phase). Group fairness uses first-fit rather than
--- round-robin — good enough with exclude + cap to prevent starvation, but
--- a Phase 5 revision will add groups:index round-robin.
+-- Limits (documented, deferred):
+--   * Priority ordering is not modelled (waiting is a plain LIST).
+--   * Group fairness uses first-fit rather than round-robin — good enough
+--     with exclude + cap to prevent starvation; Phase 5 will revisit via
+--     `groups:index`.
+--   * Scan depth is bounded by ARGV scanBatch (default 200). A queue that
+--     accumulates >200 non-eligible heads (all names paused / all groups
+--     capped / etc.) may fail to surface a ready job deeper in the list
+--     until the heads are drained. If we ever observe this in practice,
+--     either iterate in a second script pass or migrate waiting to a ZSET
+--     with priority keyed scoring.
 
 local pausedKey    = KEYS[1]
 local waitingKey   = KEYS[2]
@@ -111,21 +118,27 @@ for _, id in ipairs(order) do
   local name = fields[1]
   local gid  = fields[2]
 
-  local ok = type(name) == 'string'
-  if ok and nameFilter ~= '' and name ~= nameFilter then ok = false end
-  if ok and redis.call('SISMEMBER', pausedKey, name) == 1 then ok = false end
-  if ok and type(gid) == 'string' and gid ~= '' then
-    if excludeSet[gid] then ok = false end
-    if ok and groupCap >= 0 then
-      local gKey = groupActivePrefix .. gid .. groupActiveSuffix
-      if tonumber(redis.call('SCARD', gKey)) >= groupCap then ok = false end
+  if type(name) ~= 'string' then
+    -- Ghost id: the hash is gone but the waiting entry survived. Self-heal
+    -- by dropping it so future scans don't keep hitting the same dead id.
+    redis.call('LREM', waitingKey, 0, id)
+  else
+    local ok = true
+    if nameFilter ~= '' and name ~= nameFilter then ok = false end
+    if ok and redis.call('SISMEMBER', pausedKey, name) == 1 then ok = false end
+    if ok and type(gid) == 'string' and gid ~= '' then
+      if excludeSet[gid] then ok = false end
+      if ok and groupCap >= 0 then
+        local gKey = groupActivePrefix .. gid .. groupActiveSuffix
+        if tonumber(redis.call('SCARD', gKey)) >= groupCap then ok = false end
+      end
     end
-  end
 
-  if ok then
-    chosenId = id
-    if type(gid) == 'string' and gid ~= '' then chosenGid = gid end
-    break
+    if ok then
+      chosenId = id
+      if type(gid) == 'string' and gid ~= '' then chosenGid = gid end
+      break
+    end
   end
 end
 
