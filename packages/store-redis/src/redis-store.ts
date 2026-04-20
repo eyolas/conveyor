@@ -8,7 +8,14 @@
  * follow-up phases. See `tasks/redis-store.md`.
  */
 
-import type { JobData, JobState, Logger, StoreOptions, UpdateJobOptions } from '@conveyor/shared';
+import type {
+  FetchOptions,
+  JobData,
+  JobState,
+  Logger,
+  StoreOptions,
+  UpdateJobOptions,
+} from '@conveyor/shared';
 import { generateId, InvalidJobStateError, noopLogger } from '@conveyor/shared';
 import { createClient, ErrorReply } from 'redis';
 import { createKeys, DEFAULT_PREFIX, type Keys } from './keys.ts';
@@ -420,6 +427,86 @@ export class RedisStore {
   }
 
   // ─── Leasing ─────────────────────────────────────────────────────────
+
+  /**
+   * Atomically pick a waiting job, lease it to `workerId`, and return the
+   * hydrated record. Returns `null` when nothing is fetchable.
+   *
+   * The `fetch-next-job.lua` script evaluates every filter (global pause,
+   * job-name pause, job-name whitelist, rate-limit window, group cap,
+   * exclude groups) against the same Redis snapshot — the whole sequence
+   * either lands or the script reports "nothing" without side effects.
+   * The script also returns the leased job's full `HGETALL` reply so
+   * callers hydrate in the same round trip.
+   *
+   * Rate-limit semantics match MemoryStore: the sliding window counts
+   * *events* (one per successful lease), so re-leasing the same id after a
+   * stalled sweep still increments the counter. The Lua script scores each
+   * entry with the timestamp and uses `now:id` as the unique member.
+   *
+   * Ordering: FIFO by default, LIFO on `opts.lifo`. Priority ordering is
+   * not yet modelled (waiting is a LIST, not a ZSET) — the conformance
+   * harness will enforce that parity in a later pass; today priority is
+   * respected only by Memory / Pg.
+   *
+   * Scan depth: the script inspects at most 200 ids per call (see
+   * `scanBatch` in `fetch-next-job.lua`). If every one of the head 200 ids
+   * is filtered out (all names paused, all groups capped, etc.) the call
+   * returns `null` even when a ready job sits deeper. Acceptable for v1 —
+   * the limit is revisited with the waiting-as-ZSET migration.
+   */
+  async fetchNextJob(
+    queueName: string,
+    workerId: string,
+    lockDuration: number,
+    opts?: FetchOptions,
+  ): Promise<JobData | null> {
+    const now = Date.now();
+    const excludeGroups = opts?.excludeGroups ?? [];
+    const rateLimitMax = opts?.rateLimit?.max ?? 0;
+    const rateLimitWindow = opts?.rateLimit?.duration ?? 0;
+    const groupCap = opts?.groupConcurrency ?? -1;
+    const scanBatch = 200;
+
+    const [groupActivePrefix, groupActiveSuffix] = this.keys.groupActiveParts(queueName);
+    const argv: (string | number)[] = [
+      workerId,
+      lockDuration,
+      now,
+      opts?.lifo ? '1' : '0',
+      opts?.jobName ?? '',
+      rateLimitMax,
+      rateLimitWindow,
+      groupCap,
+      excludeGroups.length,
+      ...excludeGroups,
+      this.keys.jobPrefix(queueName),
+      // `group:<gid>:active` is built inside Lua from prefix + gid + suffix
+      // so the script stays agnostic of the key shape we chose in keys.ts.
+      groupActivePrefix,
+      groupActiveSuffix,
+      this.keys.lockPrefix(queueName),
+      scanBatch,
+    ];
+
+    const keys = [
+      this.keys.paused(queueName),
+      this.keys.waiting(queueName),
+      this.keys.active(queueName),
+      this.keys.rateLimit(queueName),
+    ];
+
+    // Script returns the leased job's HGETALL reply as a flat
+    // [k1, v1, k2, v2, ...] array so we skip the follow-up getJob round
+    // trip and avoid the "removed between lease and hydrate" race.
+    const reply = await this.evalScript<string[] | null>('fetchNextJob', keys, argv);
+    if (!reply || reply.length === 0) return null;
+    const hash: Record<string, string> = {};
+    for (let i = 0; i < reply.length; i += 2) {
+      hash[reply[i]!] = reply[i + 1]!;
+    }
+    return hashToJobData(hash);
+  }
 
   /**
    * Extend a lease iff the job is still `active`. Bumps `lockUntil` on the

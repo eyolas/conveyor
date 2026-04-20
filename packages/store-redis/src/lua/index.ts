@@ -12,12 +12,17 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 /** The bundled scripts. Add new ones here when a phase needs them. */
-export type ScriptName = 'extendLock' | 'releaseLock' | 'promoteDelayed';
+export type ScriptName =
+  | 'extendLock'
+  | 'releaseLock'
+  | 'promoteDelayed'
+  | 'fetchNextJob';
 
 const SCRIPT_FILES: Record<ScriptName, string> = {
   extendLock: 'extend-lock.lua',
   releaseLock: 'release-lock.lua',
   promoteDelayed: 'promote-delayed.lua',
+  fetchNextJob: 'fetch-next-job.lua',
 };
 
 /**

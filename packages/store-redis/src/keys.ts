@@ -56,8 +56,15 @@ export function createKeys(prefix: string = DEFAULT_PREFIX) {
     cancelled: (queueName: string) => `${qns(queueName)}:cancelled`,
     /** Set of paused job names (contains `__all__` when the whole queue is paused). */
     paused: (queueName: string) => `${qns(queueName)}:paused`,
-    /** Lock key for one job (string value = `workerId:token`, TTL = lockDuration). */
+    /**
+     * Lock key for one job. Value is the owning worker id (plain string, no
+     * token suffix in Phase 4 — the planned `workerId:randomToken` shape
+     * will land when `extendLock` / `releaseLock` start enforcing ownership
+     * in Lua). TTL = `lockDuration`.
+     */
     lock: (queueName: string, id: string) => `${qns(queueName)}:lock:${id}`,
+    /** Prefix to concatenate with an id to reach the lock key. */
+    lockPrefix: (queueName: string) => `${qns(queueName)}:lock:`,
     /** Dedup index — maps deduplication key to job ID. */
     dedup: (queueName: string, key: string) => `${qns(queueName)}:dedup:${key}`,
     /** Sliding-window rate limit sorted set for a queue. */
@@ -68,6 +75,11 @@ export function createKeys(prefix: string = DEFAULT_PREFIX) {
     /** Active job IDs within a group. */
     groupActive: (queueName: string, groupId: string) =>
       `${qns(queueName)}:group:${groupId}:active`,
+    /**
+     * Prefix + suffix to reconstruct `groupActive(queueName, gid)` in Lua.
+     * The script builds the key as `prefix .. gid .. suffix`.
+     */
+    groupActiveParts: (queueName: string) => [`${qns(queueName)}:group:`, ':active'] as const,
     /** Waiting job IDs within a group, scored by enqueue timestamp. */
     groupWaiting: (queueName: string, groupId: string) =>
       `${qns(queueName)}:group:${groupId}:waiting`,
