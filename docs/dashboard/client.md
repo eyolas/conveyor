@@ -76,6 +76,12 @@ const client = new ConveyorDashboardClient({
 
 ## API Methods
 
+### Config
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `getConfig()` | `ClientDashboardConfig` | Runtime flags (`readOnly`, `authRequired`) — public, reachable before auth |
+
 ### Queues
 
 | Method | Returns | Description |
@@ -111,7 +117,9 @@ const client = new ConveyorDashboardClient({
 | --- | --- | --- |
 | `searchJob(jobId)` | `ClientJobData \| null` | Cross-queue job lookup by ID |
 | `searchByPayload(queue, query)` | `ClientJobData[]` | Search jobs by payload content |
+| `searchByName(query, queue?)` | `ClientJobData[]` | Case-insensitive match on job name, optionally scoped to a queue |
 | `searchQueues(query)` | `ClientQueueInfo[]` | Search queues by name |
+| `searchJobs(filter, start?, end?)` | `PaginatedResponse<ClientJobData>` | Advanced search with combinable filters (`name`, `queueName`, `states`, `createdAfter`, `createdBefore`) |
 
 ### Flows
 
@@ -149,6 +157,12 @@ const sub = client.subscribe({
 
   // Optional: reconnect delay in ms (default: 3000)
   reconnectDelay: 5000,
+
+  // Optional: cap consecutive reconnects (default: unlimited)
+  maxReconnectAttempts: 5,
+
+  // Optional: called once when the cap is reached
+  onGiveUp: () => console.warn('SSE gave up'),
 });
 
 // Later: disconnect
@@ -170,6 +184,12 @@ The following SSE event types are emitted by the dashboard API:
 | `job:removed` | Job removed |
 | `job:cancelled` | Active job cancelled |
 | `job:stalled` | Job detected as stalled |
+
+::: tip
+Set `maxReconnectAttempts` to stop retrying after repeated auth failures; the
+embedded UI uses `5` so the user gets a toast instead of an infinite reconnect
+loop when the session expires.
+:::
 | `queue:paused` | Queue paused |
 | `queue:resumed` | Queue resumed |
 | `queue:drained` | All waiting jobs consumed |
@@ -219,15 +239,17 @@ All response types use JSON wire format (dates as ISO 8601 strings):
 
 ```typescript
 import type {
-  ClientJobData,       // Job with string dates
-  ClientQueueInfo,     // Queue summary
-  ClientQueueDetail,   // Queue detail with paused names
-  ClientGroupInfo,     // Group active/waiting counts
-  ClientMetricsBucket, // Metrics bucket
-  SSEEvent,            // SSE event payload
-  PaginatedResponse,   // { data: T[], meta: { total, start, end } }
-  JobState,            // 'waiting' | 'active' | 'completed' | ...
-  StoreEventType,      // 'job:waiting' | 'job:completed' | ...
-  AttemptRecord,       // Per-attempt logs and stacktrace
+  ClientDashboardConfig,  // { readOnly, authRequired }
+  ClientJobData,          // Job with string dates
+  ClientQueueInfo,        // Queue summary
+  ClientQueueDetail,      // Queue detail with paused names
+  ClientGroupInfo,        // Group active/waiting counts
+  ClientMetricsBucket,    // Metrics bucket
+  ClientSearchJobsFilter, // name + queueName + states + date range
+  SSEEvent,               // SSE event payload
+  PaginatedResponse,      // { data: T[], meta: { total, start, end } }
+  JobState,               // 'waiting' | 'active' | 'completed' | ...
+  StoreEventType,         // 'job:waiting' | 'job:completed' | ...
+  AttemptRecord,          // Per-attempt logs and stacktrace
 } from '@conveyor/dashboard-client';
 ```

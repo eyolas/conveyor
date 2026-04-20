@@ -2,6 +2,30 @@
 
 All endpoints are prefixed with `{basePath}/api`. The default base path is `/`, so endpoints are at `/api/...`.
 
+## Config
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/config` | Runtime flags the UI needs before signing in |
+
+Returns the handler configuration so clients (and the embedded UI) can adapt
+before any authenticated request is made. This endpoint is **registered before
+the auth middleware**, so it is always reachable.
+
+```json
+{
+  "data": {
+    "readOnly": false,
+    "authRequired": true
+  }
+}
+```
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `readOnly` | `boolean` | When `true`, all mutation endpoints reject with 403 |
+| `authRequired` | `boolean` | When `true`, an `auth` callback is configured on the handler |
+
 ## Queues
 
 | Method | Path | Description |
@@ -105,15 +129,31 @@ Cannot edit active jobs.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/api/search` | Search for jobs, queues, or payloads |
+| `GET` | `/api/search` | Quick lookup — job by ID, queue by name, job name, or payload |
+| `GET` | `/api/jobs/search` | Advanced job search with combinable filters and pagination |
 
-### Query Parameters
+### Quick Search Query Parameters (`/api/search`)
 
 | Parameter | Required | Description |
 | --- | --- | --- |
-| `q` | yes | Search term (job ID, queue name substring, or payload text) |
-| `type` | no | `"job"` (default), `"queue"`, or `"payload"` |
-| `queue` | for payload search | Queue name to search within |
+| `q` | yes | Search term (job ID, queue name substring, job name substring, or payload text) |
+| `type` | no | `"job"` (default), `"queue"`, `"name"`, or `"payload"` |
+| `queue` | for `payload`; optional for `name` | Queue name to restrict the search |
+
+### Advanced Search Query Parameters (`/api/jobs/search`)
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `name` | — | Case-insensitive substring match on job name |
+| `queue` | all allowed queues | Restrict to a specific queue |
+| `state` | all | Comma-separated `JobState` list (e.g. `waiting,failed`) — 400 if none are valid |
+| `after` | — | ISO 8601 date; jobs created at/after |
+| `before` | — | ISO 8601 date; jobs created at/before |
+| `start` | `0` | Pagination offset |
+| `end` | `50` | Pagination end index (max page size: 1000) |
+
+Returns a paginated response. Results are ordered by `createdAt` descending
+across all three backends (memory, PostgreSQL, SQLite).
 
 ## Metrics
 
@@ -153,6 +193,7 @@ The SSE stream sends a `connected` event on connection, then real-time events as
 | `job:removed` | Job removed |
 | `job:progress` | Job progress updated |
 | `job:stalled` | Job detected as stalled |
+| `job:cancelled` | Active job cancelled |
 | `queue:paused` | Queue or job name paused |
 | `queue:resumed` | Queue or job name resumed |
 | `queue:drained` | Queue drained |
