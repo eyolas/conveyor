@@ -132,9 +132,11 @@ Notes:
 ### Atomic operations (Lua)
 
 Operations requiring atomicity beyond what a single Redis command provides are implemented as Lua
-scripts, loaded at connect time via `SCRIPT LOAD` and invoked via `EVALSHA` (with `SCRIPT EXISTS`
-fallback). Scripts live in `packages/store-redis/src/lua/` as `.lua` files bundled via text imports
-so they are reviewable without escaping hell.
+scripts, loaded at connect time via `SCRIPT LOAD` and invoked via `EVALSHA` (with a `NOSCRIPT`
+re-load + retry fallback in `evalScript`). Scripts live in `packages/store-redis/src/lua/` as `.lua`
+files and are read at connect time with `node:fs/promises` + `import.meta.url` so Node, Deno, and
+Bun share a single code path — no bundler-specific text imports, no runtime branches. Deno consumers
+running with reduced permissions must grant `--allow-read` on the installed package directory.
 
 | Script                         | Responsibility                                                                                       |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------- |

@@ -3,9 +3,11 @@
  *
  * Redis-backed store implementation for the Conveyor job queue.
  *
- * **Work in progress** — only lifecycle (connect / disconnect) is wired up.
- * Job CRUD, leasing, scheduling, flows, groups, and event delivery land in
- * follow-up phases. See `tasks/redis-store.md` for the roadmap.
+ * **Work in progress** — lifecycle, job CRUD, leasing (extend/release lock),
+ * delayed scheduling, pause/resume, and the Lua script registry are wired
+ * up. The atomic `fetchNextJob` script, flows, groups, and event delivery
+ * land in follow-up phases. See `tasks/redis-store.md` for the roadmap and
+ * the current `implements StoreInterface` coverage status.
  */
 
 export { RedisStore, SCHEMA_VERSION } from './redis-store.ts';

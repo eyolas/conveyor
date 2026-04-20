@@ -10,7 +10,7 @@
 
 import type { JobData, JobState, Logger, StoreOptions, UpdateJobOptions } from '@conveyor/shared';
 import { generateId, InvalidJobStateError, noopLogger } from '@conveyor/shared';
-import { createClient } from 'redis';
+import { createClient, ErrorReply } from 'redis';
 import { createKeys, DEFAULT_PREFIX, type Keys } from './keys.ts';
 import { loadScriptSources, type ScriptName } from './lua/index.ts';
 import { hashToJobData, jobDataToHash } from './mapping.ts';
@@ -239,6 +239,14 @@ export class RedisStore {
    * same key resolve to a single winning id. The job hash, state index, and
    * queue registry land in a follow-up `MULTI`/`EXEC` — the dedup key itself
    * is already written, so the transaction only handles the shape writes.
+   *
+   * Known edge case (documented, not closed): if the follow-up `MULTI`/`EXEC`
+   * fails after `SET NX` succeeded (network drop, client crash), the dedup
+   * pointer survives while the job hash never lands. A subsequent caller
+   * hits `findByDeduplicationKey`, observes the orphan pointer, and GCs it —
+   * so the window self-heals on the next save attempt for that key but can
+   * briefly wedge an in-flight retry. A fully transactional save requires
+   * folding the reservation into the Lua script in a later hardening pass.
    */
   async saveJob(queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
     const client = this.getClient();
@@ -330,9 +338,9 @@ export class RedisStore {
    * State transitions also rewrite the state-index membership (remove from
    * old bucket, add to new). Without Lua this is a best-effort CAS: a
    * concurrent writer between our read and EXEC could leave the indexes
-   * briefly inconsistent with the hash. Phase 4's Lua scripts will close
-   * that window for leasing / completion paths; for now the conformance
-   * suite exercises the single-writer happy path.
+   * briefly inconsistent with the hash. The leasing path (`fetchNextJob`)
+   * closes that window with Lua; update-driven transitions outside leasing
+   * still rely on the single-writer-per-job invariant that core enforces.
    */
   async updateJob(
     queueName: string,
@@ -536,7 +544,7 @@ export class RedisStore {
    * - Everything else (`waiting`, `waiting-children`, `active`, `delayed`): oldest
    *   first (by `createdAt` ASC).
    *
-   * `delayed` is stored as a ZSET scored by `delayUntil` for the Phase 4 scheduler
+   * `delayed` is stored as a ZSET scored by `delayUntil` for the scheduler
    * (`getNextDelayedTimestamp`, `promoteDelayedJobs`); for `listJobs` we ignore that
    * ordering and re-sort by `createdAt` so every backend returns the same page.
    * Same idea for `active` (SET, no inherent order).
@@ -851,7 +859,10 @@ export class RedisStore {
         arguments: argvStrings,
       })) as T;
     } catch (err) {
-      if (err instanceof Error && err.message.includes('NOSCRIPT')) {
+      // Detect NOSCRIPT via node-redis's typed ErrorReply + the server's
+      // documented error prefix — more robust than substring matching on
+      // an arbitrary `Error.message`.
+      if (err instanceof ErrorReply && err.message.startsWith('NOSCRIPT')) {
         const sha = await client.scriptLoad(entry.source);
         this.scripts[name] = { source: entry.source, sha };
         return (await client.evalSha(sha, {
