@@ -20,9 +20,12 @@ export type JobHash = Record<string, string>;
  * Encode a {@linkcode JobData} object as a flat string map for `HSET`.
  *
  * `null` / `undefined` values are omitted. The caller is responsible for
- * issuing `HDEL` on removed fields during partial updates.
+ * issuing `HDEL` on removed fields during partial updates. `id` is written
+ * into the hash even though it also lives in the key path — this keeps
+ * `hashToJobData` self-contained and makes HGETALL results round-trip
+ * losslessly without requiring the caller to thread the id through.
  */
-export function jobDataToHash(job: Omit<JobData, 'id'> & { id?: string }): JobHash {
+export function jobDataToHash(job: JobData): JobHash {
   const hash: JobHash = {};
   const setString = (k: string, v: string | null | undefined) => {
     if (v != null) hash[k] = v;
@@ -124,7 +127,7 @@ export function hashToJobData(hash: JobHash): JobData {
     state: assertJobState(stateRaw),
     attemptsMade: num('attemptsMade'),
     progress: num('progress'),
-    returnvalue: hash.returnvalue !== undefined ? json('returnvalue', null) : null,
+    returnvalue: json<unknown>('returnvalue', null),
     failedReason: str('failedReason'),
     opts: json<JobOptions>('opts', {} as JobOptions),
     deduplicationKey: str('deduplicationKey'),

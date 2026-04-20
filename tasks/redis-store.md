@@ -119,7 +119,7 @@ All keys namespaced with a configurable prefix (default `conveyor`):
 | `conveyor:{queue}:groups:index`             | Set     | Known group IDs (for fairness iteration)                                 |
 | `conveyor:{queue}:flow:{parentId}:children` | Set     | Child job IDs (cross-queue: children store their own queue:id tuple)     |
 | `conveyor:{queue}:flow:{parentId}:pending`  | String  | Integer counter; decremented on child completion                         |
-| `conveyor:{queue}:queues`                   | Set     | All queue names seen (for `listQueues`)                                  |
+| `conveyor:queues`                           | Set     | All queue names seen (for `listQueues`) — cross-queue, no hash tag       |
 | `conveyor:events`                           | Pub/Sub | Channel for `StoreEvent` payloads (JSON)                                 |
 
 Notes:

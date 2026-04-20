@@ -105,17 +105,36 @@ export class RedisStore {
           'refusing to fall back to the node-redis default host',
       );
     }
+    if (this.options.client !== undefined && !this.options.client.isOpen) {
+      throw new Error(
+        '[Conveyor] BYO Redis client must already be connected — ' +
+          'call `client.connect()` before passing it to `new RedisStore({ client })`',
+      );
+    }
 
     const client = this.options.client ?? createClient({ url: this.options.url });
     const clientErrorHandler: ErrorHandler = (err) =>
       this.logger.warn('[Conveyor] Redis client error:', err);
     client.on('error', clientErrorHandler);
 
-    // Track which resources we opened so a mid-way failure can roll them back
-    // instead of leaking an open connection behind an unassigned store.
+    // Track which resources we opened so a mid-way failure (or a concurrent
+    // disconnect) can roll them back instead of leaking an open connection
+    // behind an unassigned store.
     let clientOpened = false;
     let subscriber: RedisClient | null = null;
     let subscriberErrorHandler: ErrorHandler | null = null;
+    const rollback = async () => {
+      if (subscriber && subscriberErrorHandler) {
+        subscriber.off('error', subscriberErrorHandler);
+      }
+      if (subscriber?.isOpen) {
+        await subscriber.quit().catch(() => {});
+      }
+      client.off('error', clientErrorHandler);
+      if (this.ownsClient && clientOpened && client.isOpen) {
+        await client.quit().catch(() => {});
+      }
+    };
     try {
       if (!client.isOpen) {
         await client.connect();
@@ -131,22 +150,21 @@ export class RedisStore {
       // run upgrade path instead of clobbering on every connect.
       await client.set(this.keys.schema(), SCHEMA_VERSION);
 
+      // A concurrent `disconnect()` may have flipped `disconnected` while we
+      // were awaiting above. Roll back instead of assigning live handles to
+      // an already-disposed store.
+      if (this.disconnected) {
+        await rollback();
+        throw new Error('[Conveyor] RedisStore was disconnected during connect()');
+      }
+
       this.client = client;
       this.subscriber = subscriber;
       this.clientErrorHandler = clientErrorHandler;
       this.subscriberErrorHandler = subscriberErrorHandler;
       this.connected = true;
     } catch (err) {
-      if (subscriber && subscriberErrorHandler) {
-        subscriber.off('error', subscriberErrorHandler);
-      }
-      if (subscriber?.isOpen) {
-        await subscriber.quit().catch(() => {});
-      }
-      client.off('error', clientErrorHandler);
-      if (this.ownsClient && clientOpened && client.isOpen) {
-        await client.quit().catch(() => {});
-      }
+      await rollback();
       throw err;
     }
   }

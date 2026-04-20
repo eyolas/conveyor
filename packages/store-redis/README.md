@@ -6,8 +6,9 @@
 
 Redis-backed storage for the [Conveyor](../../README.md) job queue.
 
-> **Status:** scaffolding only. The full `StoreInterface` implementation is tracked in
-> [`tasks/redis-store.md`](../../tasks/redis-store.md). Do not use in production yet.
+> **Status:** work in progress — lifecycle (`connect` / `disconnect`), key layout, and `JobData`
+> mapping are in. Job CRUD, leasing, scheduling, flows, groups, and events land in follow-up phases.
+> See [`tasks/redis-store.md`](../../tasks/redis-store.md). Do not use in production yet.
 
 ## Planned usage
 
