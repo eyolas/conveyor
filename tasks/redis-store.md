@@ -241,12 +241,30 @@ packages/store-redis/
 
 ### Phase 3 — job CRUD + state
 
-- [ ] `saveJob`, `saveBulk` (via `saveJob.lua` / `saveBulk.lua`).
+**Approach note:** no Lua in this phase. `saveJob`/`saveBulk` use `MULTI`/`EXEC` pipelines — atomic
+enough for write-only inserts (hash + state index + optional dedup + optional delayed ZSET). Lua
+arrives in Phase 4 where `fetchNextJob` needs atomic read-decide-write across paused set, rate-limit
+window, group cap, and lock acquisition. Starting the Lua registry infra at that point means it
+lands once, for the operation that actually needs it, instead of maintaining trivial scripts for
+single-writer ops.
+
+**Conformance note:** the shared `runConformanceTests` harness is 2k+ lines of full-lifecycle flows
+(save → fetch → lock → complete) — wiring it partially would mean threading capability flags through
+every suite. Instead Phase 3 ships a dedicated `tests/store-redis/crud.test.ts` that covers the
+methods landing this phase. Full shared harness registration waits for Phase 8 when every
+`StoreInterface` method is implemented. Same pattern for Phases 4-7.
+
+- [ ] `saveJob`, `saveBulk` (pipelined HSET + state-set add + optional dedup / delayed ZADD).
 - [ ] `getJob`, `updateJob`, `removeJob`.
 - [ ] `listJobs`, `countJobs`, `getJobCounts`.
 - [ ] `findByDeduplicationKey`.
+- [ ] `tests/store-redis/crud.test.ts` — direct coverage of Phase 3 methods against a live Redis.
 
 ### Phase 4 — leasing + scheduling
+
+**Approach note:** first Lua scripts land here — `fetchNextJob.lua`, `extendLock.lua`,
+`releaseLock.lua`, `promoteDelayed.lua`. Script registry (`src/lua/index.ts`) + `SCRIPT LOAD` on
+connect also lands here.
 
 - [ ] `fetchNextJob` via Lua (paused filter, job-name filter, LIFO, group cap, rate limit).
 - [ ] `extendLock`, `releaseLock`, `getActiveCount`.
@@ -270,11 +288,12 @@ packages/store-redis/
 
 ### Phase 8 — tests
 
-- [ ] `tests/store-redis/conformance.test.ts` using shared `runConformanceTests`.
+- [x] Add `test:redis` task to root `deno.json` (landed Phase 2).
+- [ ] Flip conformance harness to full coverage (capability filters off — wired incrementally since
+      Phase 3).
 - [ ] `tests/store-redis/events.test.ts` (pub/sub round-trip, reconnect).
 - [ ] `tests/store-redis/lua.test.ts` (spot checks on Lua-only edge cases: lock token mismatch,
       group cap boundary, dedup TTL expiry).
-- [ ] Add `test:redis` task to root `deno.json`.
 - [ ] `docker-compose.yml`: add `redis:7-alpine` service.
 - [ ] `.github/workflows/ci.yml`: new `test-redis` job with Redis service container.
 
