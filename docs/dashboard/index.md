@@ -13,10 +13,12 @@ A real-time monitoring and management UI for your Conveyor job queues. Ships as 
 - **Job detail** -- inspect payload, options, attempt history, stacktraces, and progress
 - **Flow visualization** -- browse parent/child job trees
 - **Metrics charts** -- throughput sparklines and per-queue metrics (minute/hour granularity)
-- **Command palette** -- `Cmd+K` search for jobs by ID, queues by name, or payloads
+- **Command palette** -- `Cmd+K` search for jobs by ID, queue, job name, or payloads
+- **Advanced search** -- dedicated `/search` page with combinable filters (name, queue, states, date range) and pagination
+- **CSV / JSON export** -- one-click download of the current job list or search results
 - **Group monitoring** -- per-group active/waiting counts
 - **Bulk operations** -- retry all failed jobs, promote all delayed jobs
-- **Read-only mode** -- disable all mutation endpoints with a single flag
+- **Read-only mode** -- disable mutation endpoints and hide mutation controls in the UI via a single flag
 - **Auth hook** -- plug in JWT, basic auth, or any custom auth logic
 - **Custom base path** -- mount the dashboard under any URL prefix
 

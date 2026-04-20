@@ -252,6 +252,19 @@ const dashboard = createDashboardHandler({
 
 This is useful for production dashboards where you want to observe but not modify job state.
 
+The embedded UI fetches `GET /api/config` on mount (public, bypasses auth)
+and adapts when `readOnly` is `true`: mutation controls are hidden (add job,
+pause/resume/drain, retry, promote, cancel, remove, bulk actions) and an
+amber `read-only` badge is shown in the header.
+
+When building a custom UI with `@conveyor/dashboard-client`, call
+`client.getConfig()` to read the same flags:
+
+```typescript
+const { readOnly, authRequired } = await client.getConfig();
+if (readOnly) hideMutationButtons();
+```
+
 ## Metrics
 
 Metrics collection requires store support. When enabled, the dashboard automatically starts a metrics aggregation timer (every 5 minutes) and exposes throughput data via the `/api/queues/:name/metrics` and `/api/metrics/sparklines` endpoints.
