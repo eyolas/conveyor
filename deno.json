@@ -42,6 +42,7 @@
     "test:sqlite:deno": "deno -A npm:vitest run --config vitest.sqlite.config.ts tests/store-sqlite-deno/",
     "test:dashboard-api": "deno -A npm:vitest run --config vitest.dashboard-api.config.ts tests/dashboard-api/",
     "test:dashboard-client": "deno -A npm:vitest run --config vitest.dashboard-client.config.ts tests/dashboard-client/",
+    "test:redis": "deno -A npm:vitest run tests/store-redis/",
     "bench": "deno bench --allow-env --allow-read --allow-write benchmarks/",
     "bench:report": "deno run --allow-run --allow-write --allow-read --allow-env benchmarks/generate-report.ts",
     "lint": "deno lint",

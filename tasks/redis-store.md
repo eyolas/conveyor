@@ -232,10 +232,12 @@ packages/store-redis/
 
 ### Phase 2 — data model + lifecycle
 
-- [ ] `keys.ts` helpers (prefix-aware, one place to change the layout).
-- [ ] `mapping.ts` (`rowToJobData`, `jobDataToRow`).
-- [ ] `connect()`: open client + subscriber, `SCRIPT LOAD` all Lua, write schema marker.
-- [ ] `disconnect()`: `QUIT` both clients, clear subscription map.
+- [x] `keys.ts` helpers (prefix-aware, one place to change the layout, cluster-safe hash tags).
+- [x] `mapping.ts` (`jobDataToHash`, `hashToJobData` — JSON for structured fields, epoch ms for
+      dates, `"0"/"1"` for booleans, null = field omitted).
+- [x] `connect()`: open main + subscriber clients, write schema marker. `SCRIPT LOAD` moves to
+      Phase 3 when the first Lua script lands, so Phase 2 doesn't ship dead code.
+- [x] `disconnect()`: `QUIT` both clients, honor BYO ownership (external client is not closed).
 
 ### Phase 3 — job CRUD + state
 
