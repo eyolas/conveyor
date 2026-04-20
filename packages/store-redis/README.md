@@ -35,9 +35,17 @@ See [`tasks/redis-store.md`](../../tasks/redis-store.md) for the full design.
 
 ## Deno permissions
 
-The store loads its Lua scripts at `connect()` time from `packages/store-redis/src/lua/*.lua` via
-`node:fs/promises`. Deno consumers running with reduced permissions must grant `--allow-read` on the
-installed package directory (typically under `~/.cache/deno/`). `-A` during development covers it.
+Minimal flag set for a Deno runtime:
+
+- `--allow-net=<redis-host>:<port>` — TCP connection to the Redis server (plus TLS endpoint if you
+  use `rediss://`). `--allow-net` without an argument is fine in dev.
+- `--allow-read` — the store loads its Lua scripts at `connect()` time from
+  `packages/store-redis/src/lua/*.lua` via `node:fs/promises`. The path sits under the installed
+  package directory (typically `~/.cache/deno/`).
+- `--allow-env=REDIS_URL` — only if you resolve the URL from the environment (as the bundled
+  `examples/redis/smoke.ts` does).
+
+`-A` during development covers all three.
 
 ## Notes for contributors
 
