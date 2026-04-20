@@ -222,56 +222,70 @@ export class RedisStore {
    * non-terminal job already owns it (respecting TTL), returns that existing
    * job's id instead — matching the MemoryStore / PgStore semantics.
    *
-   * The insert itself is pipelined (`MULTI`/`EXEC`): hash write, state-index
-   * add, queue registry, and optional dedup key all land in a single round
-   * trip. That's atomic enough for write-only inserts; fetch/lock atomicity
-   * is a Phase 4 concern that needs Lua.
+   * The dedup reservation uses `SET NX PX` so two concurrent saves with the
+   * same key resolve to a single winning id. The job hash, state index, and
+   * queue registry land in a follow-up `MULTI`/`EXEC` — the dedup key itself
+   * is already written, so the transaction only handles the shape writes.
    */
   async saveJob(queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
     const client = this.getClient();
-
-    const dedupKey = job.deduplicationKey;
-    if (dedupKey) {
-      const existing = await this.findByDeduplicationKey(queueName, dedupKey);
-      if (existing) return existing.id;
-    }
-
     const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
     const jobData: JobData = { ...job, id } as JobData;
+
+    if (jobData.deduplicationKey) {
+      const owned = await this.reserveDedupKey(queueName, jobData.deduplicationKey, id, jobData);
+      if (owned !== id) return owned;
+    }
 
     const multi = client.multi();
     multi.hSet(this.keys.job(queueName, id), jobDataToHash(jobData));
     this.addToStateIndex(multi, queueName, jobData, id);
     multi.sAdd(this.keys.queueIndex(), queueName);
-    this.writeDedupKey(multi, queueName, jobData);
     await multi.exec();
     return id;
   }
 
   /**
-   * Persist several jobs in one round trip. Dedup checks still happen
-   * sequentially (they need a read before the batch), but the writes
-   * themselves are batched into a single `MULTI`/`EXEC`.
+   * Persist several jobs in one round trip. Dedup checks run sequentially
+   * (read + `SET NX PX` per key), but the state-index writes themselves are
+   * batched into a single `MULTI`/`EXEC`. Two jobs in the same array that
+   * share a deduplication key collapse to a single id — their shape comes
+   * from the first occurrence; later duplicates reuse that id.
    */
   async saveBulk(queueName: string, jobs: Omit<JobData, 'id'>[]): Promise<string[]> {
     if (jobs.length === 0) return [];
     const client = this.getClient();
 
-    // Resolve dedup conflicts first so the batched writes only touch new jobs.
     const resolvedIds: string[] = new Array(jobs.length);
     const pendingJobs: JobData[] = [];
+    // Collapse jobs within this batch that share a dedup key so the first
+    // occurrence is the one we persist; every later duplicate reuses its id.
+    const batchDedupIds = new Map<string, string>();
+
     for (let i = 0; i < jobs.length; i++) {
       const job = jobs[i]!;
-      if (job.deduplicationKey) {
-        const existing = await this.findByDeduplicationKey(queueName, job.deduplicationKey);
-        if (existing) {
-          resolvedIds[i] = existing.id;
-          continue;
-        }
-      }
       const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
       const jobData: JobData = { ...job, id } as JobData;
-      resolvedIds[i] = id;
+
+      if (jobData.deduplicationKey) {
+        const sameBatch = batchDedupIds.get(jobData.deduplicationKey);
+        if (sameBatch) {
+          resolvedIds[i] = sameBatch;
+          continue;
+        }
+        const owned = await this.reserveDedupKey(
+          queueName,
+          jobData.deduplicationKey,
+          id,
+          jobData,
+        );
+        batchDedupIds.set(jobData.deduplicationKey, owned);
+        resolvedIds[i] = owned;
+        if (owned !== id) continue;
+      } else {
+        resolvedIds[i] = id;
+      }
+
       pendingJobs.push(jobData);
     }
 
@@ -280,7 +294,6 @@ export class RedisStore {
       for (const jobData of pendingJobs) {
         multi.hSet(this.keys.job(queueName, jobData.id), jobDataToHash(jobData));
         this.addToStateIndex(multi, queueName, jobData, jobData.id);
-        this.writeDedupKey(multi, queueName, jobData);
       }
       multi.sAdd(this.keys.queueIndex(), queueName);
       await multi.exec();
@@ -328,6 +341,13 @@ export class RedisStore {
     }
 
     const merged: JobData = { ...current, ...updates };
+    // `delayed` state is only meaningful with a concrete delayUntil. Callers
+    // wanting to un-delay a job must transition state in the same update.
+    if (merged.state === 'delayed' && merged.delayUntil == null) {
+      throw new Error(
+        `[Conveyor] updateJob(${jobId}): state "delayed" requires a non-null delayUntil`,
+      );
+    }
     const hash = jobDataToHash(merged);
 
     const multi = client.multi();
@@ -406,6 +426,11 @@ export class RedisStore {
    * (`getNextDelayedTimestamp`, `promoteDelayedJobs`); for `listJobs` we ignore that
    * ordering and re-sort by `createdAt` so every backend returns the same page.
    * Same idea for `active` (SET, no inherent order).
+   *
+   * Scaling note: `delayed` and `active` hydrate every matching id before slicing
+   * — O(N) in the bucket size. Acceptable for dashboard queries at queue sizes
+   * up to ~10k; if you list very large delayed buckets, prefer paging by id
+   * range or using `getNextDelayedTimestamp` for the scheduler path.
    */
   async listJobs(
     queueName: string,
@@ -596,19 +621,48 @@ export class RedisStore {
     }
   }
 
-  private writeDedupKey(
-    multi: RedisMulti,
+  /**
+   * Reserve a deduplication key atomically via `SET NX PX` and return the id
+   * that ultimately owns it. Two concurrent saves with the same key collapse
+   * to a single winner:
+   *
+   * 1. If a live non-terminal job already matches, return its id.
+   * 2. Otherwise attempt `SET NX` with this save's id. On success, we own it.
+   * 3. If NX fails, someone won the race between the read and the write —
+   *    re-resolve and return the racer's id. If the racer's job turns out to
+   *    be orphaned (findByDeduplicationKey GCs the pointer), retry the
+   *    reservation once before giving up.
+   */
+  private async reserveDedupKey(
     queueName: string,
+    dedupKey: string,
+    id: string,
     job: JobData,
-  ): void {
-    if (!job.deduplicationKey) return;
+  ): Promise<string> {
+    const existing = await this.findByDeduplicationKey(queueName, dedupKey);
+    if (existing) return existing.id;
+
+    const client = this.getClient();
+    const k = this.keys.dedup(queueName, dedupKey);
     const ttlMs = job.opts.deduplication?.ttl;
-    const k = this.keys.dedup(queueName, job.deduplicationKey);
-    if (ttlMs && ttlMs > 0) {
-      multi.set(k, job.id, { PX: ttlMs });
-    } else {
-      multi.set(k, job.id);
-    }
+    const setOpts = ttlMs && ttlMs > 0 ? { NX: true, PX: ttlMs } : { NX: true };
+
+    const acquired = await client.set(k, id, setOpts);
+    if (acquired !== null) return id;
+
+    // Lost the race. Re-resolve; if the racer turns out to be gone, retry once.
+    const racer = await this.findByDeduplicationKey(queueName, dedupKey);
+    if (racer) return racer.id;
+
+    const retry = await client.set(k, id, setOpts);
+    if (retry !== null) return id;
+
+    const final = await this.findByDeduplicationKey(queueName, dedupKey);
+    if (final) return final.id;
+    throw new Error(
+      `[Conveyor] Unable to reserve deduplication key "${dedupKey}" after retry — ` +
+        'another writer keeps winning the NX race. Retry the save from the caller.',
+    );
   }
 
   /**

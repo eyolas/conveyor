@@ -268,8 +268,8 @@ follow-ups to close in Phase 4 (cheaper to fix before Lua lands):
 - `saveBulk` intra-batch duplicates (two jobs in the same array with the same dedup key) are
   currently both treated as new — same fix covers it.
 - `listJobs(delayed|active)` hydrate-then-slice is O(N); acceptable for v1 but document the cap.
-- `updateJob` delayed-rescore gap when caller sends `delayUntil: null` without state change — add
-  an assert / docstring invariant (unreachable today).
+- `updateJob` delayed-rescore gap when caller sends `delayUntil: null` without state change — add an
+  assert / docstring invariant (unreachable today).
 
 ### Phase 4 — leasing + scheduling
 
