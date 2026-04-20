@@ -62,13 +62,40 @@ describe.skipIf(!available)('RedisStore — lifecycle', () => {
     await expect(store.connect()).rejects.toThrow(/cannot be reconnected/);
   });
 
-  test('BYO client is not closed by disconnect', async () => {
+  test('BYO client is not closed by disconnect, but the duplicated subscriber is', async () => {
     const external = createClient({ url: REDIS_URL });
     await external.connect();
     const store = new RedisStore({ client: external, keyPrefix: 'conveyor-test' });
     await store.connect();
+
+    // Capture the store's internal subscriber so we can assert it was closed
+    // without leaking the type through a public API.
+    const internals = store as unknown as { subscriber: { isOpen: boolean } | null };
+    const subscriber = internals.subscriber;
+    expect(subscriber?.isOpen).toBe(true);
+
     await store.disconnect();
     expect(external.isOpen).toBe(true);
+    expect(subscriber?.isOpen).toBe(false);
     await external.quit();
+  });
+
+  test('concurrent connect() calls share a single in-flight connect', async () => {
+    const store = new RedisStore({ url: REDIS_URL, keyPrefix: 'conveyor-test' });
+    try {
+      const [a, b, c] = await Promise.all([store.connect(), store.connect(), store.connect()]);
+      expect(a).toBeUndefined();
+      expect(b).toBeUndefined();
+      expect(c).toBeUndefined();
+
+      const internals = store as unknown as {
+        client: { isOpen: boolean } | null;
+        subscriber: { isOpen: boolean } | null;
+      };
+      expect(internals.client?.isOpen).toBe(true);
+      expect(internals.subscriber?.isOpen).toBe(true);
+    } finally {
+      await store.disconnect();
+    }
   });
 });

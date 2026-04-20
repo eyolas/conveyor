@@ -20,6 +20,8 @@ type RedisClient = ReturnType<typeof createClient>;
 /** Current on-Redis data-shape version. Bumped when the key layout changes. */
 export const SCHEMA_VERSION = 'redis-v1';
 
+type ErrorHandler = (err: unknown) => void;
+
 /**
  * Configuration for {@linkcode RedisStore}.
  */
@@ -61,8 +63,11 @@ export class RedisStore {
   private readonly ownsClient: boolean;
   private client: RedisClient | null = null;
   private subscriber: RedisClient | null = null;
+  private clientErrorHandler: ErrorHandler | null = null;
+  private subscriberErrorHandler: ErrorHandler | null = null;
   private connected = false;
   private disconnected = false;
+  private connectPromise: Promise<void> | null = null;
 
   constructor(options: RedisStoreOptions = {}) {
     this.options = options;
@@ -73,12 +78,27 @@ export class RedisStore {
 
   // ─── Lifecycle ───────────────────────────────────────────────────────
 
-  /** Open the main + subscriber connections and write the schema marker. */
-  async connect(): Promise<void> {
-    if (this.connected) return;
+  /**
+   * Open the main + subscriber connections and write the schema marker.
+   * Concurrent callers share a single in-flight connect so we never spawn
+   * duplicate subscriber clients.
+   */
+  connect(): Promise<void> {
+    if (this.connected) return Promise.resolve();
     if (this.disconnected) {
-      throw new Error('[Conveyor] RedisStore cannot be reconnected after disconnect');
+      return Promise.reject(
+        new Error('[Conveyor] RedisStore cannot be reconnected after disconnect'),
+      );
     }
+    if (this.connectPromise) return this.connectPromise;
+
+    this.connectPromise = this.doConnect().finally(() => {
+      this.connectPromise = null;
+    });
+    return this.connectPromise;
+  }
+
+  private async doConnect(): Promise<void> {
     if (this.options.client === undefined && !this.options.url) {
       throw new Error(
         '[Conveyor] RedisStore requires either `url` or `client` — ' +
@@ -87,12 +107,15 @@ export class RedisStore {
     }
 
     const client = this.options.client ?? createClient({ url: this.options.url });
-    client.on('error', (err: unknown) => this.logger.warn('[Conveyor] Redis client error:', err));
+    const clientErrorHandler: ErrorHandler = (err) =>
+      this.logger.warn('[Conveyor] Redis client error:', err);
+    client.on('error', clientErrorHandler);
 
     // Track which resources we opened so a mid-way failure can roll them back
     // instead of leaking an open connection behind an unassigned store.
     let clientOpened = false;
     let subscriber: RedisClient | null = null;
+    let subscriberErrorHandler: ErrorHandler | null = null;
     try {
       if (!client.isOpen) {
         await client.connect();
@@ -100,21 +123,27 @@ export class RedisStore {
       }
 
       subscriber = client.duplicate();
-      subscriber.on(
-        'error',
-        (err: unknown) => this.logger.warn('[Conveyor] Redis subscriber error:', err),
-      );
+      subscriberErrorHandler = (err) => this.logger.warn('[Conveyor] Redis subscriber error:', err);
+      subscriber.on('error', subscriberErrorHandler);
       await subscriber.connect();
 
+      // TODO(schema-upgrade): Phase 8 — read first, compare against SCHEMA_VERSION,
+      // run upgrade path instead of clobbering on every connect.
       await client.set(this.keys.schema(), SCHEMA_VERSION);
 
       this.client = client;
       this.subscriber = subscriber;
+      this.clientErrorHandler = clientErrorHandler;
+      this.subscriberErrorHandler = subscriberErrorHandler;
       this.connected = true;
     } catch (err) {
+      if (subscriber && subscriberErrorHandler) {
+        subscriber.off('error', subscriberErrorHandler);
+      }
       if (subscriber?.isOpen) {
         await subscriber.quit().catch(() => {});
       }
+      client.off('error', clientErrorHandler);
       if (this.ownsClient && clientOpened && client.isOpen) {
         await client.quit().catch(() => {});
       }
@@ -125,7 +154,9 @@ export class RedisStore {
   /**
    * Close both clients and release resources. Idempotent.
    * When a BYO client was supplied, only the duplicated subscriber is closed
-   * — the caller keeps ownership of the main client.
+   * — the caller keeps ownership of the main client. The error listener we
+   * attached to the BYO client is removed so long-lived callers don't
+   * accumulate listeners across recreate cycles.
    */
   async disconnect(): Promise<void> {
     if (this.disconnected) return;
@@ -133,14 +164,24 @@ export class RedisStore {
 
     const subscriber = this.subscriber;
     const client = this.client;
+    const clientErrorHandler = this.clientErrorHandler;
+    const subscriberErrorHandler = this.subscriberErrorHandler;
     this.subscriber = null;
     this.client = null;
+    this.clientErrorHandler = null;
+    this.subscriberErrorHandler = null;
     this.connected = false;
 
+    if (subscriber && subscriberErrorHandler) {
+      subscriber.off('error', subscriberErrorHandler);
+    }
     if (subscriber?.isOpen) {
       await subscriber.quit().catch((err: unknown) =>
         this.logger.warn('[Conveyor] Error closing Redis subscriber:', err)
       );
+    }
+    if (client && clientErrorHandler) {
+      client.off('error', clientErrorHandler);
     }
     if (this.ownsClient && client?.isOpen) {
       await client.quit().catch((err: unknown) =>
@@ -155,7 +196,11 @@ export class RedisStore {
 
   // ─── Internal accessors ──────────────────────────────────────────────
 
-  /** @internal — throws if called before `connect()`. */
+  /**
+   * @internal
+   * Throws if called before `connect()`. Used by subclasses / future mixins
+   * (Phase 3+) once the full `StoreInterface` is implemented on this class.
+   */
   protected getClient(): RedisClient {
     if (!this.client || !this.connected) {
       throw new Error('[Conveyor] RedisStore is not connected — call connect() first');
@@ -163,7 +208,10 @@ export class RedisStore {
     return this.client;
   }
 
-  /** @internal — throws if called before `connect()`. */
+  /**
+   * @internal
+   * Throws if called before `connect()`. See {@linkcode RedisStore.getClient}.
+   */
   protected getSubscriber(): RedisClient {
     if (!this.subscriber || !this.connected) {
       throw new Error('[Conveyor] RedisStore is not connected — call connect() first');

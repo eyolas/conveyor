@@ -108,4 +108,10 @@ describe('jobDataToHash / hashToJobData', () => {
     delete hash.name;
     expect(() => hashToJobData(hash)).toThrow(/missing required job fields/);
   });
+
+  test('non-numeric date encoding is rejected instead of decoding to Invalid Date', () => {
+    const hash = jobDataToHash(makeJob());
+    hash.createdAt = 'not-a-number';
+    expect(() => hashToJobData(hash)).toThrow(/Invalid date encoding for field "createdAt"/);
+  });
 });

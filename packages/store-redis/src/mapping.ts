@@ -92,7 +92,14 @@ export function hashToJobData(hash: JobHash): JobData {
   };
   const date = (k: string) => {
     const v = hash[k];
-    return v === undefined ? null : new Date(Number(v));
+    if (v === undefined) return null;
+    const n = Number(v);
+    if (!Number.isFinite(n)) {
+      throw new Error(
+        `[Conveyor] Invalid date encoding for field "${k}": ${JSON.stringify(v)}`,
+      );
+    }
+    return new Date(n);
   };
   const str = (k: string) => hash[k] ?? null;
   const json = <T>(k: string, fallback: T): T => {
