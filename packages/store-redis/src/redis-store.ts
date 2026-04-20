@@ -398,6 +398,27 @@ export class RedisStore {
     await multi.exec();
   }
 
+  // ─── Pause / Resume ──────────────────────────────────────────────────
+
+  /**
+   * Pause processing for a specific job name. Pass `"__all__"` to pause the
+   * entire queue — matching the sentinel the other stores recognize.
+   */
+  async pauseJobName(queueName: string, jobName: string): Promise<void> {
+    const client = this.getClient();
+    await client.sAdd(this.keys.paused(queueName), jobName);
+  }
+
+  async resumeJobName(queueName: string, jobName: string): Promise<void> {
+    const client = this.getClient();
+    await client.sRem(this.keys.paused(queueName), jobName);
+  }
+
+  async getPausedJobNames(queueName: string): Promise<string[]> {
+    const client = this.getClient();
+    return await client.sMembers(this.keys.paused(queueName));
+  }
+
   // ─── Deduplication ───────────────────────────────────────────────────
 
   async findByDeduplicationKey(queueName: string, key: string): Promise<JobData | null> {
