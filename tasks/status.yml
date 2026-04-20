@@ -20,10 +20,6 @@
 # ─── Thinking (ideas under consideration) ─────────────────────────────────────
 
 thinking:
-  redis-store:
-    description: Redis store adapter — ironic but could appeal to BullMQ migrators
-    status: thinking
-
   cloudflare-d1:
     description: Cloudflare D1 store + Worker edge/pull mode for serverless
     status: thinking
@@ -87,6 +83,11 @@ tasks:
     description: 'Close dashboard product gaps: readOnly UI awareness, 401/403 handling, full Job form options, CSV/JSON export, PRD cleanup'
     status: done
     file: tasks/dashboard-hardening.md
+
+  redis-store:
+    description: Redis-backed StoreInterface implementation — BullMQ-compatible backend, Lua scripts for atomicity, Pub/Sub for events
+    status: planned
+    file: tasks/redis-store.md
 
 # ─── PRD Roadmap ──────────────────────────────────────────────────────────────
 
