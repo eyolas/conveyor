@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { createKeys, DEFAULT_PREFIX } from '@conveyor/store-redis';
+import {
+  createKeys,
+  DEFAULT_PREFIX,
+  GROUP_ACTIVE_SUFFIX,
+  GROUP_WAITING_SUFFIX,
+} from '@conveyor/store-redis';
 
 describe('createKeys', () => {
   const keys = createKeys();
@@ -51,8 +56,9 @@ describe('createKeys', () => {
     expect(keys.lock('q', 'id')).toBe('{conveyor:q}:lock:id');
     expect(keys.lockPrefix('q')).toBe('{conveyor:q}:lock:');
     expect(keys.lockPrefix('q') + 'id').toBe(keys.lock('q', 'id'));
-    const [gPrefix, gSuffix] = keys.groupActiveParts('q');
-    expect(gPrefix + 'g' + gSuffix).toBe(keys.groupActive('q', 'g'));
+    expect(keys.groupPrefix('q')).toBe('{conveyor:q}:group:');
+    expect(keys.groupPrefix('q') + 'g' + GROUP_ACTIVE_SUFFIX).toBe(keys.groupActive('q', 'g'));
+    expect(keys.groupPrefix('q') + 'g' + GROUP_WAITING_SUFFIX).toBe(keys.groupWaiting('q', 'g'));
     expect(keys.dedup('q', 'k')).toBe('{conveyor:q}:dedup:k');
     expect(keys.rateLimit('q')).toBe('{conveyor:q}:rl');
     expect(keys.groupIndex('q')).toBe('{conveyor:q}:groups:index');

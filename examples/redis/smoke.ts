@@ -11,7 +11,9 @@
  *   docker compose up -d redis
  *
  * Run:
- *   Deno:  deno run --allow-all examples/redis/smoke.ts
+ *   Deno (broad): deno run --allow-all examples/redis/smoke.ts
+ *   Deno (min):   deno run --allow-net=localhost:6379 \
+ *                          --allow-read --allow-env=REDIS_URL examples/redis/smoke.ts
  *   Node:  node --experimental-strip-types examples/redis/smoke.ts
  *   Bun:   bun run examples/redis/smoke.ts
  *

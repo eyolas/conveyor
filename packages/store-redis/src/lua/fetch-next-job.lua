@@ -22,11 +22,12 @@
 --   ARGV[9]  excludeGroupsCount N
 --   ARGV[10..9+N] excluded group ids
 --   Then four prefixes + one batch size:
---   ARGV[10+N] jobHashPrefix     ("{conveyor:q}:job:")
---   ARGV[11+N] groupActivePrefix ("{conveyor:q}:group:")
---   ARGV[12+N] groupActiveSuffix (":active")
---   ARGV[13+N] lockPrefix        ("{conveyor:q}:lock:")
---   ARGV[14+N] scanBatch         (max ids inspected per call, e.g. "200")
+--   ARGV[10+N] jobHashPrefix       ("{conveyor:q}:job:")
+--   ARGV[11+N] groupPrefix         ("{conveyor:q}:group:")
+--   ARGV[12+N] groupActiveSuffix   (":active")
+--   ARGV[13+N] groupWaitingSuffix  (":waiting")
+--   ARGV[14+N] lockPrefix          ("{conveyor:q}:lock:")
+--   ARGV[15+N] scanBatch           (max ids inspected per call, e.g. "200")
 --
 -- Returns the `HGETALL` reply for the leased job as a flat
 -- `{k1, v1, k2, v2, ...}` array, or nil when nothing is fetchable. Returning
@@ -65,12 +66,13 @@ for i = 1, excludeCount do
   excludeSet[ARGV[9 + i]] = true
 end
 
-local argBase          = 9 + excludeCount
-local jobHashPrefix    = ARGV[argBase + 1]
-local groupActivePrefix = ARGV[argBase + 2]
-local groupActiveSuffix = ARGV[argBase + 3]
-local lockPrefix       = ARGV[argBase + 4]
-local scanBatch        = tonumber(ARGV[argBase + 5])
+local argBase            = 9 + excludeCount
+local jobHashPrefix      = ARGV[argBase + 1]
+local groupPrefix        = ARGV[argBase + 2]
+local groupActiveSuffix  = ARGV[argBase + 3]
+local groupWaitingSuffix = ARGV[argBase + 4]
+local lockPrefix         = ARGV[argBase + 5]
+local scanBatch          = tonumber(ARGV[argBase + 6])
 
 -- 1. Global pause? Whole queue is sidelined.
 if redis.call('SISMEMBER', pausedKey, '__all__') == 1 then
@@ -129,7 +131,7 @@ for _, id in ipairs(order) do
     if ok and type(gid) == 'string' and gid ~= '' then
       if excludeSet[gid] then ok = false end
       if ok and groupCap >= 0 then
-        local gKey = groupActivePrefix .. gid .. groupActiveSuffix
+        local gKey = groupPrefix .. gid .. groupActiveSuffix
         if tonumber(redis.call('SCARD', gKey)) >= groupCap then ok = false end
       end
     end
@@ -146,8 +148,12 @@ if not chosenId then
   return nil
 end
 
--- 4. Remove the chosen id from the waiting list (unique ids → one entry).
+-- 4. Remove the chosen id from the waiting list (unique ids → one entry)
+--    and from its group-waiting ZSET if it carried a groupId.
 redis.call('LREM', waitingKey, 0, chosenId)
+if chosenGid ~= nil then
+  redis.call('ZREM', groupPrefix .. chosenGid .. groupWaitingSuffix, chosenId)
+end
 
 -- 5. Acquire the lease. Claim side-effects in a fixed order so an outside
 --    observer never sees "active set contains id" without a corresponding
@@ -163,7 +169,7 @@ redis.call('HSET', jobHashPrefix .. chosenId,
   'processedAt', tostring(now))
 
 if chosenGid ~= nil then
-  redis.call('SADD', groupActivePrefix .. chosenGid .. groupActiveSuffix, chosenId)
+  redis.call('SADD', groupPrefix .. chosenGid .. groupActiveSuffix, chosenId)
 end
 
 -- 6. Record the lease in the rate-limit window so the next call sees it.
