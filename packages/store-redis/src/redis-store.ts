@@ -436,6 +436,13 @@ export class RedisStore {
    * job-name pause, job-name whitelist, rate-limit window, group cap,
    * exclude groups) against the same Redis snapshot — the whole sequence
    * either lands or the script reports "nothing" without side effects.
+   * The script also returns the leased job's full `HGETALL` reply so
+   * callers hydrate in the same round trip.
+   *
+   * Rate-limit semantics match MemoryStore: the sliding window counts
+   * *events* (one per successful lease), so re-leasing the same id after a
+   * stalled sweep still increments the counter. The Lua script scores each
+   * entry with the timestamp and uses `now:id` as the unique member.
    *
    * Ordering: FIFO by default, LIFO on `opts.lifo`. Priority ordering is
    * not yet modelled (waiting is a LIST, not a ZSET) — the conformance
@@ -483,9 +490,16 @@ export class RedisStore {
       this.keys.rateLimit(queueName),
     ];
 
-    const chosenId = await this.evalScript<string | null>('fetchNextJob', keys, argv);
-    if (!chosenId) return null;
-    return await this.getJob(queueName, chosenId);
+    // Script returns the leased job's HGETALL reply as a flat
+    // [k1, v1, k2, v2, ...] array so we skip the follow-up getJob round
+    // trip and avoid the "removed between lease and hydrate" race.
+    const reply = await this.evalScript<string[] | null>('fetchNextJob', keys, argv);
+    if (!reply || reply.length === 0) return null;
+    const hash: Record<string, string> = {};
+    for (let i = 0; i < reply.length; i += 2) {
+      hash[reply[i]!] = reply[i + 1]!;
+    }
+    return hashToJobData(hash);
   }
 
   /**

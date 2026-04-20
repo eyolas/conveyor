@@ -307,6 +307,40 @@ describe.skipIf(!available)('RedisStore — Phase 4 leasing', () => {
     expect(await store.countJobs(QUEUE, 'waiting')).toBe(1);
   });
 
+  test('rate limit counts every lease event — re-leasing the same id after a stall bumps the window', async () => {
+    // Models the stalled-sweep path: same id gets leased twice inside the
+    // window. MemoryStore pushes one timestamp per fetch, so two leases of
+    // the same id = two events. Our ZSET member must be unique per lease
+    // (score + id) so the count doesn't collapse on re-lease.
+    const id = await store.saveJob(QUEUE, createJobData(QUEUE, 'w', {}));
+    const rateLimit = { max: 2, duration: 60_000 };
+
+    // Lease 1
+    const first = await store.fetchNextJob(QUEUE, 'w-1', 10_000, { rateLimit });
+    expect(first!.id).toBe(id);
+
+    // Simulate a stalled sweep: clear lock, flip back to waiting, re-enqueue.
+    await store.releaseLock(QUEUE, id);
+    await store.updateJob(QUEUE, id, { state: 'waiting', lockedBy: null, lockUntil: null });
+    const probe = createClient({ url: REDIS_URL });
+    await probe.connect();
+    await probe.rPush(`{${TEST_PREFIX}:${QUEUE}}:waiting`, id);
+    await probe.quit();
+
+    // Lease 2 — same id, same rate-limit window. Must still count as a
+    // distinct event (= 2 entries in the window).
+    const second = await store.fetchNextJob(QUEUE, 'w-1', 10_000, { rateLimit });
+    expect(second!.id).toBe(id);
+
+    // A fresh id added afterwards hits the window cap of 2 and is blocked,
+    // proving the re-lease was counted.
+    const otherId = await store.saveJob(QUEUE, createJobData(QUEUE, 'w', {}));
+    const third = await store.fetchNextJob(QUEUE, 'w-1', 10_000, { rateLimit });
+    expect(third).toBeNull();
+    const stillWaiting = await store.listJobs(QUEUE, 'waiting');
+    expect(stillWaiting.map((j) => j.id)).toEqual([otherId]);
+  });
+
   test('fetchNextJob skips jobs whose group is at the concurrency cap', async () => {
     const probe = createClient({ url: REDIS_URL });
     await probe.connect();

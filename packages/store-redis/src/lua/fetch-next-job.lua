@@ -28,7 +28,10 @@
 --   ARGV[13+N] lockPrefix        ("{conveyor:q}:lock:")
 --   ARGV[14+N] scanBatch         (max ids inspected per call, e.g. "200")
 --
--- Returns the locked job id, or nil when nothing is fetchable.
+-- Returns the `HGETALL` reply for the leased job as a flat
+-- `{k1, v1, k2, v2, ...}` array, or nil when nothing is fetchable. Returning
+-- the hash inline saves a follow-up round trip and closes the theoretical
+-- window where the job could disappear between lease and hydrate.
 --
 -- Limits (documented, deferred): priority ordering is not modelled (waiting
 -- is a plain LIST in this phase). Group fairness uses first-fit rather than
@@ -151,8 +154,12 @@ if chosenGid ~= nil then
 end
 
 -- 6. Record the lease in the rate-limit window so the next call sees it.
+--    Each lease needs a distinct member — otherwise re-leasing the same id
+--    after a stall sweep would just overwrite the existing score and the
+--    window would undercount events. Using `now:id` guarantees uniqueness
+--    (the lock prevents same-ms double-lease of the same id by design).
 if rlMax > 0 then
-  redis.call('ZADD', rateLimitKey, tostring(now), chosenId)
+  redis.call('ZADD', rateLimitKey, tostring(now), tostring(now) .. ':' .. chosenId)
 end
 
-return chosenId
+return redis.call('HGETALL', jobHashPrefix .. chosenId)
