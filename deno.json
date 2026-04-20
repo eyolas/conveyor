@@ -11,7 +11,8 @@
     "./packages/store-sqlite-deno",
     "./packages/dashboard-api",
     "./packages/dashboard",
-    "./packages/dashboard-client"
+    "./packages/dashboard-client",
+    "./packages/store-redis"
   ],
   "imports": {
     "@conveyor/dashboard": "./packages/dashboard/src/mod.ts",
@@ -25,7 +26,9 @@
     "@conveyor/store-sqlite-node": "./packages/store-sqlite-node/src/mod.ts",
     "@conveyor/store-sqlite-bun": "./packages/store-sqlite-bun/src/mod.ts",
     "@conveyor/store-sqlite-deno": "./packages/store-sqlite-deno/src/mod.ts",
+    "@conveyor/store-redis": "./packages/store-redis/src/mod.ts",
     "@db/sqlite": "jsr:@db/sqlite@^0.13",
+    "redis": "npm:redis@^5.12.1",
     "vitest": "npm:vitest@^4"
   },
   "tasks": {

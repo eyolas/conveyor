@@ -6,6 +6,7 @@
   },
   "dependencies": {
     "croner": "^10.0.0",
-    "postgres": "^3.4.0"
+    "postgres": "^3.4.0",
+    "redis": "^5.12.1"
   }
 }

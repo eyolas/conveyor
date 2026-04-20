@@ -86,8 +86,9 @@ tasks:
 
   redis-store:
     description: Redis-backed StoreInterface implementation — BullMQ-compatible backend, Lua scripts for atomicity, Pub/Sub for events
-    status: planned
+    status: in-progress
     file: tasks/redis-store.md
+    notes: 'Phase 1 (scaffold + runtime smoke on Deno/Node/Bun) — PR #52.'
 
 # ─── PRD Roadmap ──────────────────────────────────────────────────────────────
 

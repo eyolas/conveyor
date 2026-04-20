@@ -1,0 +1,17 @@
+{
+  "name": "@conveyor/store-redis",
+  "version": "1.4.0",
+  "exports": "./src/mod.ts",
+  "imports": {
+    "@conveyor/shared": "jsr:@conveyor/shared@^1.0.0",
+    "redis": "npm:redis@^5.12.1"
+  },
+  "publish": {
+    "include": ["src/**/*.ts", "deno.json", "README.md", "LICENSE"]
+  },
+  "lint": {
+    "rules": {
+      "exclude": ["no-slow-types"]
+    }
+  }
+}
