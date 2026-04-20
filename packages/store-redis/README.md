@@ -6,8 +6,9 @@
 
 Redis-backed storage for the [Conveyor](../../README.md) job queue.
 
-> **Status:** work in progress — lifecycle (`connect` / `disconnect`), key layout, and `JobData`
-> mapping are in. Job CRUD, leasing, scheduling, flows, groups, and events land in follow-up phases.
+> **Status:** work in progress — lifecycle, `JobData` mapping, job CRUD, leasing (extend / release
+> lock, active count), delayed scheduling, pause/resume, and the Lua script registry are wired up.
+> The atomic `fetchNextJob` Lua script, flows, groups, and event delivery land in follow-up phases.
 > See [`tasks/redis-store.md`](../../tasks/redis-store.md). Do not use in production yet.
 
 ## Planned usage
@@ -31,6 +32,12 @@ const worker = new Worker('tasks', async (job) => job.data, { store });
 - Cluster: hash-tag-safe key layout (`{conveyor:{queue}}:…`) from v1
 
 See [`tasks/redis-store.md`](../../tasks/redis-store.md) for the full design.
+
+## Deno permissions
+
+The store loads its Lua scripts at `connect()` time from `packages/store-redis/src/lua/*.lua` via
+`node:fs/promises`. Deno consumers running with reduced permissions must grant `--allow-read` on the
+installed package directory (typically under `~/.cache/deno/`). `-A` during development covers it.
 
 ## Notes for contributors
 

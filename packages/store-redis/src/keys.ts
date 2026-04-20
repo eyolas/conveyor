@@ -29,6 +29,12 @@ export function createKeys(prefix: string = DEFAULT_PREFIX) {
 
     /** Hash storing the serialized JobData for a single job. */
     job: (queueName: string, id: string) => `${qns(queueName)}:job:${id}`,
+    /**
+     * Prefix Lua scripts can concatenate with an id to reach the job hash.
+     * Equivalent to `job(queueName, '')`; exposed as its own method so callers
+     * don't rely on that empty-string shape.
+     */
+    jobPrefix: (queueName: string) => `${qns(queueName)}:job:`,
     /** List of waiting job IDs (FIFO/LIFO). */
     waiting: (queueName: string) => `${qns(queueName)}:waiting`,
     /**

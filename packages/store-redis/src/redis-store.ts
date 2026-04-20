@@ -10,8 +10,9 @@
 
 import type { JobData, JobState, Logger, StoreOptions, UpdateJobOptions } from '@conveyor/shared';
 import { generateId, InvalidJobStateError, noopLogger } from '@conveyor/shared';
-import { createClient } from 'redis';
+import { createClient, ErrorReply } from 'redis';
 import { createKeys, DEFAULT_PREFIX, type Keys } from './keys.ts';
+import { loadScriptSources, type ScriptName } from './lua/index.ts';
 import { hashToJobData, jobDataToHash } from './mapping.ts';
 
 /** Opaque type of a node-redis v5 client. */
@@ -71,6 +72,7 @@ export class RedisStore {
   private connected = false;
   private disconnected = false;
   private connectPromise: Promise<void> | null = null;
+  private scripts: Partial<Record<ScriptName, { source: string; sha: string }>> = {};
 
   constructor(options: RedisStoreOptions = {}) {
     this.options = options;
@@ -153,6 +155,16 @@ export class RedisStore {
       // run upgrade path instead of clobbering on every connect.
       await client.set(this.keys.schema(), SCHEMA_VERSION);
 
+      // Preload every bundled Lua script and remember each sha so hot paths
+      // can use `EVALSHA`. A server restart clears the cache; `evalScript`
+      // falls back to `SCRIPT LOAD` on NOSCRIPT.
+      const sources = await loadScriptSources();
+      const scripts: Partial<Record<ScriptName, { source: string; sha: string }>> = {};
+      for (const [name, source] of Object.entries(sources) as [ScriptName, string][]) {
+        const sha = await client.scriptLoad(source);
+        scripts[name] = { source, sha };
+      }
+
       // A concurrent `disconnect()` may have flipped `disconnected` while we
       // were awaiting above. Roll back instead of assigning live handles to
       // an already-disposed store.
@@ -165,6 +177,7 @@ export class RedisStore {
       this.subscriber = subscriber;
       this.clientErrorHandler = clientErrorHandler;
       this.subscriberErrorHandler = subscriberErrorHandler;
+      this.scripts = scripts;
       this.connected = true;
     } catch (err) {
       await rollback();
@@ -222,56 +235,78 @@ export class RedisStore {
    * non-terminal job already owns it (respecting TTL), returns that existing
    * job's id instead — matching the MemoryStore / PgStore semantics.
    *
-   * The insert itself is pipelined (`MULTI`/`EXEC`): hash write, state-index
-   * add, queue registry, and optional dedup key all land in a single round
-   * trip. That's atomic enough for write-only inserts; fetch/lock atomicity
-   * is a Phase 4 concern that needs Lua.
+   * The dedup reservation uses `SET NX PX` so two concurrent saves with the
+   * same key resolve to a single winning id. The job hash, state index, and
+   * queue registry land in a follow-up `MULTI`/`EXEC` — the dedup key itself
+   * is already written, so the transaction only handles the shape writes.
+   *
+   * Known edge case (documented, not closed): if the follow-up `MULTI`/`EXEC`
+   * fails after `SET NX` succeeded (network drop, client crash), the dedup
+   * pointer survives while the job hash never lands. A subsequent caller
+   * hits `findByDeduplicationKey`, observes the orphan pointer, and GCs it —
+   * so the window self-heals on the next save attempt for that key but can
+   * briefly wedge an in-flight retry. A fully transactional save requires
+   * folding the reservation into the Lua script in a later hardening pass.
    */
   async saveJob(queueName: string, job: Omit<JobData, 'id'>): Promise<string> {
     const client = this.getClient();
-
-    const dedupKey = job.deduplicationKey;
-    if (dedupKey) {
-      const existing = await this.findByDeduplicationKey(queueName, dedupKey);
-      if (existing) return existing.id;
-    }
-
     const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
     const jobData: JobData = { ...job, id } as JobData;
+
+    if (jobData.deduplicationKey) {
+      const owned = await this.reserveDedupKey(queueName, jobData.deduplicationKey, id, jobData);
+      if (owned !== id) return owned;
+    }
 
     const multi = client.multi();
     multi.hSet(this.keys.job(queueName, id), jobDataToHash(jobData));
     this.addToStateIndex(multi, queueName, jobData, id);
     multi.sAdd(this.keys.queueIndex(), queueName);
-    this.writeDedupKey(multi, queueName, jobData);
     await multi.exec();
     return id;
   }
 
   /**
-   * Persist several jobs in one round trip. Dedup checks still happen
-   * sequentially (they need a read before the batch), but the writes
-   * themselves are batched into a single `MULTI`/`EXEC`.
+   * Persist several jobs in one round trip. Dedup checks run sequentially
+   * (read + `SET NX PX` per key), but the state-index writes themselves are
+   * batched into a single `MULTI`/`EXEC`. Two jobs in the same array that
+   * share a deduplication key collapse to a single id — their shape comes
+   * from the first occurrence; later duplicates reuse that id.
    */
   async saveBulk(queueName: string, jobs: Omit<JobData, 'id'>[]): Promise<string[]> {
     if (jobs.length === 0) return [];
     const client = this.getClient();
 
-    // Resolve dedup conflicts first so the batched writes only touch new jobs.
     const resolvedIds: string[] = new Array(jobs.length);
     const pendingJobs: JobData[] = [];
+    // Collapse jobs within this batch that share a dedup key so the first
+    // occurrence is the one we persist; every later duplicate reuses its id.
+    const batchDedupIds = new Map<string, string>();
+
     for (let i = 0; i < jobs.length; i++) {
       const job = jobs[i]!;
-      if (job.deduplicationKey) {
-        const existing = await this.findByDeduplicationKey(queueName, job.deduplicationKey);
-        if (existing) {
-          resolvedIds[i] = existing.id;
-          continue;
-        }
-      }
       const id = (job as Partial<Pick<JobData, 'id'>>).id ?? generateId();
       const jobData: JobData = { ...job, id } as JobData;
-      resolvedIds[i] = id;
+
+      if (jobData.deduplicationKey) {
+        const sameBatch = batchDedupIds.get(jobData.deduplicationKey);
+        if (sameBatch) {
+          resolvedIds[i] = sameBatch;
+          continue;
+        }
+        const owned = await this.reserveDedupKey(
+          queueName,
+          jobData.deduplicationKey,
+          id,
+          jobData,
+        );
+        batchDedupIds.set(jobData.deduplicationKey, owned);
+        resolvedIds[i] = owned;
+        if (owned !== id) continue;
+      } else {
+        resolvedIds[i] = id;
+      }
+
       pendingJobs.push(jobData);
     }
 
@@ -280,7 +315,6 @@ export class RedisStore {
       for (const jobData of pendingJobs) {
         multi.hSet(this.keys.job(queueName, jobData.id), jobDataToHash(jobData));
         this.addToStateIndex(multi, queueName, jobData, jobData.id);
-        this.writeDedupKey(multi, queueName, jobData);
       }
       multi.sAdd(this.keys.queueIndex(), queueName);
       await multi.exec();
@@ -304,9 +338,9 @@ export class RedisStore {
    * State transitions also rewrite the state-index membership (remove from
    * old bucket, add to new). Without Lua this is a best-effort CAS: a
    * concurrent writer between our read and EXEC could leave the indexes
-   * briefly inconsistent with the hash. Phase 4's Lua scripts will close
-   * that window for leasing / completion paths; for now the conformance
-   * suite exercises the single-writer happy path.
+   * briefly inconsistent with the hash. The leasing path (`fetchNextJob`)
+   * closes that window with Lua; update-driven transitions outside leasing
+   * still rely on the single-writer-per-job invariant that core enforces.
    */
   async updateJob(
     queueName: string,
@@ -328,6 +362,13 @@ export class RedisStore {
     }
 
     const merged: JobData = { ...current, ...updates };
+    // `delayed` state is only meaningful with a concrete delayUntil. Callers
+    // wanting to un-delay a job must transition state in the same update.
+    if (merged.state === 'delayed' && merged.delayUntil == null) {
+      throw new Error(
+        `[Conveyor] updateJob(${jobId}): state "delayed" requires a non-null delayUntil`,
+      );
+    }
     const hash = jobDataToHash(merged);
 
     const multi = client.multi();
@@ -378,6 +419,107 @@ export class RedisStore {
     await multi.exec();
   }
 
+  // ─── Leasing ─────────────────────────────────────────────────────────
+
+  /**
+   * Extend a lease iff the job is still `active`. Bumps `lockUntil` on the
+   * hash and the matching lock string's TTL in one round trip via Lua so
+   * the check-and-write can't be split by a concurrent stalled sweep.
+   */
+  async extendLock(queueName: string, jobId: string, duration: number): Promise<boolean> {
+    const lockUntil = Date.now() + duration;
+    const result = await this.evalScript<number>(
+      'extendLock',
+      [this.keys.job(queueName, jobId), this.keys.lock(queueName, jobId)],
+      [String(lockUntil), String(duration)],
+    );
+    return result === 1;
+  }
+
+  /**
+   * Release a lease without changing state. Clears `lockUntil` / `lockedBy`,
+   * deletes the lock string, and removes the id from the active set. Callers
+   * transition state separately via `updateJob`.
+   */
+  async releaseLock(queueName: string, jobId: string): Promise<void> {
+    await this.evalScript<number>(
+      'releaseLock',
+      [
+        this.keys.job(queueName, jobId),
+        this.keys.lock(queueName, jobId),
+        this.keys.active(queueName),
+      ],
+      [jobId],
+    );
+  }
+
+  async getActiveCount(queueName: string): Promise<number> {
+    const client = this.getClient();
+    return await client.sCard(this.keys.active(queueName));
+  }
+
+  // ─── Delayed scheduling ──────────────────────────────────────────────
+
+  /**
+   * Returns the earliest `delayUntil` timestamp in the queue's delayed
+   * bucket, or `null` if the bucket is empty. Core's scheduler uses this
+   * to pick the next wake-up.
+   */
+  async getNextDelayedTimestamp(queueName: string): Promise<number | null> {
+    const client = this.getClient();
+    const entries = await client.zRangeWithScores(this.keys.delayed(queueName), 0, 0);
+    const head = entries[0];
+    return head ? head.score : null;
+  }
+
+  /**
+   * Promote every delayed job with `delayUntil <= timestamp` into `waiting`.
+   * The Lua script moves each id across the delayed ZSET, the waiting list,
+   * and the job hash in one pass so an intermediate read can't observe a
+   * job as "delayed but already popped".
+   */
+  async promoteDelayedJobs(queueName: string, timestamp: number): Promise<number> {
+    return await this.evalScript<number>(
+      'promoteDelayed',
+      [this.keys.delayed(queueName), this.keys.waiting(queueName)],
+      [String(timestamp), this.keys.jobPrefix(queueName)],
+    );
+  }
+
+  /**
+   * Promote every delayed job in the queue, regardless of `delayUntil`.
+   * Same underlying Lua script as {@linkcode promoteDelayedJobs}; the upper
+   * bound `"+inf"` tells `ZRANGEBYSCORE` to match every member.
+   */
+  async promoteJobs(queueName: string): Promise<number> {
+    return await this.evalScript<number>(
+      'promoteDelayed',
+      [this.keys.delayed(queueName), this.keys.waiting(queueName)],
+      ['+inf', this.keys.jobPrefix(queueName)],
+    );
+  }
+
+  // ─── Pause / Resume ──────────────────────────────────────────────────
+
+  /**
+   * Pause processing for a specific job name. Pass `"__all__"` to pause the
+   * entire queue — matching the sentinel the other stores recognize.
+   */
+  async pauseJobName(queueName: string, jobName: string): Promise<void> {
+    const client = this.getClient();
+    await client.sAdd(this.keys.paused(queueName), jobName);
+  }
+
+  async resumeJobName(queueName: string, jobName: string): Promise<void> {
+    const client = this.getClient();
+    await client.sRem(this.keys.paused(queueName), jobName);
+  }
+
+  async getPausedJobNames(queueName: string): Promise<string[]> {
+    const client = this.getClient();
+    return await client.sMembers(this.keys.paused(queueName));
+  }
+
   // ─── Deduplication ───────────────────────────────────────────────────
 
   async findByDeduplicationKey(queueName: string, key: string): Promise<JobData | null> {
@@ -402,10 +544,15 @@ export class RedisStore {
    * - Everything else (`waiting`, `waiting-children`, `active`, `delayed`): oldest
    *   first (by `createdAt` ASC).
    *
-   * `delayed` is stored as a ZSET scored by `delayUntil` for the Phase 4 scheduler
+   * `delayed` is stored as a ZSET scored by `delayUntil` for the scheduler
    * (`getNextDelayedTimestamp`, `promoteDelayedJobs`); for `listJobs` we ignore that
    * ordering and re-sort by `createdAt` so every backend returns the same page.
    * Same idea for `active` (SET, no inherent order).
+   *
+   * Scaling note: `delayed` and `active` hydrate every matching id before slicing
+   * — O(N) in the bucket size. Acceptable for dashboard queries at queue sizes
+   * up to ~10k; if you list very large delayed buckets, prefer paging by id
+   * range or using `getNextDelayedTimestamp` for the scheduler path.
    */
   async listJobs(
     queueName: string,
@@ -596,19 +743,48 @@ export class RedisStore {
     }
   }
 
-  private writeDedupKey(
-    multi: RedisMulti,
+  /**
+   * Reserve a deduplication key atomically via `SET NX PX` and return the id
+   * that ultimately owns it. Two concurrent saves with the same key collapse
+   * to a single winner:
+   *
+   * 1. If a live non-terminal job already matches, return its id.
+   * 2. Otherwise attempt `SET NX` with this save's id. On success, we own it.
+   * 3. If NX fails, someone won the race between the read and the write —
+   *    re-resolve and return the racer's id. If the racer's job turns out to
+   *    be orphaned (findByDeduplicationKey GCs the pointer), retry the
+   *    reservation once before giving up.
+   */
+  private async reserveDedupKey(
     queueName: string,
+    dedupKey: string,
+    id: string,
     job: JobData,
-  ): void {
-    if (!job.deduplicationKey) return;
+  ): Promise<string> {
+    const existing = await this.findByDeduplicationKey(queueName, dedupKey);
+    if (existing) return existing.id;
+
+    const client = this.getClient();
+    const k = this.keys.dedup(queueName, dedupKey);
     const ttlMs = job.opts.deduplication?.ttl;
-    const k = this.keys.dedup(queueName, job.deduplicationKey);
-    if (ttlMs && ttlMs > 0) {
-      multi.set(k, job.id, { PX: ttlMs });
-    } else {
-      multi.set(k, job.id);
-    }
+    const setOpts = ttlMs && ttlMs > 0 ? { NX: true, PX: ttlMs } : { NX: true };
+
+    const acquired = await client.set(k, id, setOpts);
+    if (acquired !== null) return id;
+
+    // Lost the race. Re-resolve; if the racer turns out to be gone, retry once.
+    const racer = await this.findByDeduplicationKey(queueName, dedupKey);
+    if (racer) return racer.id;
+
+    const retry = await client.set(k, id, setOpts);
+    if (retry !== null) return id;
+
+    const final = await this.findByDeduplicationKey(queueName, dedupKey);
+    if (final) return final.id;
+    throw new Error(
+      `[Conveyor] Unable to reserve deduplication key "${dedupKey}" after retry — ` +
+        'another writer keeps winning the NX race. Retry the save from the caller.',
+    );
   }
 
   /**
@@ -655,5 +831,46 @@ export class RedisStore {
       throw new Error('[Conveyor] RedisStore is not connected — call connect() first');
     }
     return this.subscriber;
+  }
+
+  /**
+   * Run a preloaded Lua script by name.
+   *
+   * Uses `EVALSHA` on the cached sha. On `NOSCRIPT` (server flushed its
+   * cache between our connect and this call) the source is re-registered
+   * and the call retries once.
+   */
+  protected async evalScript<T = unknown>(
+    name: ScriptName,
+    keys: string[],
+    args: (string | number)[],
+  ): Promise<T> {
+    const client = this.getClient();
+    const entry = this.scripts[name];
+    if (!entry) {
+      throw new Error(
+        `[Conveyor] Lua script "${name}" not loaded — did connect() complete?`,
+      );
+    }
+    const argvStrings = args.map(String);
+    try {
+      return (await client.evalSha(entry.sha, {
+        keys,
+        arguments: argvStrings,
+      })) as T;
+    } catch (err) {
+      // Detect NOSCRIPT via node-redis's typed ErrorReply + the server's
+      // documented error prefix — more robust than substring matching on
+      // an arbitrary `Error.message`.
+      if (err instanceof ErrorReply && err.message.startsWith('NOSCRIPT')) {
+        const sha = await client.scriptLoad(entry.source);
+        this.scripts[name] = { source: entry.source, sha };
+        return (await client.evalSha(sha, {
+          keys,
+          arguments: argvStrings,
+        })) as T;
+      }
+      throw err;
+    }
   }
 }

@@ -153,6 +153,13 @@ describe.skipIf(!available)('RedisStore — Phase 3 CRUD', () => {
     await expect(store.updateJob(QUEUE, 'ghost', { progress: 1 })).resolves.toBeUndefined();
   });
 
+  test('updateJob rejects state="delayed" with a null delayUntil', async () => {
+    const id = await store.saveJob(QUEUE, createJobData(QUEUE, 'x', {}, { delay: 60_000 }));
+    await expect(store.updateJob(QUEUE, id, { delayUntil: null })).rejects.toThrow(
+      /requires a non-null delayUntil/,
+    );
+  });
+
   // ─── removeJob ────────────────────────────────────────────────────────
 
   test('removeJob deletes the hash, the state index entry, and the dedup key', async () => {
@@ -212,6 +219,36 @@ describe.skipIf(!available)('RedisStore — Phase 3 CRUD', () => {
 
   test('findByDeduplicationKey returns null for an unknown key', async () => {
     expect(await store.findByDeduplicationKey(QUEUE, 'never')).toBeNull();
+  });
+
+  test('concurrent saveJob with same dedup key resolves to one id', async () => {
+    const mk = () =>
+      ({ ...createJobData(QUEUE, 'x', {}), deduplicationKey: 'race-1' }) as Omit<JobData, 'id'>;
+    const [a, b, c] = await Promise.all([
+      store.saveJob(QUEUE, mk()),
+      store.saveJob(QUEUE, mk()),
+      store.saveJob(QUEUE, mk()),
+    ]);
+    expect(new Set([a, b, c]).size).toBe(1);
+    expect(await store.countJobs(QUEUE, 'waiting')).toBe(1);
+  });
+
+  test('saveBulk collapses duplicates inside the same batch', async () => {
+    const mk = (dk: string | undefined) =>
+      ({ ...createJobData(QUEUE, 'x', {}), deduplicationKey: dk }) as Omit<JobData, 'id'>;
+    const ids = await store.saveBulk(QUEUE, [
+      mk('bulk-1'),
+      mk('bulk-1'),
+      mk(undefined),
+      mk('bulk-2'),
+      mk('bulk-1'),
+    ]);
+    expect(ids[0]).toBe(ids[1]);
+    expect(ids[0]).toBe(ids[4]);
+    expect(ids[2]).not.toBe(ids[0]);
+    expect(ids[3]).not.toBe(ids[0]);
+    // Three distinct jobs persisted (two dedup classes + one unkeyed).
+    expect(await store.countJobs(QUEUE, 'waiting')).toBe(3);
   });
 
   // ─── Queries ──────────────────────────────────────────────────────────
