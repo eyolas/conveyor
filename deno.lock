@@ -13,6 +13,7 @@
     "npm:croner@10": "10.0.1",
     "npm:hono@4": "4.12.0",
     "npm:postgres@^3.4.0": "3.4.8",
+    "npm:redis@^5.12.1": "5.12.1",
     "npm:vitest@*": "4.1.0_vite@7.3.1__picomatch@4.0.3",
     "npm:vitest@3": "3.2.4_vite@7.3.1__picomatch@4.0.3",
     "npm:vitest@4": "4.1.0_vite@7.3.1__picomatch@4.0.3"
@@ -193,6 +194,36 @@
     },
     "@jridgewell/sourcemap-codec@1.5.5": {
       "integrity": "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="
+    },
+    "@redis/bloom@5.12.1_@redis+client@5.12.1": {
+      "integrity": "sha512-PUUfv+ms7jgPSBVoo/DN4AkPHj4D5TZSd6SbJX7egzBplkYUcKmHRE8RKia7UtZ8bSQbLguLvxVO+asKtQfZWA==",
+      "dependencies": [
+        "@redis/client"
+      ]
+    },
+    "@redis/client@5.12.1": {
+      "integrity": "sha512-7aPGWeqA3uFm43o19umzdl16CEjK/JQGtSXVPevplTaOU3VJA/rseBC1QvYUz9lLDIMBimc4SW/zrW4S89BaCA==",
+      "dependencies": [
+        "cluster-key-slot"
+      ]
+    },
+    "@redis/json@5.12.1_@redis+client@5.12.1": {
+      "integrity": "sha512-eOze75esLve4vfqDel7aMX08CNaiLLQS2fV8mpRN9NxPe1rVR4vQyYiW/OgtGUysF6QOr9ANhfxABKNOJfXdKg==",
+      "dependencies": [
+        "@redis/client"
+      ]
+    },
+    "@redis/search@5.12.1_@redis+client@5.12.1": {
+      "integrity": "sha512-ItlxbxC9cKI6IU1TLWoczwJCRb6TdmkEpWv05UrPawqaAnWGRu3rcIqsc5vN483T2fSociuyV1UkWIL5I4//2w==",
+      "dependencies": [
+        "@redis/client"
+      ]
+    },
+    "@redis/time-series@5.12.1_@redis+client@5.12.1": {
+      "integrity": "sha512-c6JL6E3EcZJuNqKFz+KM+l9l5mpcQiKvTwgA3blt5glWJ8hjDk0yeHN3beE/MpqYIQ8UEX44ItQzgkE/gCBELQ==",
+      "dependencies": [
+        "@redis/client"
+      ]
     },
     "@rollup/rollup-android-arm-eabi@4.59.0": {
       "integrity": "sha512-upnNBkA6ZH2VKGcBj9Fyl9IGNPULcjXRlg0LLeaioQWueH30p6IXtJEbKAgvyv+mJaMxSm1l6xwDXYjpEMiLMg==",
@@ -471,6 +502,9 @@
     "check-error@2.1.3": {
       "integrity": "sha512-PAJdDJusoxnwm1VwW07VWwUN1sl7smmC3OKggvndJFadxxDRyFJBX/ggnu/KE4kQAB7a3Dp8f/YXC1FlUprWmA=="
     },
+    "cluster-key-slot@1.1.2": {
+      "integrity": "sha512-RMr0FhtfXemyinomL4hrWcYJxmX6deFdCxpJzhDttxgO1+bcCnkk+9drydLVDmAMG7NE6aN/fl4F7ucU/90gAA=="
+    },
     "convert-source-map@2.0.0": {
       "integrity": "sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg=="
     },
@@ -595,6 +629,16 @@
     },
     "postgres@3.4.8": {
       "integrity": "sha512-d+JFcLM17njZaOLkv6SCev7uoLaBtfK86vMUXhW1Z4glPWh4jozno9APvW/XKFJ3CCxVoC7OL38BqRydtu5nGg=="
+    },
+    "redis@5.12.1": {
+      "integrity": "sha512-LDsoVvb/CpoV9EN3FXvgvSHNJWuCIzl9MiO3ppOevuGLpSGJhwfQjpEwfFJcQvNSddHADDdZaWx0HnmMxRXG7g==",
+      "dependencies": [
+        "@redis/bloom",
+        "@redis/client",
+        "@redis/json",
+        "@redis/search",
+        "@redis/time-series"
+      ]
     },
     "rollup@4.59.0": {
       "integrity": "sha512-2oMpl67a3zCH9H79LeMcbDhXW/UmWG/y2zuqnF2jQq5uq9TbM9TVyXvA4+t+ne2IIkBdrLpAaRQAvo7YI/Yyeg==",
@@ -773,12 +817,14 @@
   "workspace": {
     "dependencies": [
       "jsr:@db/sqlite@0.13",
+      "npm:redis@^5.12.1",
       "npm:vitest@4"
     ],
     "packageJson": {
       "dependencies": [
         "npm:croner@10",
         "npm:postgres@^3.4.0",
+        "npm:redis@^5.12.1",
         "npm:vitest@4"
       ]
     },
@@ -814,6 +860,12 @@
         "dependencies": [
           "jsr:@conveyor/shared@1",
           "npm:postgres@^3.4.0"
+        ]
+      },
+      "packages/store-redis": {
+        "dependencies": [
+          "jsr:@conveyor/shared@1",
+          "npm:redis@^5.12.1"
         ]
       },
       "packages/store-sqlite-bun": {

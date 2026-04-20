@@ -24,8 +24,8 @@ teams that already operate Redis in production.
 - **Operational familiarity.** Many teams already have managed Redis (ElastiCache, Upstash, Redis
   Cloud). Zero new infra.
 - **Test case for Store portability.** Redis has no SQL, no transactions in the PG sense, and no
-  LISTEN/NOTIFY. Fitting it into `StoreInterface` proves the abstraction holds; it also surfaces
-  any leaky assumptions in core.
+  LISTEN/NOTIFY. Fitting it into `StoreInterface` proves the abstraction holds; it also surfaces any
+  leaky assumptions in core.
 
 ---
 
@@ -33,8 +33,8 @@ teams that already operate Redis in production.
 
 ### In
 
-- New workspace package `packages/store-redis` exporting `RedisStore` implementing the full
-  required `StoreInterface` surface (46 methods, see `packages/shared/src/types.ts:564-983`).
+- New workspace package `packages/store-redis` exporting `RedisStore` implementing the full required
+  `StoreInterface` surface (46 methods, see `packages/shared/src/types.ts:564-983`).
 - Atomic multi-step operations via Lua scripts (fetch+lock, save-flow, dedup reservation, parent
   completion, clean).
 - Redis Pub/Sub for cross-process events (no polling fallback in v1).
@@ -47,13 +47,13 @@ teams that already operate Redis in production.
 
 - Redis Cluster / Sentinel support — v2. v1 targets single-node Redis (with standard HA via managed
   providers, which present as single endpoints).
-- Redis Streams as a transport layer — considered but not required; sorted sets + lists cover
-  v1 semantics.
+- Redis Streams as a transport layer — considered but not required; sorted sets + lists cover v1
+  semantics.
 - Optional dashboard methods (`searchJobs`, `searchByPayload`, `getMetrics`, `aggregateMetrics`) —
   v1 ships the required 46; optional methods land in a follow-up so we don't block the release on
   search ergonomics.
-- RedisJSON / RediSearch modules — stick to core Redis commands so the store runs on any
-  Redis 7+ deployment.
+- RedisJSON / RediSearch modules — stick to core Redis commands so the store runs on any Redis 7+
+  deployment.
 
 ---
 
@@ -75,15 +75,15 @@ Pub/Sub — a subscribed connection cannot issue other commands in RESP2.
 
 ### Runtime compatibility
 
-Conveyor targets Deno 2, Node.js 18+, and Bun as first-class runtimes. node-redis is pure JS with
-no native dependencies, which is the right starting point — but we validate each runtime before
+Conveyor targets Deno 2, Node.js 18+, and Bun as first-class runtimes. node-redis is pure JS with no
+native dependencies, which is the right starting point — but we validate each runtime before
 committing to the client choice.
 
-| Runtime   | Mechanism                                            | Expected state                                             | Validation (Phase 1)                                      |
-| --------- | ---------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------- |
-| Node 18+  | Native `npm install redis`                           | Reference implementation, no concerns                      | Existing Node CI job covers it                            |
-| Deno 2    | `npm:redis@^5` via npm specifier                     | Works — relies on `node:net` / `node:tls` / `node:events`  | Smoke: `connect → SET/GET → PUBLISH/SUBSCRIBE → QUIT`     |
-| Bun       | `bun install redis` via Bun's Node-compat layer      | Works — Bun team endorses node-redis; Bun.redis mirrors it | Same smoke test under `bun test`                          |
+| Runtime  | Mechanism                                       | Expected state                                             | Validation (Phase 1)                                  |
+| -------- | ----------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------- |
+| Node 18+ | Native `npm install redis`                      | Reference implementation, no concerns                      | Existing Node CI job covers it                        |
+| Deno 2   | `npm:redis@^5` via npm specifier                | Works — relies on `node:net` / `node:tls` / `node:events`  | Smoke: `connect → SET/GET → PUBLISH/SUBSCRIBE → QUIT` |
+| Bun      | `bun install redis` via Bun's Node-compat layer | Works — Bun team endorses node-redis; Bun.redis mirrors it | Same smoke test under `bun test`                      |
 
 If any runtime smoke test fails, fallback is to ship a BYO-client option
 (`new RedisStore({ client: RedisClientType })`) — the store can accept any node-redis-compatible
@@ -102,25 +102,25 @@ Explicitly out of scope of the runtime matrix:
 
 All keys namespaced with a configurable prefix (default `conveyor`):
 
-| Key                                                | Type     | Purpose                                                                  |
-| -------------------------------------------------- | -------- | ------------------------------------------------------------------------ |
-| `conveyor:{queue}:job:{id}`                        | Hash     | Serialized `JobData` fields (payload, state, attempts, timestamps, etc.) |
-| `conveyor:{queue}:waiting`                         | List     | FIFO/LIFO queue of waiting job IDs (`LPUSH` + `BRPOP`/`RPOPLPUSH`)       |
-| `conveyor:{queue}:active`                          | Set      | Job IDs currently leased by a worker                                     |
-| `conveyor:{queue}:delayed`                         | ZSET     | Job IDs scored by `delayUntil` timestamp                                 |
-| `conveyor:{queue}:completed`                       | ZSET     | Completed job IDs scored by `finishedAt`                                 |
-| `conveyor:{queue}:failed`                          | ZSET     | Failed job IDs scored by `finishedAt`                                    |
-| `conveyor:{queue}:cancelled`                       | ZSET     | Cancelled job IDs scored by `finishedAt`                                 |
-| `conveyor:{queue}:paused`                          | Set      | Paused job names (`__all__` = pause entire queue)                        |
-| `conveyor:{queue}:locks:{id}`                      | String   | `workerId:token`, TTL = lockDuration                                     |
-| `conveyor:{queue}:dedup:{key}`                     | String   | Job ID for dedup key, optional TTL                                       |
-| `conveyor:{queue}:groups:{groupId}:active`         | Set      | Active job IDs in group                                                  |
-| `conveyor:{queue}:groups:{groupId}:waiting`        | ZSET     | Waiting job IDs in group, scored by enqueue time                         |
-| `conveyor:{queue}:groups:index`                    | Set      | Known group IDs (for fairness iteration)                                 |
-| `conveyor:{queue}:flow:{parentId}:children`        | Set      | Child job IDs (cross-queue: children store their own queue:id tuple)     |
-| `conveyor:{queue}:flow:{parentId}:pending`         | String   | Integer counter; decremented on child completion                         |
-| `conveyor:{queue}:queues`                          | Set      | All queue names seen (for `listQueues`)                                  |
-| `conveyor:events`                                  | Pub/Sub  | Channel for `StoreEvent` payloads (JSON)                                 |
+| Key                                         | Type    | Purpose                                                                  |
+| ------------------------------------------- | ------- | ------------------------------------------------------------------------ |
+| `conveyor:{queue}:job:{id}`                 | Hash    | Serialized `JobData` fields (payload, state, attempts, timestamps, etc.) |
+| `conveyor:{queue}:waiting`                  | List    | FIFO/LIFO queue of waiting job IDs (`LPUSH` + `BRPOP`/`RPOPLPUSH`)       |
+| `conveyor:{queue}:active`                   | Set     | Job IDs currently leased by a worker                                     |
+| `conveyor:{queue}:delayed`                  | ZSET    | Job IDs scored by `delayUntil` timestamp                                 |
+| `conveyor:{queue}:completed`                | ZSET    | Completed job IDs scored by `finishedAt`                                 |
+| `conveyor:{queue}:failed`                   | ZSET    | Failed job IDs scored by `finishedAt`                                    |
+| `conveyor:{queue}:cancelled`                | ZSET    | Cancelled job IDs scored by `finishedAt`                                 |
+| `conveyor:{queue}:paused`                   | Set     | Paused job names (`__all__` = pause entire queue)                        |
+| `conveyor:{queue}:locks:{id}`               | String  | `workerId:token`, TTL = lockDuration                                     |
+| `conveyor:{queue}:dedup:{key}`              | String  | Job ID for dedup key, optional TTL                                       |
+| `conveyor:{queue}:groups:{groupId}:active`  | Set     | Active job IDs in group                                                  |
+| `conveyor:{queue}:groups:{groupId}:waiting` | ZSET    | Waiting job IDs in group, scored by enqueue time                         |
+| `conveyor:{queue}:groups:index`             | Set     | Known group IDs (for fairness iteration)                                 |
+| `conveyor:{queue}:flow:{parentId}:children` | Set     | Child job IDs (cross-queue: children store their own queue:id tuple)     |
+| `conveyor:{queue}:flow:{parentId}:pending`  | String  | Integer counter; decremented on child completion                         |
+| `conveyor:{queue}:queues`                   | Set     | All queue names seen (for `listQueues`)                                  |
+| `conveyor:events`                           | Pub/Sub | Channel for `StoreEvent` payloads (JSON)                                 |
 
 Notes:
 
@@ -136,31 +136,31 @@ scripts, loaded at connect time via `SCRIPT LOAD` and invoked via `EVALSHA` (wit
 fallback). Scripts live in `packages/store-redis/src/lua/` as `.lua` files bundled via text imports
 so they are reviewable without escaping hell.
 
-| Script                        | Responsibility                                                                                          |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `fetchNextJob.lua`            | Respect paused set, LIFO flag, job-name filter, group cap, rate-limit window → pop, lock, return job    |
-| `saveJob.lua`                 | Write hash, index into correct state set, handle delay/dedup atomically                                 |
-| `saveBulk.lua`                | Vectorized `saveJob` for batched inserts                                                                |
-| `saveFlow.lua`                | Atomic multi-queue insert of parent + children, initialize pending counter                              |
-| `notifyChildCompleted.lua`    | Decrement parent pending; if 0, transition parent to waiting; return parent state                       |
-| `failParentOnChildFailure.lua`| Transition parent to failed when a child fails (respects flow policy)                                   |
-| `promoteDelayed.lua`          | Move due jobs from `delayed` ZSET into `waiting` list; return count                                     |
-| `extendLock.lua`              | Extend TTL only if the calling worker still owns the lock token                                         |
-| `releaseLock.lua`             | Delete lock only if worker owns the token; move job out of `active`                                     |
-| `getStalled.lua`              | Scan `active` set for IDs whose lock key is missing/expired; return stalled IDs                         |
-| `clean.lua`                   | Remove jobs in a terminal state older than grace, in one pass                                           |
-| `drain.lua`                   | Remove all waiting + delayed jobs                                                                       |
-| `obliterate.lua`              | Destroy every key under `conveyor:{queue}:*` (opt. `force` when active jobs present)                    |
+| Script                         | Responsibility                                                                                       |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `fetchNextJob.lua`             | Respect paused set, LIFO flag, job-name filter, group cap, rate-limit window → pop, lock, return job |
+| `saveJob.lua`                  | Write hash, index into correct state set, handle delay/dedup atomically                              |
+| `saveBulk.lua`                 | Vectorized `saveJob` for batched inserts                                                             |
+| `saveFlow.lua`                 | Atomic multi-queue insert of parent + children, initialize pending counter                           |
+| `notifyChildCompleted.lua`     | Decrement parent pending; if 0, transition parent to waiting; return parent state                    |
+| `failParentOnChildFailure.lua` | Transition parent to failed when a child fails (respects flow policy)                                |
+| `promoteDelayed.lua`           | Move due jobs from `delayed` ZSET into `waiting` list; return count                                  |
+| `extendLock.lua`               | Extend TTL only if the calling worker still owns the lock token                                      |
+| `releaseLock.lua`              | Delete lock only if worker owns the token; move job out of `active`                                  |
+| `getStalled.lua`               | Scan `active` set for IDs whose lock key is missing/expired; return stalled IDs                      |
+| `clean.lua`                    | Remove jobs in a terminal state older than grace, in one pass                                        |
+| `drain.lua`                    | Remove all waiting + delayed jobs                                                                    |
+| `obliterate.lua`               | Destroy every key under `conveyor:{queue}:*` (opt. `force` when active jobs present)                 |
 
-Script version is tracked in `conveyor:{queue}:schema` (string). On connect, if the version does
-not match the embedded one, re-register scripts and upgrade any persisted shape (currently a no-op
-— schemaless — but the hook exists for future evolution).
+Script version is tracked in `conveyor:{queue}:schema` (string). On connect, if the version does not
+match the embedded one, re-register scripts and upgrade any persisted shape (currently a no-op —
+schemaless — but the hook exists for future evolution).
 
 ### Locking
 
 - Lock key `locks:{id}` set with `SET ... NX PX <lockDurationMs>` by `fetchNextJob.lua`.
-- Value = `workerId:randomToken`; `extendLock` and `releaseLock` check the token before mutating,
-  so a stalled worker cannot clobber a re-leased job.
+- Value = `workerId:randomToken`; `extendLock` and `releaseLock` check the token before mutating, so
+  a stalled worker cannot clobber a re-leased job.
 - Stalled detection: active set IDs whose lock key is absent → re-enqueue via `getStalledJobs` +
   core's stall loop.
 
@@ -181,9 +181,9 @@ inside `fetchNextJob.lua` so the decision is atomic with the fetch.
 
 ### Groups
 
-`fetchNextJob.lua` iterates `groups:index`, picks the group with the smallest active count under
-the per-group cap, pops its waiting head. Global fairness is approximated by iterating groups in
-sorted order and skipping capped ones; exact round-robin is a v2 refinement if needed.
+`fetchNextJob.lua` iterates `groups:index`, picks the group with the smallest active count under the
+per-group cap, pops its waiting head. Global fairness is approximated by iterating groups in sorted
+order and skipping capped ones; exact round-robin is a v2 refinement if needed.
 
 ### Migrations
 
@@ -227,8 +227,8 @@ packages/store-redis/
 - [ ] Bump package version to `1.4.0` to align with the monorepo.
 - [ ] **Runtime smoke test** — standalone script under `examples/redis/smoke.ts`:
       `connect → SET/GET → PUBLISH/SUBSCRIBE round-trip → QUIT`. Run under Node, Deno, and Bun
-      _before_ writing Lua scripts. If any runtime fails, capture the error, reassess client
-      choice (see Open Question 1), and adjust the plan.
+      _before_ writing Lua scripts. If any runtime fails, capture the error, reassess client choice
+      (see Open Question 1), and adjust the plan.
 
 ### Phase 2 — data model + lifecycle
 
@@ -286,8 +286,8 @@ packages/store-redis/
 
 ### Phase 10 — release hygiene
 
-- [ ] `tasks/status.yml`: move `redis-store` from `thinking` → `tasks` (`planned` → `in-progress`
-      → `done`).
+- [ ] `tasks/status.yml`: move `redis-store` from `thinking` → `tasks` (`planned` → `in-progress` →
+      `done`).
 - [ ] `prd.md`: remove Redis from the "Ideas" list, add to supported stores.
 - [ ] Version bump (1.4.0 → 1.5.0) on merge, since this is a net-new public package.
 
@@ -301,12 +301,12 @@ packages/store-redis/
    implementation, but the table above defines the gate).
 2. **Key prefix scoping.** Default `conveyor`. Do we expose `keyPrefix` as a constructor option to
    allow multiple Conveyor deployments on one Redis? **Yes**, trivial to thread through `keys.ts`.
-3. **Event channel granularity.** One global channel (`conveyor:events`) with client-side filter,
-   or per-queue channels? Start with global — simpler, fan-out in process — revisit if payload
-   volume becomes a problem in benches.
+3. **Event channel granularity.** One global channel (`conveyor:events`) with client-side filter, or
+   per-queue channels? Start with global — simpler, fan-out in process — revisit if payload volume
+   becomes a problem in benches.
 4. **Searchable fields.** The required interface doesn't need search. Optional
-   `searchByName`/`searchByPayload` will need either RediSearch (module, not universally
-   available) or client-side scans. Punt to v2 follow-up so we don't block the release.
+   `searchByName`/`searchByPayload` will need either RediSearch (module, not universally available)
+   or client-side scans. Punt to v2 follow-up so we don't block the release.
 5. **Redis Cluster hash tags.** If we later support cluster, all keys touched by a Lua script must
    hash to the same slot. Designing the prefix as `{conveyor:{queue}}` (braces force the hash tag)
    costs nothing today and unblocks cluster later. **Adopt now.**
@@ -317,11 +317,11 @@ packages/store-redis/
 
 ## Risks
 
-- **Lua script drift.** Scripts are the hardest part to test and evolve. Mitigation: one `.lua`
-  per file, versioned registry, conformance suite catches regressions.
-- **Pub/Sub delivery guarantees.** Redis Pub/Sub is fire-and-forget. Events are best-effort;
-  callers relying on strict ordering across crashes must use the store's state as the source of
-  truth, not events. Already true for PG LISTEN/NOTIFY — document explicitly.
+- **Lua script drift.** Scripts are the hardest part to test and evolve. Mitigation: one `.lua` per
+  file, versioned registry, conformance suite catches regressions.
+- **Pub/Sub delivery guarantees.** Redis Pub/Sub is fire-and-forget. Events are best-effort; callers
+  relying on strict ordering across crashes must use the store's state as the source of truth, not
+  events. Already true for PG LISTEN/NOTIFY — document explicitly.
 - **Multi-key atomicity without cluster-safe hash tags.** Easy to foot-gun in future. Addressed by
   adopting hash-tag-friendly prefixes now (Q5).
 - **CI flakiness.** Redis service container adds test time. Mitigation: run conformance once;
@@ -338,8 +338,8 @@ packages/store-redis/
 - [ ] `deno task test:pg` (docker up)
 - [ ] `deno task test:sqlite:node`
 - [ ] `deno task test:redis` (docker up — new)
-- [ ] Manual smoke: run `examples/redis/main.ts` against `redis:7-alpine`, verify enqueue →
-      process → event arrives in dashboard.
+- [ ] Manual smoke: run `examples/redis/main.ts` against `redis:7-alpine`, verify enqueue → process
+      → event arrives in dashboard.
 - [ ] `docker compose up redis` + dashboard example pointed at Redis.
 - [ ] Lua scripts reviewed for hash-tag compatibility (no cross-slot commands in a single script).
 
