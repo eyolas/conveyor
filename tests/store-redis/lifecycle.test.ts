@@ -6,7 +6,12 @@ import { RedisStore, SCHEMA_VERSION } from '@conveyor/store-redis';
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
 async function redisReachable(url: string): Promise<boolean> {
-  const client = createClient({ url });
+  // Short connect timeout + no reconnection so a missing Redis skips fast
+  // instead of hanging the whole suite on node-redis's default infinite retry.
+  const client = createClient({
+    url,
+    socket: { connectTimeout: 1000, reconnectStrategy: false },
+  });
   client.on('error', () => {});
   try {
     await client.connect();
@@ -18,6 +23,7 @@ async function redisReachable(url: string): Promise<boolean> {
 }
 
 // Resolved once at load time so `describe.skipIf` sees a stable boolean.
+// Absent / unreachable Redis → skip the live lifecycle suite (CI-friendly).
 const available = await redisReachable(REDIS_URL);
 
 describe.skipIf(!available)('RedisStore — lifecycle', () => {
