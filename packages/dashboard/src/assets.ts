@@ -27,10 +27,12 @@ const MIME_TYPES: Record<string, string> = {
 /** In-memory cache of loaded assets. */
 const assetCache = new Map<string, { content: Uint8Array; contentType: string }>();
 
-/** Resolve the dist directory path relative to this module. */
+/** Resolve the dist directory path relative to this module (normalized). */
 function getDistDir(): string {
-  const moduleDir = new URL('.', import.meta.url).pathname;
-  return moduleDir.replace(/\/$/, '') + '/../dist';
+  // Let `URL` collapse the `..` segment so the resulting path can be compared
+  // against URL-resolved asset paths without diverging on unnormalized
+  // segments (which would break the containment check in serveAsset).
+  return new URL('../dist', import.meta.url).pathname.replace(/\/$/, '');
 }
 
 /**
