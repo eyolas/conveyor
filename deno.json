@@ -48,6 +48,7 @@
     "build:ui": "cd packages/dashboard/ui && npx vite build",
     "dev:ui": "cd packages/dashboard/ui && npx vite",
     "dev:api": "deno run --allow-all --watch examples/with-dashboard/main.ts",
+    "dev:readonly": "deno run --allow-all --watch examples/dashboard-readonly-smoke.ts",
     "dev:dashboard": "deno run --allow-all --watch examples/with-dashboard/main.ts & cd packages/dashboard/ui && npx vite",
     "docs:dev": "cd docs && npx vitepress dev",
     "docs:build": "cd docs && npx vitepress build",
