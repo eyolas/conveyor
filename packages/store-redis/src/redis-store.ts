@@ -79,23 +79,47 @@ export class RedisStore {
     if (this.disconnected) {
       throw new Error('[Conveyor] RedisStore cannot be reconnected after disconnect');
     }
+    if (this.options.client === undefined && !this.options.url) {
+      throw new Error(
+        '[Conveyor] RedisStore requires either `url` or `client` — ' +
+          'refusing to fall back to the node-redis default host',
+      );
+    }
 
     const client = this.options.client ?? createClient({ url: this.options.url });
     client.on('error', (err: unknown) => this.logger.warn('[Conveyor] Redis client error:', err));
-    if (!client.isOpen) await client.connect();
 
-    const subscriber = client.duplicate();
-    subscriber.on(
-      'error',
-      (err: unknown) => this.logger.warn('[Conveyor] Redis subscriber error:', err),
-    );
-    await subscriber.connect();
+    // Track which resources we opened so a mid-way failure can roll them back
+    // instead of leaking an open connection behind an unassigned store.
+    let clientOpened = false;
+    let subscriber: RedisClient | null = null;
+    try {
+      if (!client.isOpen) {
+        await client.connect();
+        clientOpened = true;
+      }
 
-    this.client = client;
-    this.subscriber = subscriber;
-    this.connected = true;
+      subscriber = client.duplicate();
+      subscriber.on(
+        'error',
+        (err: unknown) => this.logger.warn('[Conveyor] Redis subscriber error:', err),
+      );
+      await subscriber.connect();
 
-    await client.set(this.keys.schema(), SCHEMA_VERSION);
+      await client.set(this.keys.schema(), SCHEMA_VERSION);
+
+      this.client = client;
+      this.subscriber = subscriber;
+      this.connected = true;
+    } catch (err) {
+      if (subscriber?.isOpen) {
+        await subscriber.quit().catch(() => {});
+      }
+      if (this.ownsClient && clientOpened && client.isOpen) {
+        await client.quit().catch(() => {});
+      }
+      throw err;
+    }
   }
 
   /**

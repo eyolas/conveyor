@@ -21,7 +21,7 @@
 import { createClient } from 'redis';
 import process from 'node:process';
 
-const url = globalThis.process?.env?.REDIS_URL ?? 'redis://localhost:6379';
+const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
 const runtime = detectRuntime();
 console.log(`[smoke] runtime=${runtime} url=${url}`);

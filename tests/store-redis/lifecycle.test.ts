@@ -26,6 +26,13 @@ async function redisReachable(url: string): Promise<boolean> {
 // Absent / unreachable Redis → skip the live lifecycle suite (CI-friendly).
 const available = await redisReachable(REDIS_URL);
 
+describe('RedisStore — guards (no Redis required)', () => {
+  test('connect() with neither url nor client throws a clear error', async () => {
+    const store = new RedisStore();
+    await expect(store.connect()).rejects.toThrow(/requires either `url` or `client`/);
+  });
+});
+
 describe.skipIf(!available)('RedisStore — lifecycle', () => {
   test('connect writes schema marker and opens both clients', async () => {
     const store = new RedisStore({ url: REDIS_URL, keyPrefix: 'conveyor-test' });
