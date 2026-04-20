@@ -40,6 +40,7 @@ describe('createKeys', () => {
 
   test('builds keys for every per-queue concern', () => {
     expect(keys.job('q', 'id')).toBe('{conveyor:q}:job:id');
+    expect(keys.waitingChildren('q')).toBe('{conveyor:q}:waiting-children');
     expect(keys.delayed('q')).toBe('{conveyor:q}:delayed');
     expect(keys.completed('q')).toBe('{conveyor:q}:completed');
     expect(keys.failed('q')).toBe('{conveyor:q}:failed');

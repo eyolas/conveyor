@@ -88,7 +88,7 @@ tasks:
     description: Redis-backed StoreInterface implementation — BullMQ-compatible backend, Lua scripts for atomicity, Pub/Sub for events
     status: in-progress
     file: tasks/redis-store.md
-    notes: 'Phase 1 (scaffold + runtime smoke) done in PR #52. Phase 2 (keys, mapping, lifecycle) in flight.'
+    notes: 'Phase 1 (PR #52) + Phase 2 (PR #53) merged. Phase 3 (job CRUD) in flight — plain commands + pipelines, Lua deferred to Phase 4 when leasing needs atomicity. Phase-scoped test files per phase; shared conformance harness registration lands Phase 8.'
 
 # ─── PRD Roadmap ──────────────────────────────────────────────────────────────
 

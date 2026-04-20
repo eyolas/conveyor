@@ -31,6 +31,13 @@ export function createKeys(prefix: string = DEFAULT_PREFIX) {
     job: (queueName: string, id: string) => `${qns(queueName)}:job:${id}`,
     /** List of waiting job IDs (FIFO/LIFO). */
     waiting: (queueName: string) => `${qns(queueName)}:waiting`,
+    /**
+     * List of job IDs waiting on their children. Populated when a flow parent
+     * is saved — it stays here until `notifyChildCompleted` pulls it back to
+     * `waiting`. Flows land Phase 5; we maintain the index from Phase 3 so
+     * `listJobs('waiting-children')` works across every state transition.
+     */
+    waitingChildren: (queueName: string) => `${qns(queueName)}:waiting-children`,
     /** Set of active (leased) job IDs. */
     active: (queueName: string) => `${qns(queueName)}:active`,
     /** Sorted set of delayed job IDs scored by `delayUntil` epoch ms. */
