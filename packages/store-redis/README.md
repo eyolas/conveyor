@@ -6,8 +6,9 @@
 
 Redis-backed storage for the [Conveyor](../../README.md) job queue.
 
-> **Status:** scaffolding only. The full `StoreInterface` implementation is tracked in
-> [`tasks/redis-store.md`](../../tasks/redis-store.md). Do not use in production yet.
+> **Status:** work in progress — lifecycle (`connect` / `disconnect`), key layout, and `JobData`
+> mapping are in. Job CRUD, leasing, scheduling, flows, groups, and events land in follow-up phases.
+> See [`tasks/redis-store.md`](../../tasks/redis-store.md). Do not use in production yet.
 
 ## Planned usage
 
@@ -30,3 +31,10 @@ const worker = new Worker('tasks', async (job) => job.data, { store });
 - Cluster: hash-tag-safe key layout (`{conveyor:{queue}}:…`) from v1
 
 See [`tasks/redis-store.md`](../../tasks/redis-store.md) for the full design.
+
+## Notes for contributors
+
+- `deno.json` excludes the `no-slow-types` lint rule. That is deliberate: `RedisStoreOptions.client`
+  exposes node-redis's `ReturnType<typeof createClient>`, which JSR flags as a slow type but we keep
+  to preserve the BYO-client escape hatch (ioredis migrators, `Bun.redis` wrappers). Do not "fix"
+  this without a migration path for BYO users.

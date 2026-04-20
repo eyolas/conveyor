@@ -112,14 +112,14 @@ All keys namespaced with a configurable prefix (default `conveyor`):
 | `conveyor:{queue}:failed`                   | ZSET    | Failed job IDs scored by `finishedAt`                                    |
 | `conveyor:{queue}:cancelled`                | ZSET    | Cancelled job IDs scored by `finishedAt`                                 |
 | `conveyor:{queue}:paused`                   | Set     | Paused job names (`__all__` = pause entire queue)                        |
-| `conveyor:{queue}:locks:{id}`               | String  | `workerId:token`, TTL = lockDuration                                     |
+| `conveyor:{queue}:lock:{id}`                | String  | `workerId:token`, TTL = lockDuration                                     |
 | `conveyor:{queue}:dedup:{key}`              | String  | Job ID for dedup key, optional TTL                                       |
-| `conveyor:{queue}:groups:{groupId}:active`  | Set     | Active job IDs in group                                                  |
-| `conveyor:{queue}:groups:{groupId}:waiting` | ZSET    | Waiting job IDs in group, scored by enqueue time                         |
+| `conveyor:{queue}:group:{groupId}:active`   | Set     | Active job IDs in group                                                  |
+| `conveyor:{queue}:group:{groupId}:waiting`  | ZSET    | Waiting job IDs in group, scored by enqueue time                         |
 | `conveyor:{queue}:groups:index`             | Set     | Known group IDs (for fairness iteration)                                 |
 | `conveyor:{queue}:flow:{parentId}:children` | Set     | Child job IDs (cross-queue: children store their own queue:id tuple)     |
 | `conveyor:{queue}:flow:{parentId}:pending`  | String  | Integer counter; decremented on child completion                         |
-| `conveyor:{queue}:queues`                   | Set     | All queue names seen (for `listQueues`)                                  |
+| `conveyor:queues`                           | Set     | All queue names seen (for `listQueues`) — cross-queue, no hash tag       |
 | `conveyor:events`                           | Pub/Sub | Channel for `StoreEvent` payloads (JSON)                                 |
 
 Notes:
@@ -158,7 +158,7 @@ schemaless — but the hook exists for future evolution).
 
 ### Locking
 
-- Lock key `locks:{id}` set with `SET ... NX PX <lockDurationMs>` by `fetchNextJob.lua`.
+- Lock key `lock:{id}` set with `SET ... NX PX <lockDurationMs>` by `fetchNextJob.lua`.
 - Value = `workerId:randomToken`; `extendLock` and `releaseLock` check the token before mutating, so
   a stalled worker cannot clobber a re-leased job.
 - Stalled detection: active set IDs whose lock key is absent → re-enqueue via `getStalledJobs` +
@@ -232,10 +232,12 @@ packages/store-redis/
 
 ### Phase 2 — data model + lifecycle
 
-- [ ] `keys.ts` helpers (prefix-aware, one place to change the layout).
-- [ ] `mapping.ts` (`rowToJobData`, `jobDataToRow`).
-- [ ] `connect()`: open client + subscriber, `SCRIPT LOAD` all Lua, write schema marker.
-- [ ] `disconnect()`: `QUIT` both clients, clear subscription map.
+- [x] `keys.ts` helpers (prefix-aware, one place to change the layout, cluster-safe hash tags).
+- [x] `mapping.ts` (`jobDataToHash`, `hashToJobData` — JSON for structured fields, epoch ms for
+      dates, `"0"/"1"` for booleans, null = field omitted).
+- [x] `connect()`: open main + subscriber clients, write schema marker. `SCRIPT LOAD` moves to Phase
+      3 when the first Lua script lands, so Phase 2 doesn't ship dead code.
+- [x] `disconnect()`: `QUIT` both clients, honor BYO ownership (external client is not closed).
 
 ### Phase 3 — job CRUD + state
 
