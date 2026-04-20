@@ -254,11 +254,22 @@ every suite. Instead Phase 3 ships a dedicated `tests/store-redis/crud.test.ts` 
 methods landing this phase. Full shared harness registration waits for Phase 8 when every
 `StoreInterface` method is implemented. Same pattern for Phases 4-7.
 
-- [ ] `saveJob`, `saveBulk` (pipelined HSET + state-set add + optional dedup / delayed ZADD).
-- [ ] `getJob`, `updateJob`, `removeJob`.
-- [ ] `listJobs`, `countJobs`, `getJobCounts`.
-- [ ] `findByDeduplicationKey`.
-- [ ] `tests/store-redis/crud.test.ts` — direct coverage of Phase 3 methods against a live Redis.
+- [x] `saveJob`, `saveBulk` (pipelined HSET + state-set add + optional dedup / delayed ZADD).
+- [x] `getJob`, `updateJob`, `removeJob`.
+- [x] `listJobs`, `countJobs`, `getJobCounts`.
+- [x] `findByDeduplicationKey`.
+- [x] `tests/store-redis/crud.test.ts` — direct coverage of Phase 3 methods against a live Redis.
+
+**Phase 3 merged — PR #54 (commit c721588).** 40 tests green against `redis:7-alpine`. Known
+follow-ups to close in Phase 4 (cheaper to fix before Lua lands):
+
+- Dedup race in `saveJob`/`saveBulk`: tighten with `SET NX PX` + re-read on NX failure so two
+  concurrent saves with the same key resolve to one ID.
+- `saveBulk` intra-batch duplicates (two jobs in the same array with the same dedup key) are
+  currently both treated as new — same fix covers it.
+- `listJobs(delayed|active)` hydrate-then-slice is O(N); acceptable for v1 but document the cap.
+- `updateJob` delayed-rescore gap when caller sends `delayUntil: null` without state change — add
+  an assert / docstring invariant (unreachable today).
 
 ### Phase 4 — leasing + scheduling
 
