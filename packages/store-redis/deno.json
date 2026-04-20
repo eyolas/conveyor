@@ -7,7 +7,7 @@
     "redis": "npm:redis@^5.12.1"
   },
   "publish": {
-    "include": ["src/**/*.ts", "deno.json", "README.md", "LICENSE"]
+    "include": ["src/**/*.ts", "src/**/*.lua", "deno.json", "README.md", "LICENSE"]
   },
   "lint": {
     "rules": {

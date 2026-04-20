@@ -12,6 +12,7 @@ import type { JobData, JobState, Logger, StoreOptions, UpdateJobOptions } from '
 import { generateId, InvalidJobStateError, noopLogger } from '@conveyor/shared';
 import { createClient } from 'redis';
 import { createKeys, DEFAULT_PREFIX, type Keys } from './keys.ts';
+import { loadScriptSources, type ScriptName } from './lua/index.ts';
 import { hashToJobData, jobDataToHash } from './mapping.ts';
 
 /** Opaque type of a node-redis v5 client. */
@@ -71,6 +72,7 @@ export class RedisStore {
   private connected = false;
   private disconnected = false;
   private connectPromise: Promise<void> | null = null;
+  private scripts: Partial<Record<ScriptName, { source: string; sha: string }>> = {};
 
   constructor(options: RedisStoreOptions = {}) {
     this.options = options;
@@ -153,6 +155,16 @@ export class RedisStore {
       // run upgrade path instead of clobbering on every connect.
       await client.set(this.keys.schema(), SCHEMA_VERSION);
 
+      // Preload every bundled Lua script and remember each sha so hot paths
+      // can use `EVALSHA`. A server restart clears the cache; `evalScript`
+      // falls back to `SCRIPT LOAD` on NOSCRIPT.
+      const sources = await loadScriptSources();
+      const scripts: Partial<Record<ScriptName, { source: string; sha: string }>> = {};
+      for (const [name, source] of Object.entries(sources) as [ScriptName, string][]) {
+        const sha = await client.scriptLoad(source);
+        scripts[name] = { source, sha };
+      }
+
       // A concurrent `disconnect()` may have flipped `disconnected` while we
       // were awaiting above. Roll back instead of assigning live handles to
       // an already-disposed store.
@@ -165,6 +177,7 @@ export class RedisStore {
       this.subscriber = subscriber;
       this.clientErrorHandler = clientErrorHandler;
       this.subscriberErrorHandler = subscriberErrorHandler;
+      this.scripts = scripts;
       this.connected = true;
     } catch (err) {
       await rollback();
@@ -396,6 +409,45 @@ export class RedisStore {
     }
     multi.del(this.keys.lock(queueName, jobId));
     await multi.exec();
+  }
+
+  // ─── Leasing ─────────────────────────────────────────────────────────
+
+  /**
+   * Extend a lease iff the job is still `active`. Bumps `lockUntil` on the
+   * hash and the matching lock string's TTL in one round trip via Lua so
+   * the check-and-write can't be split by a concurrent stalled sweep.
+   */
+  async extendLock(queueName: string, jobId: string, duration: number): Promise<boolean> {
+    const lockUntil = Date.now() + duration;
+    const result = await this.evalScript<number>(
+      'extendLock',
+      [this.keys.job(queueName, jobId), this.keys.lock(queueName, jobId)],
+      [String(lockUntil), String(duration)],
+    );
+    return result === 1;
+  }
+
+  /**
+   * Release a lease without changing state. Clears `lockUntil` / `lockedBy`,
+   * deletes the lock string, and removes the id from the active set. Callers
+   * transition state separately via `updateJob`.
+   */
+  async releaseLock(queueName: string, jobId: string): Promise<void> {
+    await this.evalScript<number>(
+      'releaseLock',
+      [
+        this.keys.job(queueName, jobId),
+        this.keys.lock(queueName, jobId),
+        this.keys.active(queueName),
+      ],
+      [jobId],
+    );
+  }
+
+  async getActiveCount(queueName: string): Promise<number> {
+    const client = this.getClient();
+    return await client.sCard(this.keys.active(queueName));
   }
 
   // ─── Pause / Resume ──────────────────────────────────────────────────
@@ -730,5 +782,43 @@ export class RedisStore {
       throw new Error('[Conveyor] RedisStore is not connected — call connect() first');
     }
     return this.subscriber;
+  }
+
+  /**
+   * Run a preloaded Lua script by name.
+   *
+   * Uses `EVALSHA` on the cached sha. On `NOSCRIPT` (server flushed its
+   * cache between our connect and this call) the source is re-registered
+   * and the call retries once.
+   */
+  protected async evalScript<T = unknown>(
+    name: ScriptName,
+    keys: string[],
+    args: (string | number)[],
+  ): Promise<T> {
+    const client = this.getClient();
+    const entry = this.scripts[name];
+    if (!entry) {
+      throw new Error(
+        `[Conveyor] Lua script "${name}" not loaded — did connect() complete?`,
+      );
+    }
+    const argvStrings = args.map(String);
+    try {
+      return (await client.evalSha(entry.sha, {
+        keys,
+        arguments: argvStrings,
+      })) as T;
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('NOSCRIPT')) {
+        const sha = await client.scriptLoad(entry.source);
+        this.scripts[name] = { source: entry.source, sha };
+        return (await client.evalSha(sha, {
+          keys,
+          arguments: argvStrings,
+        })) as T;
+      }
+      throw err;
+    }
   }
 }
