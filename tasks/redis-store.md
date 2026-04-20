@@ -61,15 +61,42 @@ teams that already operate Redis in production.
 
 ### Client library
 
-Default: **`npm:redis@^4`** (node-redis, official).
+Default: **`npm:redis@^5`** (node-redis, official).
 
-- Pros: first-party, actively maintained, TypeScript-native, JSR-friendly via `npm:` specifier,
-  supports Lua scripting (`defineScript` / `evalSha` caching).
-- Alternative considered: `ioredis@^5` (what BullMQ uses). Richer cluster API but heavier and less
-  aligned with node-redis's newer typings. Documented in Open Questions below.
+- Pros: first-party, actively maintained, TypeScript-native, pure JavaScript (no native binary —
+  uses `node:net` / `node:tls` only), supports Lua scripting (`defineScript` / `evalSha` caching),
+  built-in Sentinel + Cluster helpers for the v2 roadmap.
+- Alternative considered: `ioredis@^5` (what BullMQ uses). Slightly faster on Bun in benchmarks,
+  richer cluster API, heavier surface. BYO client (see Runtime Compatibility) accommodates teams
+  that already run ioredis.
 
-Single client instance for commands + a dedicated subscriber client for Pub/Sub (required by Redis
-— a subscribed connection cannot issue other commands).
+Single client instance for commands + a dedicated subscriber client (via `client.duplicate()`) for
+Pub/Sub — a subscribed connection cannot issue other commands in RESP2.
+
+### Runtime compatibility
+
+Conveyor targets Deno 2, Node.js 18+, and Bun as first-class runtimes. node-redis is pure JS with
+no native dependencies, which is the right starting point — but we validate each runtime before
+committing to the client choice.
+
+| Runtime   | Mechanism                                            | Expected state                                             | Validation (Phase 1)                                      |
+| --------- | ---------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------- |
+| Node 18+  | Native `npm install redis`                           | Reference implementation, no concerns                      | Existing Node CI job covers it                            |
+| Deno 2    | `npm:redis@^5` via npm specifier                     | Works — relies on `node:net` / `node:tls` / `node:events`  | Smoke: `connect → SET/GET → PUBLISH/SUBSCRIBE → QUIT`     |
+| Bun       | `bun install redis` via Bun's Node-compat layer      | Works — Bun team endorses node-redis; Bun.redis mirrors it | Same smoke test under `bun test`                          |
+
+If any runtime smoke test fails, fallback is to ship a BYO-client option
+(`new RedisStore({ client: RedisClientType })`) — the store can accept any node-redis-compatible
+client, so a runtime that struggles with node-redis can inject a runtime-specific shim (e.g.
+`Bun.redis`, Deno's native connect wrapper) without a second adapter package. BYO is listed as a
+first-class option regardless, for ioredis migrators.
+
+Explicitly out of scope of the runtime matrix:
+
+- Deno Deploy / edge workers — cold-start incompatible with persistent Redis connections; revisit
+  with the Cloudflare D1 adapter story.
+- Bun's native `Bun.redis` API — considered for a later "native Bun" variant package
+  (`store-redis-bun`) mirroring the sqlite split, only if perf numbers justify it.
 
 ### Key layout
 
@@ -186,18 +213,22 @@ packages/store-redis/
 
 - Root `deno.json`: add `./packages/store-redis` to `workspace`, add
   `"@conveyor/store-redis": "./packages/store-redis/src/mod.ts"` to `imports`.
-- Package `deno.json`: `npm:redis@^4`, `@conveyor/shared` at `^1.0.0`.
+- Package `deno.json`: `npm:redis@^5`, `@conveyor/shared` at `^1.0.0`.
 
 ---
 
 ## Checklist
 
-### Phase 1 — scaffolding
+### Phase 1 — scaffolding + runtime smoke
 
 - [ ] Create `packages/store-redis/` with `deno.json`, `mod.ts`, `README.md`.
 - [ ] Register in root `deno.json` (workspace + imports).
 - [ ] `package.json` + `deno.lock` regen so Node/Bun CI can also resolve `redis`.
 - [ ] Bump package version to `1.4.0` to align with the monorepo.
+- [ ] **Runtime smoke test** — standalone script under `examples/redis/smoke.ts`:
+      `connect → SET/GET → PUBLISH/SUBSCRIBE round-trip → QUIT`. Run under Node, Deno, and Bun
+      _before_ writing Lua scripts. If any runtime fails, capture the error, reassess client
+      choice (see Open Question 1), and adjust the plan.
 
 ### Phase 2 — data model + lifecycle
 
@@ -264,9 +295,10 @@ packages/store-redis/
 
 ## Open Questions
 
-1. **`redis` vs `ioredis`?** Default is `redis` for the reasons listed; ioredis is more common in
-   BullMQ-migrator workflows. Ship with `redis` and accept a BYO client option
-   (`{ client: RedisClientType }`) so users can plug ioredis in later without a rewrite.
+1. **`redis` vs `ioredis`?** Default is `redis@^5` for the reasons in Design > Client library; the
+   BYO-client option covers BullMQ migrators on ioredis and the Bun-native `Bun.redis` case. Revisit
+   if a Phase 1 runtime smoke test surfaces a blocker on Deno or Bun (unexpected given pure-JS
+   implementation, but the table above defines the gate).
 2. **Key prefix scoping.** Default `conveyor`. Do we expose `keyPrefix` as a constructor option to
    allow multiple Conveyor deployments on one Redis? **Yes**, trivial to thread through `keys.ts`.
 3. **Event channel granularity.** One global channel (`conveyor:events`) with client-side filter,
