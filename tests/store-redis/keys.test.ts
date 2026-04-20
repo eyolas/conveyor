@@ -49,6 +49,10 @@ describe('createKeys', () => {
     expect(keys.cancelled('q')).toBe('{conveyor:q}:cancelled');
     expect(keys.paused('q')).toBe('{conveyor:q}:paused');
     expect(keys.lock('q', 'id')).toBe('{conveyor:q}:lock:id');
+    expect(keys.lockPrefix('q')).toBe('{conveyor:q}:lock:');
+    expect(keys.lockPrefix('q') + 'id').toBe(keys.lock('q', 'id'));
+    const [gPrefix, gSuffix] = keys.groupActiveParts('q');
+    expect(gPrefix + 'g' + gSuffix).toBe(keys.groupActive('q', 'g'));
     expect(keys.dedup('q', 'k')).toBe('{conveyor:q}:dedup:k');
     expect(keys.rateLimit('q')).toBe('{conveyor:q}:rl');
     expect(keys.groupIndex('q')).toBe('{conveyor:q}:groups:index');

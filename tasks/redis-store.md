@@ -275,14 +275,23 @@ follow-ups to close in Phase 4 (cheaper to fix before Lua lands):
 
 ### Phase 4 — leasing + scheduling
 
-**Approach note:** first Lua scripts land here — `fetchNextJob.lua`, `extendLock.lua`,
-`releaseLock.lua`, `promoteDelayed.lua`. Script registry (`src/lua/index.ts`) + `SCRIPT LOAD` on
-connect also lands here.
+**Approach note:** first Lua scripts land here — `fetch-next-job.lua`, `extend-lock.lua`,
+`release-lock.lua`, `promote-delayed.lua`. Script registry (`src/lua/index.ts`) + `SCRIPT LOAD` on
+connect also lands here. Split across two PRs: the foundation (registry + extend / release /
+promote) lands first so reviewers can focus on the atomic `fetchNextJob` script in the follow-up.
 
-- [ ] `fetchNextJob` via Lua (paused filter, job-name filter, LIFO, group cap, rate limit).
-- [ ] `extendLock`, `releaseLock`, `getActiveCount`.
-- [ ] `getNextDelayedTimestamp`, `promoteDelayedJobs`, `promoteJobs`.
-- [ ] `pauseJobName`, `resumeJobName`, `getPausedJobNames`.
+- [x] `fetchNextJob` via Lua (paused filter, job-name filter, LIFO, group cap, rate limit). Priority
+      ordering deferred (waiting is still a LIST); picked up when the conformance harness lands in
+      Phase 8.
+- [x] `extendLock`, `releaseLock`, `getActiveCount`.
+- [x] `getNextDelayedTimestamp`, `promoteDelayedJobs`, `promoteJobs`.
+- [x] `pauseJobName`, `resumeJobName`, `getPausedJobNames`.
+
+**Phase 4 shipped as two PRs:**
+
+- **PR #55** — foundation (Phase 3 dedup hardening, Lua infra, pause/resume, extendLock /
+  releaseLock / getActiveCount, delayed scheduling).
+- **PR TBD (phase-4b)** — `fetchNextJob.lua` + wiring + leasing tests.
 
 ### Phase 5 — advanced
 
