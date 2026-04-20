@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import Router, { getCurrentUrl } from 'preact-router';
 import { Layout } from './components/layout';
+import { ConfigProvider } from './hooks/config-context';
 import {
   LiveUpdatesContext,
 } from './hooks/live-updates-context';
@@ -33,19 +34,21 @@ export function App() {
   }, []);
 
   return (
-    <LiveUpdatesContext.Provider
-      value={{ liveUpdates, toggleLiveUpdates, refresh, onRefresh }}
-    >
-      <Layout url={url}>
-        <Router onChange={(e) => setUrl(e.url)}>
-          <SearchPage path="/search" />
-          <FlowsPage path="/flows" />
-          <FlowDetailPage path="/flows/:name/:id" />
-          <JobPage path="/queues/:name/jobs/:id" />
-          <QueuePage path="/queues/:name" />
-          <HomePage path="/" />
-        </Router>
-      </Layout>
-    </LiveUpdatesContext.Provider>
+    <ConfigProvider>
+      <LiveUpdatesContext.Provider
+        value={{ liveUpdates, toggleLiveUpdates, refresh, onRefresh }}
+      >
+        <Layout url={url}>
+          <Router onChange={(e) => setUrl(e.url)}>
+            <SearchPage path="/search" />
+            <FlowsPage path="/flows" />
+            <FlowDetailPage path="/flows/:name/:id" />
+            <JobPage path="/queues/:name/jobs/:id" />
+            <QueuePage path="/queues/:name" />
+            <HomePage path="/" />
+          </Router>
+        </Layout>
+      </LiveUpdatesContext.Provider>
+    </ConfigProvider>
   );
 }

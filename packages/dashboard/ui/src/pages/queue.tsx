@@ -20,9 +20,11 @@ import {
   retryJob,
   resumeQueue,
 } from '../api/client';
+import { useConfig } from '../hooks/config-context';
 import { useLiveUpdatesContext } from '../hooks/live-updates-context';
 import { useSSE } from '../hooks/use-sse';
 import { Badge } from '../components/badge';
+import { ExportButton } from '../components/export-button';
 import { JobTypeTags } from '../components/job-type-tags';
 import { Pagination } from '../components/pagination';
 
@@ -56,6 +58,7 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
   const [metricsEnabled, setMetricsEnabled] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [groups, setGroups] = useState<GroupInfo[]>([]);
+  const { readOnly } = useConfig();
 
   useEffect(() => {
     getMetricsStatus().then(setMetricsEnabled).catch(() => setMetricsEnabled(false));
@@ -173,48 +176,50 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
         </div>
 
         {/* Actions */}
-        <div class="flex items-center gap-2">
-          <ActionButton
-            onClick={() => setShowAddJob(true)}
-            icon="M12 4v16m8-8H4"
-            label="Add Job"
-          />
-          <ActionButton
-            onClick={async () => {
-              isPaused ? await resumeQueue(queueName) : await pauseQueue(queueName);
-              showToast(isPaused ? 'Queue resumed' : 'Queue paused');
-              loadQueue();
-            }}
-            icon={isPaused
-              ? 'M8 5v14l11-7z'
-              : 'M6 19h4V5H6v14zm8-14v14h4V5h-4z'}
-            label={isPaused ? 'Resume' : 'Pause'}
-          />
-          <ActionButton
-            onClick={async () => {
-              const res = await retryAllJobs(queueName, 'failed');
-              showToast(`${res.retried} job${res.retried !== 1 ? 's' : ''} retried`);
-              loadQueue(); loadJobs();
-            }}
-            icon="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            label="Retry Failed"
-          />
-          <ActionButton
-            onClick={async () => {
-              const res = await promoteAllJobs(queueName);
-              showToast(`${res.promoted} job${res.promoted !== 1 ? 's' : ''} promoted`);
-              loadQueue(); loadJobs();
-            }}
-            icon="M5 10l7-7m0 0l7 7m-7-7v18"
-            label="Promote"
-          />
-          <ActionButton
-            onClick={() => setConfirmDrain(true)}
-            label="Drain"
-            icon="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-            danger
-          />
-        </div>
+        {!readOnly && (
+          <div class="flex items-center gap-2">
+            <ActionButton
+              onClick={() => setShowAddJob(true)}
+              icon="M12 4v16m8-8H4"
+              label="Add Job"
+            />
+            <ActionButton
+              onClick={async () => {
+                isPaused ? await resumeQueue(queueName) : await pauseQueue(queueName);
+                showToast(isPaused ? 'Queue resumed' : 'Queue paused');
+                loadQueue();
+              }}
+              icon={isPaused
+                ? 'M8 5v14l11-7z'
+                : 'M6 19h4V5H6v14zm8-14v14h4V5h-4z'}
+              label={isPaused ? 'Resume' : 'Pause'}
+            />
+            <ActionButton
+              onClick={async () => {
+                const res = await retryAllJobs(queueName, 'failed');
+                showToast(`${res.retried} job${res.retried !== 1 ? 's' : ''} retried`);
+                loadQueue(); loadJobs();
+              }}
+              icon="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              label="Retry Failed"
+            />
+            <ActionButton
+              onClick={async () => {
+                const res = await promoteAllJobs(queueName);
+                showToast(`${res.promoted} job${res.promoted !== 1 ? 's' : ''} promoted`);
+                loadQueue(); loadJobs();
+              }}
+              icon="M5 10l7-7m0 0l7 7m-7-7v18"
+              label="Promote"
+            />
+            <ActionButton
+              onClick={() => setConfirmDrain(true)}
+              label="Drain"
+              icon="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              danger
+            />
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -289,7 +294,7 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
       )}
 
       {/* Selection Action Bar */}
-      {activeTab !== 'metrics' && selectedIds.size > 0 && (
+      {!readOnly && activeTab !== 'metrics' && selectedIds.size > 0 && (
         <div class="mb-3 flex items-center gap-3 rounded-xl border border-accent/20 bg-accent/5 px-4 py-2.5 dark:border-accent/15 dark:bg-accent-glow">
           <span class="font-display text-xs font-medium text-accent dark:text-accent-bright">
             {selectedIds.size} selected
@@ -322,6 +327,13 @@ export function QueuePage({ name }: { name?: string; path?: string }) {
           >
             Clear
           </button>
+        </div>
+      )}
+
+      {/* Export toolbar */}
+      {activeTab !== 'metrics' && jobs.length > 0 && (
+        <div class="mb-3 flex justify-end">
+          <ExportButton jobs={jobs} basename={`${queueName}-${activeTab}`} />
         </div>
       )}
 

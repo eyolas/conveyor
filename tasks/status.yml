@@ -83,6 +83,11 @@ tasks:
     status: planned
     file: tasks/workers-view.md
 
+  dashboard-hardening:
+    description: 'Close dashboard product gaps: readOnly UI awareness, 401/403 handling, full Job form options, CSV/JSON export, PRD cleanup'
+    status: done
+    file: tasks/dashboard-hardening.md
+
 # ─── PRD Roadmap ──────────────────────────────────────────────────────────────
 
 roadmap:

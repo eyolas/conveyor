@@ -30,6 +30,7 @@ export { EventSubscription, SSE_EVENT_TYPES } from './event-subscription.ts';
 export { ConveyorApiError } from './errors.ts';
 
 export type {
+  ClientDashboardConfig,
   ClientGroupInfo,
   ClientJobData,
   ClientMetricsBucket,
