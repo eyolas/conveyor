@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+in-progress
 
 ---
 
@@ -221,14 +221,14 @@ packages/store-redis/
 
 ### Phase 1 — scaffolding + runtime smoke
 
-- [ ] Create `packages/store-redis/` with `deno.json`, `mod.ts`, `README.md`.
-- [ ] Register in root `deno.json` (workspace + imports).
-- [ ] `package.json` + `deno.lock` regen so Node/Bun CI can also resolve `redis`.
-- [ ] Bump package version to `1.4.0` to align with the monorepo.
-- [ ] **Runtime smoke test** — standalone script under `examples/redis/smoke.ts`:
+- [x] Create `packages/store-redis/` with `deno.json`, `mod.ts`, `README.md`.
+- [x] Register in root `deno.json` (workspace + imports).
+- [x] `package.json` + `deno.lock` regen so Node/Bun CI can also resolve `redis`.
+- [x] Bump package version to `1.4.0` to align with the monorepo.
+- [x] **Runtime smoke test** — standalone script under `examples/redis/smoke.ts`:
       `connect → SET/GET → PUBLISH/SUBSCRIBE round-trip → QUIT`. Run under Node, Deno, and Bun
-      _before_ writing Lua scripts. If any runtime fails, capture the error, reassess client choice
-      (see Open Question 1), and adjust the plan.
+      _before_ writing Lua scripts. Result: all three runtimes pass against `redis:7-alpine`,
+      node-redis v5 confirmed as the default client. PR #52.
 
 ### Phase 2 — data model + lifecycle
 
