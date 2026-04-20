@@ -164,4 +164,64 @@ describe.skipIf(!available)('RedisStore — Phase 4 leasing', () => {
     await activeJob(store);
     expect(await store.getActiveCount(QUEUE)).toBe(2);
   });
+
+  // ─── Delayed scheduling ─────────────────────────────────────────────
+
+  test('getNextDelayedTimestamp returns null on an empty queue', async () => {
+    expect(await store.getNextDelayedTimestamp(QUEUE)).toBeNull();
+  });
+
+  test('getNextDelayedTimestamp returns the earliest delayUntil', async () => {
+    const mkDelayed = async (delay: number) =>
+      await store.saveJob(QUEUE, createJobData(QUEUE, 'j', {}, { delay }));
+    await mkDelayed(120_000);
+    await mkDelayed(30_000);
+    await mkDelayed(60_000);
+    const next = await store.getNextDelayedTimestamp(QUEUE);
+    expect(next).not.toBeNull();
+    // 30s job wins; allow 2s slack for wall-clock drift between save calls
+    expect(next!).toBeLessThanOrEqual(Date.now() + 32_000);
+    expect(next!).toBeGreaterThanOrEqual(Date.now() + 28_000);
+  });
+
+  test('promoteDelayedJobs moves only due jobs to waiting and flips state', async () => {
+    const due = await store.saveJob(QUEUE, createJobData(QUEUE, 'a', {}, { delay: 10 }));
+    const later = await store.saveJob(QUEUE, createJobData(QUEUE, 'b', {}, { delay: 60_000 }));
+    // Sleep past the first job's delayUntil
+    await new Promise((r) => setTimeout(r, 50));
+
+    const promoted = await store.promoteDelayedJobs(QUEUE, Date.now());
+    expect(promoted).toBe(1);
+    expect(await store.countJobs(QUEUE, 'waiting')).toBe(1);
+    expect(await store.countJobs(QUEUE, 'delayed')).toBe(1);
+
+    const dueJob = await store.getJob(QUEUE, due);
+    expect(dueJob!.state).toBe('waiting');
+    expect(dueJob!.delayUntil).toBeNull();
+
+    const laterJob = await store.getJob(QUEUE, later);
+    expect(laterJob!.state).toBe('delayed');
+  });
+
+  test('promoteDelayedJobs is a no-op when nothing is due', async () => {
+    await store.saveJob(QUEUE, createJobData(QUEUE, 'a', {}, { delay: 60_000 }));
+    const promoted = await store.promoteDelayedJobs(QUEUE, Date.now());
+    expect(promoted).toBe(0);
+    expect(await store.countJobs(QUEUE, 'delayed')).toBe(1);
+  });
+
+  test('promoteJobs moves every delayed job regardless of delayUntil', async () => {
+    await store.saveJob(QUEUE, createJobData(QUEUE, 'a', {}, { delay: 60_000 }));
+    await store.saveJob(QUEUE, createJobData(QUEUE, 'b', {}, { delay: 120_000 }));
+    await store.saveJob(QUEUE, createJobData(QUEUE, 'c', {}, { delay: 10 }));
+
+    const promoted = await store.promoteJobs(QUEUE);
+    expect(promoted).toBe(3);
+    expect(await store.countJobs(QUEUE, 'waiting')).toBe(3);
+    expect(await store.countJobs(QUEUE, 'delayed')).toBe(0);
+  });
+
+  test('promoteJobs on an empty delayed bucket returns 0', async () => {
+    expect(await store.promoteJobs(QUEUE)).toBe(0);
+  });
 });

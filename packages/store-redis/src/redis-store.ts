@@ -450,6 +450,47 @@ export class RedisStore {
     return await client.sCard(this.keys.active(queueName));
   }
 
+  // ─── Delayed scheduling ──────────────────────────────────────────────
+
+  /**
+   * Returns the earliest `delayUntil` timestamp in the queue's delayed
+   * bucket, or `null` if the bucket is empty. Core's scheduler uses this
+   * to pick the next wake-up.
+   */
+  async getNextDelayedTimestamp(queueName: string): Promise<number | null> {
+    const client = this.getClient();
+    const entries = await client.zRangeWithScores(this.keys.delayed(queueName), 0, 0);
+    const head = entries[0];
+    return head ? head.score : null;
+  }
+
+  /**
+   * Promote every delayed job with `delayUntil <= timestamp` into `waiting`.
+   * The Lua script moves each id across the delayed ZSET, the waiting list,
+   * and the job hash in one pass so an intermediate read can't observe a
+   * job as "delayed but already popped".
+   */
+  async promoteDelayedJobs(queueName: string, timestamp: number): Promise<number> {
+    return await this.evalScript<number>(
+      'promoteDelayed',
+      [this.keys.delayed(queueName), this.keys.waiting(queueName)],
+      [String(timestamp), this.keys.jobPrefix(queueName)],
+    );
+  }
+
+  /**
+   * Promote every delayed job in the queue, regardless of `delayUntil`.
+   * Same underlying Lua script as {@linkcode promoteDelayedJobs}; the upper
+   * bound `"+inf"` tells `ZRANGEBYSCORE` to match every member.
+   */
+  async promoteJobs(queueName: string): Promise<number> {
+    return await this.evalScript<number>(
+      'promoteDelayed',
+      [this.keys.delayed(queueName), this.keys.waiting(queueName)],
+      ['+inf', this.keys.jobPrefix(queueName)],
+    );
+  }
+
   // ─── Pause / Resume ──────────────────────────────────────────────────
 
   /**
