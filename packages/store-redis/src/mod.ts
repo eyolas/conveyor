@@ -6,11 +6,13 @@
  * **Work in progress** — lifecycle, job CRUD, atomic `fetchNextJob`
  * leasing (extend / release / active count), delayed scheduling,
  * pause/resume, group counts, stalled detection, queue cleanup
- * (`clean` / `drain` / `obliterate`), and flows (`saveFlow`,
+ * (`clean` / `drain` / `obliterate`), flows (`saveFlow`,
  * `notifyChildCompleted`, `failParentOnChildFailure`,
- * `getChildrenJobs`) are wired up through the Lua script registry.
- * Dashboard helpers and event delivery land in follow-up phases.
- * See `tasks/redis-store.md` for the roadmap and the current
+ * `getChildrenJobs`), and cross-process events via Redis Pub/Sub
+ * (`publish` / `subscribe` / `unsubscribe`) are wired up through
+ * the Lua script registry. Dashboard helpers (`listQueues`,
+ * `findJobById`, `cancelJob`) land in follow-up phases. See
+ * `tasks/redis-store.md` for the roadmap and the current
  * `implements StoreInterface` coverage status.
  */
 
