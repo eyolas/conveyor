@@ -16,6 +16,7 @@ import type {
   JobData,
   JobState,
   Logger,
+  QueueInfo,
   StoreEvent,
   StoreOptions,
   UpdateJobOptions,
@@ -626,6 +627,103 @@ export class RedisStore {
         Date.now(),
       ],
     );
+  }
+
+  // ─── Dashboard ───────────────────────────────────────────────────────
+
+  /**
+   * Enumerate every known queue with aggregate counts + activity metadata.
+   * Returns one {@linkcode QueueInfo} per name in the cross-queue registry
+   * (`conveyor:queues`).
+   *
+   * Per queue we:
+   * - Pipeline `getJobCounts` for the six-state tally.
+   * - Read the paused set once to derive `isPaused` (`__all__` present).
+   * - `SCAN` every `{prefix:queue}:job:*` hash in the queue's hash-tag
+   *   namespace to compute `latestActivity` and `scheduledCount`. That
+   *   scan is O(total-jobs-in-queue); dashboards calling this for a
+   *   queue with millions of jobs should consider materialising
+   *   those two as counters in a later pass.
+   */
+  async listQueues(): Promise<QueueInfo[]> {
+    const client = this.getClient();
+    const queueNames = await client.sMembers(this.keys.queueIndex());
+    const result: QueueInfo[] = [];
+
+    for (const queueName of queueNames) {
+      const counts = await this.getJobCounts(queueName);
+      const pausedNames = await client.sMembers(this.keys.paused(queueName));
+      const isPaused = pausedNames.includes('__all__');
+
+      let latestActivity: Date | null = null;
+      let scheduledCount = 0;
+
+      const pattern = `${this.keys.jobPrefix(queueName)}*`;
+      for await (const batch of client.scanIterator({ MATCH: pattern, COUNT: 200 })) {
+        if (batch.length === 0) continue;
+        const multi = client.multi();
+        for (const key of batch) multi.hGetAll(key);
+        const results = await multi.exec();
+        for (const raw of results ?? []) {
+          const hash = raw as unknown as Record<string, string> | null;
+          if (!hash || Object.keys(hash).length === 0) continue;
+          const job = hashToJobData(hash);
+          if (job.opts.repeat) scheduledCount++;
+          const ts = job.completedAt ?? job.failedAt ?? job.processedAt ?? job.createdAt;
+          if (ts && (latestActivity === null || ts.getTime() > latestActivity.getTime())) {
+            latestActivity = ts;
+          }
+        }
+      }
+
+      result.push({ name: queueName, counts, isPaused, latestActivity, scheduledCount });
+    }
+
+    return result;
+  }
+
+  /**
+   * Find a job across every known queue. Pipelines one `EXISTS` per queue
+   * before hydrating the matching one — so the hot path costs one round
+   * trip regardless of queue count. Returns `null` when nothing matches.
+   */
+  async findJobById(jobId: string): Promise<JobData | null> {
+    const client = this.getClient();
+    const queueNames = await client.sMembers(this.keys.queueIndex());
+    if (queueNames.length === 0) return null;
+
+    const multi = client.multi();
+    for (const q of queueNames) multi.exists(this.keys.job(q, jobId));
+    const results = await multi.exec();
+
+    for (let i = 0; i < queueNames.length; i++) {
+      if (Number(results?.[i] ?? 0) === 1) {
+        return await this.getJob(queueNames[i]!, jobId);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Flag an `active` job for cancellation and fire the `job:cancelled`
+   * event. The worker watches `cancelledAt` on its leased hash and stops
+   * processing when it flips — we don't transition state here, matching
+   * MemoryStore. Returns `false` when the job is missing or is already
+   * in a non-active state.
+   */
+  async cancelJob(queueName: string, jobId: string): Promise<boolean> {
+    const current = await this.getJob(queueName, jobId);
+    if (!current || current.state !== 'active') return false;
+
+    const now = new Date();
+    await this.updateJob(queueName, jobId, { cancelledAt: now });
+    await this.publish({
+      type: 'job:cancelled',
+      queueName,
+      jobId,
+      timestamp: now,
+    });
+    return true;
   }
 
   // ─── Events (pub/sub) ────────────────────────────────────────────────

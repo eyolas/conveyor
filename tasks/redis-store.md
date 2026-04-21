@@ -320,7 +320,14 @@ promote) lands first so reviewers can focus on the atomic `fetchNextJob` script 
 
 ### Phase 7 — dashboard-required
 
-- [ ] `listQueues`, `findJobById`, `cancelJob`.
+- [x] `listQueues` — iterates `conveyor:queues`, pipelines `getJobCounts`, scans every
+      `{prefix:queue}:job:*` hash for `latestActivity` + `scheduledCount`. Scan cost is O(total jobs
+      in queue) — dashboards over very large queues may want materialised counters later.
+- [x] `findJobById` — pipelines one `EXISTS` per registered queue, then hydrates the match with
+      `getJob`.
+- [x] `cancelJob` — flags `cancelledAt` on an `active` job via `updateJob` and publishes
+      `job:cancelled`. Matches MemoryStore: state stays `active`; the worker observes `cancelledAt`
+      and transitions the job itself.
 
 ### Phase 8 — tests
 
