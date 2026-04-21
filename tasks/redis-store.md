@@ -306,7 +306,7 @@ promote) lands first so reviewers can focus on the atomic `fetchNextJob` script 
 - [x] Stalled detection: `getStalledJobs`, `clean`, `drain`, `obliterate`.
 
 **Phase 5a (PR #57)** shipped group counts, stalled, clean, drain, obliterate + the
-`group:<gid>:waiting` refactor. **Phase 5b (PR TBD)** adds the flow surface.
+`group:<gid>:waiting` refactor. **Phase 5b (PR #58)** shipped the flow surface.
 
 ### Phase 6 — events
 
@@ -327,7 +327,10 @@ promote) lands first so reviewers can focus on the atomic `fetchNextJob` script 
 - [x] Add `test:redis` task to root `deno.json` (landed Phase 2).
 - [ ] Flip conformance harness to full coverage (capability filters off — wired incrementally since
       Phase 3).
-- [ ] `tests/store-redis/events.test.ts` (pub/sub round-trip, reconnect).
+- [x] `tests/store-redis/events.test.ts` — pub/sub round-trip, queueName isolation, multi-subscriber
+      fan-out, cross-process delivery, malformed / invalid-timestamp payload handling. Landed with
+      PR #59. Reconnect is exercised transitively (node-redis v5 auto-re-subscribes) but not
+      simulated with a deliberate socket drop — add that alongside the Phase 8 conformance wiring.
 - [ ] `tests/store-redis/lua.test.ts` (spot checks on Lua-only edge cases: lock token mismatch,
       group cap boundary, dedup TTL expiry).
 - [ ] `docker-compose.yml`: add `redis:7-alpine` service.

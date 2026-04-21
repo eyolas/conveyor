@@ -200,20 +200,63 @@ describe.skipIf(!available)('RedisStore — Phase 6 events', () => {
     }
   });
 
-  test('subscribe before connect()-equivalent is allowed (state-only); no event is lost after connect', async () => {
-    // The store is already connected in beforeEach, so this test proves the
-    // in-process registry stays honest regardless of when subscribe was called
-    // relative to other operations.
+  test('subscribe() called before connect() survives the connect — first post-connect event arrives', async () => {
+    const fresh = new RedisStore({ url: REDIS_URL, keyPrefix: TEST_PREFIX });
+    const seen: StoreEvent[] = [];
+    // Register the callback while the store is still offline. Matches
+    // MemoryStore semantics: subscribe is a pure in-process operation.
+    fresh.subscribe(QUEUE, (ev) => seen.push(ev));
+    await fresh.connect();
+    try {
+      await store.publish({
+        type: 'job:waiting',
+        queueName: QUEUE,
+        jobId: 'late-subscribed',
+        timestamp: new Date(),
+      });
+      await new Promise((r) => setTimeout(r, 200));
+      expect(seen.map((e) => e.jobId)).toEqual(['late-subscribed']);
+    } finally {
+      await fresh.disconnect();
+    }
+  });
+
+  test('malformed JSON payload on the channel is dropped without breaking later deliveries', async () => {
+    // Inject garbage directly on the channel via a raw client. The store's
+    // handler should log + skip it; a subsequent well-formed publish must
+    // still deliver.
+    const raw = createClient({ url: REDIS_URL });
+    await raw.connect();
+    await raw.publish(`${TEST_PREFIX}:events`, 'not-json-at-all');
+    await raw.quit();
+
+    // Give the handler a tick to absorb the garbage
+    await new Promise((r) => setTimeout(r, 50));
+
     const pending = awaitEvent(store, QUEUE);
-    store.subscribe(QUEUE, () => {
-      /* second subscriber */
-    });
     await store.publish({
-      type: 'job:removed',
+      type: 'job:completed',
       queueName: QUEUE,
+      jobId: 'after-garbage',
       timestamp: new Date(),
     });
     const got = await pending;
-    expect(got.type).toBe('job:removed');
+    expect(got.jobId).toBe('after-garbage');
+  });
+
+  test('event with a non-finite timestamp is dropped (no Invalid Date dispatched)', async () => {
+    const received: StoreEvent[] = [];
+    store.subscribe(QUEUE, (ev) => received.push(ev));
+
+    const raw = createClient({ url: REDIS_URL });
+    await raw.connect();
+    await raw.publish(
+      `${TEST_PREFIX}:events`,
+      JSON.stringify({ type: 'job:waiting', queueName: QUEUE, timestamp: 'oops' }),
+    );
+    await raw.quit();
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(received).toEqual([]);
   });
 });

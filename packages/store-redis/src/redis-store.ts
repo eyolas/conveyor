@@ -3,9 +3,12 @@
  *
  * Redis-backed `StoreInterface` implementation.
  *
- * **Work in progress** — lifecycle + job CRUD are wired up. Leasing, scheduling,
- * flows, groups, events, and the `StoreInterface` `implements` clause land in
- * follow-up phases. See `tasks/redis-store.md`.
+ * **Work in progress** — lifecycle, job CRUD, leasing, delayed scheduling,
+ * pause/resume, groups, stalled detection, queue cleanup, flows, and
+ * cross-process events (publish / subscribe / unsubscribe) are wired up.
+ * Dashboard helpers (`listQueues`, `findJobById`, `cancelJob`) and the
+ * `StoreInterface` `implements` clause land in follow-up phases. See
+ * `tasks/redis-store.md`.
  */
 
 import type {
@@ -699,6 +702,18 @@ export class RedisStore {
       parsed = JSON.parse(raw);
     } catch (err) {
       this.logger.warn('[Conveyor] Received malformed Redis event payload:', err);
+      return;
+    }
+
+    // A valid JSON shape doesn't guarantee a well-formed event — guard
+    // against publishers (ours or otherwise) that produce a missing
+    // queueName or a non-finite timestamp so a callback never sees an
+    // `Invalid Date` silently.
+    if (typeof parsed.queueName !== 'string' || !Number.isFinite(parsed.timestamp)) {
+      this.logger.warn(
+        '[Conveyor] Dropping Redis event with invalid shape (missing queueName or timestamp):',
+        parsed,
+      );
       return;
     }
 
