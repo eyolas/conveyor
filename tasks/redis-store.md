@@ -310,8 +310,13 @@ promote) lands first so reviewers can focus on the atomic `fetchNextJob` script 
 
 ### Phase 6 — events
 
-- [ ] `publish` via `PUBLISH`, `subscribe` / `unsubscribe` via dedicated subscriber client.
-- [ ] Reconnect handling (re-`SUBSCRIBE` on subscriber drop).
+- [x] `publish` via `PUBLISH` on a single `conveyor:events` channel; in-process fan-out via
+      `Map<queueName, Set<callback>>`. Payload JSON-encoded with `timestamp` as epoch-ms so the
+      subscriber can rebuild a `Date` unambiguously. Malformed payloads and throwing callbacks are
+      logged via `Logger` instead of stopping the fan-out.
+- [x] Reconnect handling — node-redis v5 auto-re-issues `SUBSCRIBE` on reconnect, so one call at
+      `connect()` time is enough. The per-queue callback registry is in-process only, so a network
+      blip never dangles state on the Redis side.
 
 ### Phase 7 — dashboard-required
 

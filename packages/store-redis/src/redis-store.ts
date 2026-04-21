@@ -13,6 +13,7 @@ import type {
   JobData,
   JobState,
   Logger,
+  StoreEvent,
   StoreOptions,
   UpdateJobOptions,
 } from '@conveyor/shared';
@@ -88,6 +89,7 @@ export class RedisStore {
   private disconnected = false;
   private connectPromise: Promise<void> | null = null;
   private scripts: Partial<Record<ScriptName, { source: string; sha: string }>> = {};
+  private localSubscribers = new Map<string, Set<(event: StoreEvent) => void>>();
 
   constructor(options: RedisStoreOptions = {}) {
     this.options = options;
@@ -165,6 +167,13 @@ export class RedisStore {
       subscriberErrorHandler = (err) => this.logger.warn('[Conveyor] Redis subscriber error:', err);
       subscriber.on('error', subscriberErrorHandler);
       await subscriber.connect();
+      // node-redis v5 automatically re-issues SUBSCRIBE on reconnect, so
+      // one call at connect time is enough to keep the store listening
+      // across transient network drops.
+      await subscriber.subscribe(
+        this.keys.eventsChannel(),
+        (message: string) => this.handleStoreMessage(message),
+      );
 
       // TODO(schema-upgrade): Phase 8 — read first, compare against SCHEMA_VERSION,
       // run upgrade path instead of clobbering on every connect.
@@ -220,6 +229,7 @@ export class RedisStore {
     this.clientErrorHandler = null;
     this.subscriberErrorHandler = null;
     this.connected = false;
+    this.localSubscribers.clear();
 
     if (subscriber && subscriberErrorHandler) {
       subscriber.off('error', subscriberErrorHandler);
@@ -613,6 +623,102 @@ export class RedisStore {
         Date.now(),
       ],
     );
+  }
+
+  // ─── Events (pub/sub) ────────────────────────────────────────────────
+
+  /**
+   * Broadcast an event to every subscriber (including subscribers living
+   * in other processes). Payload is JSON-encoded; `timestamp` serializes
+   * as an epoch-ms number so subscribers can rebuild a {@linkcode Date}
+   * without ambiguity.
+   *
+   * Redis Pub/Sub is fire-and-forget — a subscriber that crashes or
+   * disconnects between publish and dispatch loses the message. Use the
+   * store state (not events) as the source of truth for strict delivery.
+   */
+  async publish(event: StoreEvent): Promise<void> {
+    const client = this.getClient();
+    const payload = JSON.stringify({
+      type: event.type,
+      queueName: event.queueName,
+      jobId: event.jobId,
+      data: event.data,
+      timestamp: event.timestamp.getTime(),
+    });
+    await client.publish(this.keys.eventsChannel(), payload);
+  }
+
+  /**
+   * Register a local callback for events on `queueName`. The underlying
+   * Redis `SUBSCRIBE` call happens once at `connect()` time — this method
+   * just adds the callback to the in-process dispatch table, matching
+   * MemoryStore semantics.
+   */
+  subscribe(queueName: string, callback: (event: StoreEvent) => void): void {
+    let set = this.localSubscribers.get(queueName);
+    if (!set) {
+      set = new Set();
+      this.localSubscribers.set(queueName, set);
+    }
+    set.add(callback);
+  }
+
+  /**
+   * Remove a specific callback (or every callback if omitted) for
+   * `queueName`. Never touches the underlying Redis subscription — the
+   * channel stays subscribed for the lifetime of the store so we don't
+   * churn on Redis for routine subscribe/unsubscribe cycles.
+   */
+  unsubscribe(queueName: string, callback?: (event: StoreEvent) => void): void {
+    const set = this.localSubscribers.get(queueName);
+    if (!set) return;
+    if (callback) {
+      set.delete(callback);
+      if (set.size === 0) this.localSubscribers.delete(queueName);
+    } else {
+      this.localSubscribers.delete(queueName);
+    }
+  }
+
+  /**
+   * @internal
+   * Parse a message coming off the shared Redis channel and dispatch it
+   * to matching in-process callbacks. A malformed payload or a throwing
+   * callback is logged via {@linkcode Logger} and does not break the fan-out.
+   */
+  private handleStoreMessage(raw: string): void {
+    let parsed: {
+      type: StoreEvent['type'];
+      queueName: string;
+      jobId?: string;
+      data?: unknown;
+      timestamp: number;
+    };
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      this.logger.warn('[Conveyor] Received malformed Redis event payload:', err);
+      return;
+    }
+
+    const event: StoreEvent = {
+      type: parsed.type,
+      queueName: parsed.queueName,
+      jobId: parsed.jobId,
+      data: parsed.data,
+      timestamp: new Date(parsed.timestamp),
+    };
+
+    const set = this.localSubscribers.get(event.queueName);
+    if (!set) return;
+    for (const cb of set) {
+      try {
+        cb(event);
+      } catch (err) {
+        this.logger.warn('[Conveyor] Subscriber callback threw:', err);
+      }
+    }
   }
 
   // ─── Flows ───────────────────────────────────────────────────────────
