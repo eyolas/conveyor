@@ -20,7 +20,9 @@ import { generateId, InvalidJobStateError, noopLogger } from '@conveyor/shared';
 import { createClient, ErrorReply } from 'redis';
 import {
   createKeys,
+  decodeFlowChild,
   DEFAULT_PREFIX,
+  encodeFlowChild,
   GROUP_ACTIVE_SUFFIX,
   GROUP_WAITING_SUFFIX,
   type Keys,
@@ -428,6 +430,14 @@ export class RedisStore {
     if (current.deduplicationKey) {
       multi.del(this.keys.dedup(queueName, current.deduplicationKey));
     }
+    // When this job is a flow child, drop its tuple from the parent's
+    // children set so `getChildrenJobs` stops surfacing a phantom id.
+    if (current.parentId && current.parentQueueName) {
+      multi.sRem(
+        this.keys.flowChildren(current.parentQueueName, current.parentId),
+        encodeFlowChild(queueName, jobId),
+      );
+    }
     multi.del(this.keys.lock(queueName, jobId));
     await multi.exec();
   }
@@ -603,6 +613,135 @@ export class RedisStore {
         Date.now(),
       ],
     );
+  }
+
+  // ─── Flows ───────────────────────────────────────────────────────────
+
+  /**
+   * Persist a flow graph — parents + their descendants — in a single
+   * store-level operation. Jobs are inserted in the order provided
+   * (children first, then parent, per the {@linkcode StoreInterface}
+   * contract); the order only matters for parents that need their
+   * `pendingChildrenCount` pre-set by the caller.
+   *
+   * For each child (one with `parentId` + `parentQueueName` set), we also
+   * SADD its `queueName\x00id` tuple to the parent's
+   * `flow:<parentId>:children` set. `getChildrenJobs` reads that set
+   * directly; without it we'd need a cross-queue scan.
+   */
+  async saveFlow(jobs: Array<{ queueName: string; job: Omit<JobData, 'id'> }>): Promise<string[]> {
+    const ids: string[] = [];
+    const flowLinks: Array<{
+      parentQueueName: string;
+      parentId: string;
+      member: string;
+    }> = [];
+
+    for (const entry of jobs) {
+      const id = await this.saveJob(entry.queueName, entry.job);
+      ids.push(id);
+      if (entry.job.parentId && entry.job.parentQueueName) {
+        flowLinks.push({
+          parentQueueName: entry.job.parentQueueName,
+          parentId: entry.job.parentId,
+          member: encodeFlowChild(entry.queueName, id),
+        });
+      }
+    }
+
+    if (flowLinks.length > 0) {
+      const client = this.getClient();
+      const multi = client.multi();
+      for (const link of flowLinks) {
+        multi.sAdd(this.keys.flowChildren(link.parentQueueName, link.parentId), link.member);
+      }
+      await multi.exec();
+    }
+
+    return ids;
+  }
+
+  /**
+   * Decrement the parent's pending-children counter. When the counter
+   * reaches zero the parent moves from `waiting-children` to `waiting`,
+   * the state-index buckets are swapped, and the group-waiting ZSET is
+   * re-registered if the parent carries a groupId. All of that happens
+   * inside `notify-child-completed.lua` so a concurrent child completion
+   * can't observe a half-transitioned parent.
+   *
+   * Returns the parent's new state. When the parent has already been
+   * removed, returns `'completed'` (matching MemoryStore).
+   */
+  async notifyChildCompleted(
+    parentQueueName: string,
+    parentId: string,
+  ): Promise<JobState> {
+    const state = await this.evalScript<string>(
+      'notifyChildCompleted',
+      [
+        this.keys.job(parentQueueName, parentId),
+        this.keys.waitingChildren(parentQueueName),
+        this.keys.waiting(parentQueueName),
+      ],
+      [
+        parentId,
+        this.keys.groupPrefix(parentQueueName),
+        GROUP_WAITING_SUFFIX,
+        Date.now(),
+      ],
+    );
+    return state as JobState;
+  }
+
+  /**
+   * Transition the parent straight to `failed` with the supplied reason.
+   * Returns `false` when the parent has already been removed.
+   *
+   * Relies on {@linkcode updateJob} so state-index / dedup / group
+   * bookkeeping stays in sync with every other transition.
+   */
+  async failParentOnChildFailure(
+    parentQueueName: string,
+    parentId: string,
+    reason: string,
+  ): Promise<boolean> {
+    const parent = await this.getJob(parentQueueName, parentId);
+    if (!parent) return false;
+    await this.updateJob(parentQueueName, parentId, {
+      state: 'failed',
+      failedReason: reason,
+      failedAt: new Date(),
+    });
+    return true;
+  }
+
+  /**
+   * Hydrate every job in the parent's `flow:<parentId>:children` set.
+   * Each set member is a `queueName\x00id` tuple, so children can live in
+   * a different queue from the parent and we still avoid a cross-queue
+   * scan.
+   */
+  async getChildrenJobs(parentQueueName: string, parentId: string): Promise<JobData[]> {
+    const client = this.getClient();
+    const members = await client.sMembers(this.keys.flowChildren(parentQueueName, parentId));
+    if (members.length === 0) return [];
+
+    // Group by queue so we pipeline one HGETALL batch per queue instead
+    // of a round trip per child.
+    const byQueue = new Map<string, string[]>();
+    for (const tuple of members) {
+      const { queueName, id } = decodeFlowChild(tuple);
+      const arr = byQueue.get(queueName);
+      if (arr) arr.push(id);
+      else byQueue.set(queueName, [id]);
+    }
+
+    const jobs: JobData[] = [];
+    for (const [queueName, ids] of byQueue) {
+      const batch = await this.hydrateJobs(queueName, ids);
+      jobs.push(...batch);
+    }
+    return jobs;
   }
 
   // ─── Groups ──────────────────────────────────────────────────────────

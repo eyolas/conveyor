@@ -16,13 +16,15 @@ export type ScriptName =
   | 'extendLock'
   | 'releaseLock'
   | 'promoteDelayed'
-  | 'fetchNextJob';
+  | 'fetchNextJob'
+  | 'notifyChildCompleted';
 
 const SCRIPT_FILES: Record<ScriptName, string> = {
   extendLock: 'extend-lock.lua',
   releaseLock: 'release-lock.lua',
   promoteDelayed: 'promote-delayed.lua',
   fetchNextJob: 'fetch-next-job.lua',
+  notifyChildCompleted: 'notify-child-completed.lua',
 };
 
 /**

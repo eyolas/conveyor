@@ -16,6 +16,30 @@ export const GROUP_ACTIVE_SUFFIX = ':active';
 export const GROUP_WAITING_SUFFIX = ':waiting';
 
 /**
+ * Separator used inside flow `children` set members so a stored tuple can
+ * be parsed back into `{ queueName, id }` unambiguously. `\x00` is the
+ * only byte disallowed in queue names (see `QUEUE_NAME_RE` in
+ * `@conveyor/shared/utils`).
+ */
+export const FLOW_CHILD_SEP = '\x00';
+
+/** Build a `queueName\x00id` tuple member for a `flow:<parentId>:children` set. */
+export function encodeFlowChild(queueName: string, id: string): string {
+  return `${queueName}${FLOW_CHILD_SEP}${id}`;
+}
+
+/** Parse a `queueName\x00id` tuple back into its parts. Throws on malformed input. */
+export function decodeFlowChild(tuple: string): { queueName: string; id: string } {
+  const sepIdx = tuple.indexOf(FLOW_CHILD_SEP);
+  if (sepIdx < 0) {
+    throw new Error(
+      `[Conveyor] Malformed flow-child tuple: ${JSON.stringify(tuple)} (missing separator)`,
+    );
+  }
+  return { queueName: tuple.slice(0, sepIdx), id: tuple.slice(sepIdx + 1) };
+}
+
+/**
  * Returns a function set that builds every Redis key this store uses.
  *
  * Keys within a queue share a hash tag segment so cluster deployments keep

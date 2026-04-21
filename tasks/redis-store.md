@@ -295,14 +295,18 @@ promote) lands first so reviewers can focus on the atomic `fetchNextJob` script 
 
 ### Phase 5 — advanced
 
-- [ ] Flows: `saveFlow`, `notifyChildCompleted`, `failParentOnChildFailure`, `getChildrenJobs`.
+- [x] Flows: `saveFlow`, `notifyChildCompleted`, `failParentOnChildFailure`, `getChildrenJobs`.
+      Children recorded as `queueName\x00id` tuples in `flow:<parentId>:children`, so
+      `getChildrenJobs` stays on one cluster slot even when children live in a different queue.
+      `notify-child-completed.lua` is the only new Lua script — it decrements the counter, swaps the
+      parent's state bucket, and re-registers its group-waiting entry atomically.
 - [x] Groups: `getGroupActiveCount`, `getWaitingGroupCount` — backed by a `group:<gid>:waiting` ZSET
       maintained by `addToStateIndex` / `removeFromStateIndex`, `fetchNextJob.lua`, and
       `promote-delayed.lua`.
 - [x] Stalled detection: `getStalledJobs`, `clean`, `drain`, `obliterate`.
 
-**Phase 5a (PR TBD)** ships group counts, stalled, clean, drain, obliterate + the
-`group:<gid>:waiting` refactor. Phase 5b will add flows.
+**Phase 5a (PR #57)** shipped group counts, stalled, clean, drain, obliterate + the
+`group:<gid>:waiting` refactor. **Phase 5b (PR TBD)** adds the flow surface.
 
 ### Phase 6 — events
 
