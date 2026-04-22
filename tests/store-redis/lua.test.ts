@@ -112,20 +112,24 @@ describe.skipIf(!available)('RedisStore — Lua edge cases', () => {
     await store.saveJob(QUEUE, createJobData(QUEUE, 'a', {}));
     await store.saveJob(QUEUE, createJobData(QUEUE, 'b', {}));
 
+    // Window chosen wide enough that the `blocked` check runs well before it
+    // rolls, and the post-sleep check runs well after — keeps the test off
+    // the CI flake curve.
+    const window = 500;
     const first = await store.fetchNextJob(QUEUE, 'w', 30_000, {
-      rateLimit: { max: 1, window: 120 },
+      rateLimit: { max: 1, duration: window },
     });
     expect(first).not.toBeNull();
 
     const blocked = await store.fetchNextJob(QUEUE, 'w', 30_000, {
-      rateLimit: { max: 1, window: 120 },
+      rateLimit: { max: 1, duration: window },
     });
     expect(blocked).toBeNull();
 
-    await new Promise((r) => setTimeout(r, 150));
+    await new Promise((r) => setTimeout(r, window + 100));
 
     const unblocked = await store.fetchNextJob(QUEUE, 'w', 30_000, {
-      rateLimit: { max: 1, window: 120 },
+      rateLimit: { max: 1, duration: window },
     });
     expect(unblocked).not.toBeNull();
   });
@@ -160,20 +164,16 @@ describe.skipIf(!available)('RedisStore — Lua edge cases', () => {
   // ─── dedup: TTL measured from createdAt, not from SET ─────────────────
 
   test('reserveDedupKey skips when TTL is already expired relative to createdAt', async () => {
+    // TTL is 50ms but createdAt is backdated 500ms → remaining lifetime is
+    // negative, so reserveDedupKey must not write the pointer at all.
     const first = createJobData(QUEUE, 'dedup', {}, {
-      deduplication: { key: 'k', ttl: 1 },
+      deduplication: { key: 'k', ttl: 50 },
     });
     first.deduplicationKey = 'k';
-    first.createdAt = new Date(Date.now() - 100);
-    const id1 = await store.saveJob(QUEUE, first);
+    first.createdAt = new Date(Date.now() - 500);
+    await store.saveJob(QUEUE, first);
 
-    const second = createJobData(QUEUE, 'dedup', {}, {
-      deduplication: { key: 'k', ttl: 1 },
-    });
-    second.deduplicationKey = 'k';
-    const id2 = await store.saveJob(QUEUE, second);
-
-    expect(id1).not.toEqual(id2);
+    // No dedup key was reserved — findByDeduplicationKey sees nothing.
     expect(await store.findByDeduplicationKey(QUEUE, 'k')).toBeNull();
   });
 

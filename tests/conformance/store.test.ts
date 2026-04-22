@@ -48,7 +48,9 @@ export function runConformanceTests(
 ): void {
   const queueName = 'test-queue';
   const skip = new Set(options.skip ?? []);
+  const seenLabels = new Set<string>();
   const t = (label: string, fn: () => Promise<void> | void): void => {
+    seenLabels.add(label);
     const name = `[${storeName}] ${label}`;
     if (skip.has(label)) {
       test.skip(name, fn);
@@ -56,6 +58,16 @@ export function runConformanceTests(
       test(name, fn);
     }
   };
+
+  // Fail fast if a store opts out of a test that no longer exists — protects
+  // against silent no-ops when labels are renamed.
+  test(`[${storeName}] skip list matches existing test labels`, () => {
+    const unknown = [...skip].filter((label) => !seenLabels.has(label));
+    expect(
+      unknown,
+      `Unknown ConformanceOptions.skip labels for ${storeName}: ${unknown.join(', ')}`,
+    ).toEqual([]);
+  });
 
   let store: StoreInterface;
 

@@ -638,37 +638,49 @@ export class RedisStore implements StoreInterface {
   }
 
   /**
-   * Move every job in the given terminal state back to `waiting` and reset
-   * the retry-relevant bookkeeping (attemptsMade, progress, returnvalue,
-   * failedReason, failedAt, completedAt, processedAt, stacktrace). Reuses
-   * {@linkcode updateJob} per id so the state-index transition, dedup
-   * cleanup, and group bookkeeping stay on the existing code path.
+   * Move every job in the given terminal state back to `waiting` and
+   * reset the retry-relevant bookkeeping (attemptsMade, progress,
+   * returnvalue, failedReason, failedAt, completedAt, processedAt,
+   * stacktrace). Delegates to {@linkcode updateJob} per id so the
+   * state-index transition, dedup cleanup, and group bookkeeping stay on
+   * the existing code path.
    *
-   * Cost: O(n) round trips against Redis (one `updateJob` per job). Fine
-   * for interactive dashboard use on modestly sized queues; bulk "retry
-   * every failed job" on a queue with hundreds of thousands of entries
-   * should eventually move to a Lua script or pipeline.
+   * Cost: O(n) round trips (one `updateJob` per job), issued in batches
+   * of {@linkcode RETRY_BATCH_SIZE} via `Promise.all` so node-redis can
+   * pipeline them on the shared connection. Dashboard-scale "retry N" is
+   * fine; very large bulk retries should move to a dedicated Lua script
+   * if the need shows up.
    *
    * Ordering: ids are iterated in `finishedAt` ascending order (the
    * completed / failed ZSET score). Callers that need a specific retry
    * order should hydrate and re-enqueue themselves.
+   *
+   * Known hazard (shared with MemoryStore / PgStore): retrying a
+   * completed flow child re-fires {@linkcode notifyChildCompleted} on
+   * success and drives the parent's `pendingChildrenCount` below zero.
+   * Callers wanting to replay a flow should re-submit via
+   * {@linkcode saveFlow}. Tracked as a cross-store follow-up in
+   * `tasks/redis-store.md`.
    */
   async retryJobs(queueName: string, state: 'failed' | 'completed'): Promise<number> {
     const client = this.getClient();
     const zkey = state === 'failed' ? this.keys.failed(queueName) : this.keys.completed(queueName);
     const ids = await client.zRange(zkey, 0, -1);
-    for (const id of ids) {
-      await this.updateJob(queueName, id, {
-        state: 'waiting',
-        attemptsMade: 0,
-        progress: 0,
-        returnvalue: null,
-        failedReason: null,
-        failedAt: null,
-        completedAt: null,
-        processedAt: null,
-        stacktrace: [],
-      });
+    const RETRY_BATCH_SIZE = 50;
+    const resetFields = {
+      state: 'waiting' as const,
+      attemptsMade: 0,
+      progress: 0,
+      returnvalue: null,
+      failedReason: null,
+      failedAt: null,
+      completedAt: null,
+      processedAt: null,
+      stacktrace: [],
+    };
+    for (let i = 0; i < ids.length; i += RETRY_BATCH_SIZE) {
+      const batch = ids.slice(i, i + RETRY_BATCH_SIZE);
+      await Promise.all(batch.map((id) => this.updateJob(queueName, id, resetFields)));
     }
     return ids.length;
   }
@@ -932,40 +944,18 @@ export class RedisStore implements StoreInterface {
    * contract); the order only matters for parents that need their
    * `pendingChildrenCount` pre-set by the caller.
    *
-   * For each child (one with `parentId` + `parentQueueName` set), we also
-   * SADD its `queueName\x00id` tuple to the parent's
-   * `flow:<parentId>:children` set. `getChildrenJobs` reads that set
-   * directly; without it we'd need a cross-queue scan.
+   * For each child (one with `parentId` + `parentQueueName` set), the
+   * `queueName\x00id` tuple is SADDed to the parent's
+   * `flow:<parentId>:children` set. That bookkeeping is owned by
+   * {@linkcode saveJob} / {@linkcode saveBulk} — conformance callers save
+   * children directly via those methods and still need `getChildrenJobs`
+   * to work, so the link has to live at the save site.
    */
   async saveFlow(jobs: Array<{ queueName: string; job: Omit<JobData, 'id'> }>): Promise<string[]> {
     const ids: string[] = [];
-    const flowLinks: Array<{
-      parentQueueName: string;
-      parentId: string;
-      member: string;
-    }> = [];
-
     for (const entry of jobs) {
-      const id = await this.saveJob(entry.queueName, entry.job);
-      ids.push(id);
-      if (entry.job.parentId && entry.job.parentQueueName) {
-        flowLinks.push({
-          parentQueueName: entry.job.parentQueueName,
-          parentId: entry.job.parentId,
-          member: encodeFlowChild(entry.queueName, id),
-        });
-      }
+      ids.push(await this.saveJob(entry.queueName, entry.job));
     }
-
-    if (flowLinks.length > 0) {
-      const client = this.getClient();
-      const multi = client.multi();
-      for (const link of flowLinks) {
-        multi.sAdd(this.keys.flowChildren(link.parentQueueName, link.parentId), link.member);
-      }
-      await multi.exec();
-    }
-
     return ids;
   }
 

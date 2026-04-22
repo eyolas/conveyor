@@ -449,8 +449,22 @@ promote) lands first so reviewers can focus on the atomic `fetchNextJob` script 
   `failParentOnChildFailure` now reads `Child failed: <reason>` — aligning with MemoryStore /
   PgStore, which already use that format. Not a user-visible break (the Redis store has not shipped
   in a release yet), but worth calling out for anyone pattern- matching on pre-merge branches.
-- `retryJobs` is O(n) round trips (one `updateJob` per job, pipelined state-index update
-  internally). Fine for dashboard "retry N" on modest queues; bulk retries on huge queues should
-  move to a Lua script later if the need shows up.
-- Conformance harness `skip` list is the lever for documented deferred behavior — keep it short and
-  link every entry to a follow-up here (currently: priority ordering x2, group round-robin).
+- `retryJobs` is O(n) `updateJob` calls, batched via `Promise.all` (chunks of 50) so the node-redis
+  socket can pipeline them. Fine for dashboard "retry N" on modest queues; bulk retries on huge
+  queues should move to a Lua script later if the need shows up.
+- Flow-child retry hazard shared by every store (Memory / Pg / Redis): `retryJobs` replays a
+  completed child, the worker re-fires `notifyChildCompleted` on success, and the parent's
+  `pendingChildrenCount` goes negative. Documented inline; cross-store fix tracked below.
+- `saveFlow` no longer duplicates the `flow:<parentId>:children` SADD — `saveJob` / `saveBulk` own
+  that write so conformance callers saving children directly still get the link. Removes a per-child
+  round-trip from `saveFlow`.
+- Conformance harness `skip` list is the lever for documented deferred behavior — keep it short,
+  link every entry to a follow-up here, and note that the harness now validates the list against the
+  registered test labels so a renamed test fails fast instead of silently matching nothing.
+- Currently skipped: priority ordering x2, group round-robin (both tracked above).
+
+### Cross-store follow-ups (not Redis-specific)
+
+- `retryJobs` on flow children should either (a) refuse, (b) re-increment the parent's counter and
+  reset parent state, or (c) throw. Pick one and apply across Memory / Pg / Redis in a dedicated PR;
+  the current behavior matches across stores but underflows the parent counter.
