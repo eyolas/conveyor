@@ -320,7 +320,18 @@ promote) lands first so reviewers can focus on the atomic `fetchNextJob` script 
 
 ### Phase 7 — dashboard-required
 
-- [ ] `listQueues`, `findJobById`, `cancelJob`.
+- [x] `listQueues` — enumerates `conveyor:queues`, fans out per queue in parallel, scans every
+      `{prefix:queue}:job:*` hash for `latestActivity` + `scheduledCount`. Scan cost is O(total jobs
+      in queue) — dashboards over very large queues may want materialised counters later. Follow-up:
+      promote `scheduledCount` to a dedicated `{prefix:queue}:scheduled` SET at `saveJob` time and
+      derive `latestActivity` from the existing `completed` / `failed` ZSET max scores +
+      active-lease timestamps instead of full hash scans.
+- [x] `findJobById` — fires one `EXISTS` per registered queue in parallel, then hydrates the match
+      with `getJob`. Cannot use `MULTI`: each queue key lives in its own hash-tag `{prefix:queue}`,
+      so a single pipeline would be `CROSSSLOT`-rejected on Redis Cluster.
+- [x] `cancelJob` — flags `cancelledAt` on an `active` job via `updateJob` and publishes
+      `job:cancelled`. Matches MemoryStore: state stays `active`; the worker observes `cancelledAt`
+      and transitions the job itself.
 
 ### Phase 8 — tests
 

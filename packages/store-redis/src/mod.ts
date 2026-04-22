@@ -3,16 +3,17 @@
  *
  * Redis-backed store implementation for the Conveyor job queue.
  *
- * **Work in progress** — lifecycle, job CRUD, atomic `fetchNextJob`
- * leasing (extend / release / active count), delayed scheduling,
+ * **Work in progress** — every required `StoreInterface` method
+ * is wired up: lifecycle, job CRUD, atomic `fetchNextJob` leasing
+ * (extend / release / active count), delayed scheduling,
  * pause/resume, group counts, stalled detection, queue cleanup
  * (`clean` / `drain` / `obliterate`), flows (`saveFlow`,
  * `notifyChildCompleted`, `failParentOnChildFailure`,
- * `getChildrenJobs`), and cross-process events via Redis Pub/Sub
- * (`publish` / `subscribe` / `unsubscribe`) are wired up through
- * the Lua script registry. Dashboard helpers (`listQueues`,
- * `findJobById`, `cancelJob`) land in follow-up phases. See
- * `tasks/redis-store.md` for the roadmap and the current
+ * `getChildrenJobs`), cross-process events via Redis Pub/Sub
+ * (`publish` / `subscribe` / `unsubscribe`), and the dashboard
+ * trio (`listQueues`, `findJobById`, `cancelJob`). The shared
+ * conformance harness, CI wiring, and docs land in Phases 8-10.
+ * See `tasks/redis-store.md` for the roadmap and the current
  * `implements StoreInterface` coverage status.
  */
 

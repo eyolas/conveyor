@@ -3,11 +3,13 @@
  *
  * Redis-backed `StoreInterface` implementation.
  *
- * **Work in progress** — lifecycle, job CRUD, leasing, delayed scheduling,
- * pause/resume, groups, stalled detection, queue cleanup, flows, and
- * cross-process events (publish / subscribe / unsubscribe) are wired up.
- * Dashboard helpers (`listQueues`, `findJobById`, `cancelJob`) and the
- * `StoreInterface` `implements` clause land in follow-up phases. See
+ * **Work in progress** — every required `StoreInterface` method is wired
+ * up: lifecycle, job CRUD, leasing, delayed scheduling, pause/resume,
+ * groups, stalled detection, queue cleanup, flows, cross-process events
+ * (publish / subscribe / unsubscribe), and the dashboard trio
+ * (`listQueues`, `findJobById`, `cancelJob`). The shared conformance
+ * harness, CI wiring, and docs land in Phases 8-10; the
+ * `implements StoreInterface` clause flips on once Phase 8 lands. See
  * `tasks/redis-store.md`.
  */
 
@@ -16,6 +18,7 @@ import type {
   JobData,
   JobState,
   Logger,
+  QueueInfo,
   StoreEvent,
   StoreOptions,
   UpdateJobOptions,
@@ -73,9 +76,16 @@ export interface RedisStoreOptions extends StoreOptions {
  * Redis implementation of Conveyor's store contract.
  *
  * ```ts
+ * import { Queue, Worker } from '@conveyor/core';
+ * import { RedisStore } from '@conveyor/store-redis';
+ *
  * const store = new RedisStore({ url: 'redis://localhost:6379' });
  * await store.connect();
- * // queue / worker usage lands once the full StoreInterface is implemented
+ *
+ * const queue = new Queue('emails', { store });
+ * const worker = new Worker('emails', async (job) => job.data, { store });
+ * // ... use the queue + worker as you would with any other store ...
+ * await worker.close();
  * await store.disconnect();
  * ```
  */
@@ -626,6 +636,109 @@ export class RedisStore {
         Date.now(),
       ],
     );
+  }
+
+  // ─── Dashboard ───────────────────────────────────────────────────────
+
+  /**
+   * Enumerate every known queue with aggregate counts + activity metadata.
+   * Returns one {@linkcode QueueInfo} per name in the cross-queue registry
+   * (`conveyor:queues`).
+   *
+   * Per queue we:
+   * - Pipeline `getJobCounts` for the six-state tally.
+   * - Read the paused set once to derive `isPaused` (`__all__` present).
+   * - `SCAN` every `{prefix:queue}:job:*` hash in the queue's hash-tag
+   *   namespace to compute `latestActivity` and `scheduledCount`. That
+   *   scan is O(total-jobs-in-queue); dashboards calling this for a
+   *   queue with millions of jobs should consider materialising
+   *   those two as counters in a later pass.
+   *
+   * Per-queue work runs in parallel. The reads are not atomic with each
+   * other, so counts can drift slightly against concurrent writes —
+   * acceptable for a dashboard view.
+   */
+  async listQueues(): Promise<QueueInfo[]> {
+    const client = this.getClient();
+    const queueNames = await client.sMembers(this.keys.queueIndex());
+
+    return Promise.all(queueNames.map(async (queueName) => {
+      const [counts, pausedNames] = await Promise.all([
+        this.getJobCounts(queueName),
+        client.sMembers(this.keys.paused(queueName)),
+      ]);
+      const isPaused = pausedNames.includes('__all__');
+
+      let latestActivity: Date | null = null;
+      let scheduledCount = 0;
+
+      const pattern = `${this.keys.jobPrefix(queueName)}*`;
+      for await (const batch of client.scanIterator({ MATCH: pattern, COUNT: 200 })) {
+        if (batch.length === 0) continue;
+        // All keys in `batch` share this queue's hash-tag, so MULTI is slot-safe.
+        const multi = client.multi();
+        for (const key of batch) multi.hGetAll(key);
+        const results = await multi.exec();
+        for (const raw of results ?? []) {
+          const hash = raw as unknown as Record<string, string> | null;
+          if (!hash || Object.keys(hash).length === 0) continue;
+          const job = hashToJobData(hash);
+          if (job.opts.repeat) scheduledCount++;
+          const ts = job.completedAt ?? job.failedAt ?? job.processedAt ?? job.createdAt;
+          if (ts && (latestActivity === null || ts.getTime() > latestActivity.getTime())) {
+            latestActivity = ts;
+          }
+        }
+      }
+
+      return { name: queueName, counts, isPaused, latestActivity, scheduledCount };
+    }));
+  }
+
+  /**
+   * Find a job across every known queue. Fires one `EXISTS` per queue in
+   * parallel, then hydrates the match. Cannot use `MULTI`: each queue's
+   * job key lives in its own hash-tag `{prefix:queue}`, so a single
+   * pipeline would be `CROSSSLOT`-rejected on Redis Cluster.
+   * Returns `null` when nothing matches.
+   */
+  async findJobById(jobId: string): Promise<JobData | null> {
+    const client = this.getClient();
+    const queueNames = await client.sMembers(this.keys.queueIndex());
+    if (queueNames.length === 0) return null;
+
+    const existsResults = await Promise.all(
+      queueNames.map((q) => client.exists(this.keys.job(q, jobId))),
+    );
+
+    for (let i = 0; i < queueNames.length; i++) {
+      if (existsResults[i] === 1) {
+        return this.getJob(queueNames[i]!, jobId);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Flag an `active` job for cancellation and fire the `job:cancelled`
+   * event. The worker watches `cancelledAt` on its leased hash and stops
+   * processing when it flips — we don't transition state here, matching
+   * MemoryStore. Returns `false` when the job is missing or is already
+   * in a non-active state.
+   */
+  async cancelJob(queueName: string, jobId: string): Promise<boolean> {
+    const current = await this.getJob(queueName, jobId);
+    if (!current || current.state !== 'active') return false;
+
+    const now = new Date();
+    await this.updateJob(queueName, jobId, { cancelledAt: now });
+    await this.publish({
+      type: 'job:cancelled',
+      queueName,
+      jobId,
+      timestamp: now,
+    });
+    return true;
   }
 
   // ─── Events (pub/sub) ────────────────────────────────────────────────
