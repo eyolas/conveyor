@@ -653,15 +653,20 @@ export class RedisStore {
    *   scan is O(total-jobs-in-queue); dashboards calling this for a
    *   queue with millions of jobs should consider materialising
    *   those two as counters in a later pass.
+   *
+   * Per-queue work runs in parallel. The reads are not atomic with each
+   * other, so counts can drift slightly against concurrent writes —
+   * acceptable for a dashboard view.
    */
   async listQueues(): Promise<QueueInfo[]> {
     const client = this.getClient();
     const queueNames = await client.sMembers(this.keys.queueIndex());
-    const result: QueueInfo[] = [];
 
-    for (const queueName of queueNames) {
-      const counts = await this.getJobCounts(queueName);
-      const pausedNames = await client.sMembers(this.keys.paused(queueName));
+    return Promise.all(queueNames.map(async (queueName) => {
+      const [counts, pausedNames] = await Promise.all([
+        this.getJobCounts(queueName),
+        client.sMembers(this.keys.paused(queueName)),
+      ]);
       const isPaused = pausedNames.includes('__all__');
 
       let latestActivity: Date | null = null;
@@ -670,6 +675,7 @@ export class RedisStore {
       const pattern = `${this.keys.jobPrefix(queueName)}*`;
       for await (const batch of client.scanIterator({ MATCH: pattern, COUNT: 200 })) {
         if (batch.length === 0) continue;
+        // All keys in `batch` share this queue's hash-tag, so MULTI is slot-safe.
         const multi = client.multi();
         for (const key of batch) multi.hGetAll(key);
         const results = await multi.exec();
@@ -685,29 +691,29 @@ export class RedisStore {
         }
       }
 
-      result.push({ name: queueName, counts, isPaused, latestActivity, scheduledCount });
-    }
-
-    return result;
+      return { name: queueName, counts, isPaused, latestActivity, scheduledCount };
+    }));
   }
 
   /**
-   * Find a job across every known queue. Pipelines one `EXISTS` per queue
-   * before hydrating the matching one — so the hot path costs one round
-   * trip regardless of queue count. Returns `null` when nothing matches.
+   * Find a job across every known queue. Fires one `EXISTS` per queue in
+   * parallel, then hydrates the match. Cannot use `MULTI`: each queue's
+   * job key lives in its own hash-tag `{prefix:queue}`, so a single
+   * pipeline would be `CROSSSLOT`-rejected on Redis Cluster.
+   * Returns `null` when nothing matches.
    */
   async findJobById(jobId: string): Promise<JobData | null> {
     const client = this.getClient();
     const queueNames = await client.sMembers(this.keys.queueIndex());
     if (queueNames.length === 0) return null;
 
-    const multi = client.multi();
-    for (const q of queueNames) multi.exists(this.keys.job(q, jobId));
-    const results = await multi.exec();
+    const existsResults = await Promise.all(
+      queueNames.map((q) => client.exists(this.keys.job(q, jobId))),
+    );
 
     for (let i = 0; i < queueNames.length; i++) {
-      if (Number(results?.[i] ?? 0) === 1) {
-        return await this.getJob(queueNames[i]!, jobId);
+      if (existsResults[i] === 1) {
+        return this.getJob(queueNames[i]!, jobId);
       }
     }
     return null;
