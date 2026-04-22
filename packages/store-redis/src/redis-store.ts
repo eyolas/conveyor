@@ -3,11 +3,13 @@
  *
  * Redis-backed `StoreInterface` implementation.
  *
- * **Work in progress** — lifecycle, job CRUD, leasing, delayed scheduling,
- * pause/resume, groups, stalled detection, queue cleanup, flows, and
- * cross-process events (publish / subscribe / unsubscribe) are wired up.
- * Dashboard helpers (`listQueues`, `findJobById`, `cancelJob`) and the
- * `StoreInterface` `implements` clause land in follow-up phases. See
+ * **Work in progress** — every required `StoreInterface` method is wired
+ * up: lifecycle, job CRUD, leasing, delayed scheduling, pause/resume,
+ * groups, stalled detection, queue cleanup, flows, cross-process events
+ * (publish / subscribe / unsubscribe), and the dashboard trio
+ * (`listQueues`, `findJobById`, `cancelJob`). The shared conformance
+ * harness, CI wiring, and docs land in Phases 8-10; the
+ * `implements StoreInterface` clause flips on once Phase 8 lands. See
  * `tasks/redis-store.md`.
  */
 
@@ -74,9 +76,16 @@ export interface RedisStoreOptions extends StoreOptions {
  * Redis implementation of Conveyor's store contract.
  *
  * ```ts
+ * import { Queue, Worker } from '@conveyor/core';
+ * import { RedisStore } from '@conveyor/store-redis';
+ *
  * const store = new RedisStore({ url: 'redis://localhost:6379' });
  * await store.connect();
- * // queue / worker usage lands once the full StoreInterface is implemented
+ *
+ * const queue = new Queue('emails', { store });
+ * const worker = new Worker('emails', async (job) => job.data, { store });
+ * // ... use the queue + worker as you would with any other store ...
+ * await worker.close();
  * await store.disconnect();
  * ```
  */
