@@ -189,7 +189,7 @@ describe.skipIf(!available)('RedisStore — Phase 5b flows', () => {
 
     const parentRecord = await store.getJob(PARENT_QUEUE, 'p6');
     expect(parentRecord!.state).toBe('failed');
-    expect(parentRecord!.failedReason).toBe('child-a exploded');
+    expect(parentRecord!.failedReason).toBe('Child failed: child-a exploded');
     expect(parentRecord!.failedAt).not.toBeNull();
     expect(await store.countJobs(PARENT_QUEUE, 'failed')).toBe(1);
     expect(await store.countJobs(PARENT_QUEUE, 'waiting-children')).toBe(0);

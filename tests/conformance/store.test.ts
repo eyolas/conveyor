@@ -28,11 +28,54 @@ async function isMetricsEnabled(store: StoreInterface): Promise<boolean> {
   }
 }
 
+/**
+ * Options to tailor the conformance run for a store that legitimately
+ * skips a specific behavior.
+ *
+ * `skip` matches on the free-form label part of the test name — i.e. the
+ * text after the `[StoreName] ` prefix. Pass the exact label to opt out,
+ * e.g. `skip: ['fetchNextJob respects priority']`. Keep the list short
+ * and document each entry in the store's task file.
+ *
+ * **Important**: only tests registered through the internal `t(label, fn)`
+ * helper populate the safety check that validates skip labels. A test
+ * still written as `test('[Store] foo', ...)` directly is NOT matchable —
+ * adding its label to `skip` will trip the "Unknown skip label" check.
+ * Remedy: migrate that test to `t('foo', ...)` before opting out of it.
+ * The friction is deliberate — it forces maintainers to rename in lockstep
+ * with store opt-outs instead of silently no-op-ing when labels drift.
+ */
+export interface ConformanceOptions {
+  skip?: string[];
+}
+
 export function runConformanceTests(
   storeName: string,
   factory: () => StoreInterface,
+  options: ConformanceOptions = {},
 ): void {
   const queueName = 'test-queue';
+  const skip = new Set(options.skip ?? []);
+  const seenLabels = new Set<string>();
+  const t = (label: string, fn: () => Promise<void> | void): void => {
+    seenLabels.add(label);
+    const name = `[${storeName}] ${label}`;
+    if (skip.has(label)) {
+      test.skip(name, fn);
+    } else {
+      test(name, fn);
+    }
+  };
+
+  // Fail fast if a store opts out of a test that no longer exists — protects
+  // against silent no-ops when labels are renamed.
+  test(`[${storeName}] skip list matches existing test labels`, () => {
+    const unknown = [...skip].filter((label) => !seenLabels.has(label));
+    expect(
+      unknown,
+      `Unknown ConformanceOptions.skip labels for ${storeName}: ${unknown.join(', ')}`,
+    ).toEqual([]);
+  });
 
   let store: StoreInterface;
 
@@ -157,7 +200,7 @@ export function runConformanceTests(
     await store.disconnect();
   });
 
-  test(`[${storeName}] fetchNextJob respects priority`, async () => {
+  t('fetchNextJob respects priority', async () => {
     store = factory();
     await store.connect();
 
@@ -1303,7 +1346,7 @@ export function runConformanceTests(
     await store.disconnect();
   });
 
-  test(`[${storeName}] fetchNextJob round-robin across groups`, async () => {
+  t('fetchNextJob round-robin across groups', async () => {
     store = factory();
     await store.connect();
 
@@ -1420,7 +1463,7 @@ export function runConformanceTests(
 
   // ─── updateJob opts syncs priority ─────────────────────────────────
 
-  test(`[${storeName}] updateJob opts syncs priority`, async () => {
+  t('updateJob opts syncs priority', async () => {
     store = factory();
     await store.connect();
 
