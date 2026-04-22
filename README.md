@@ -6,7 +6,7 @@
 
 <p align="center">
   A multi-backend job queue for Deno, Node.js, and Bun.<br/>
-  BullMQ-like API with PostgreSQL, SQLite, and in-memory support.
+  BullMQ-like API with PostgreSQL, Redis, SQLite, and in-memory support.
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 
 ## Why Conveyor?
 
-- **No Redis required** -- use PostgreSQL, SQLite, or in-memory instead
+- **No Redis required (but supported)** -- pick from PostgreSQL, Redis, SQLite, or in-memory
 - **Runtime-agnostic** -- works on Deno 2, Node.js 18+, and Bun 1.1+
 - **BullMQ-compatible API** -- familiar interface, minimal migration effort
 - **Type-safe** -- full TypeScript with generics on job payloads
@@ -75,6 +75,7 @@ await queue.close();
 | `@conveyor/shared`            | Types & utilities          | [![JSR](https://jsr.io/badges/@conveyor/shared)](https://jsr.io/@conveyor/shared)                       |
 | `@conveyor/store-memory`      | In-memory store            | [![JSR](https://jsr.io/badges/@conveyor/store-memory)](https://jsr.io/@conveyor/store-memory)           |
 | `@conveyor/store-pg`          | PostgreSQL store           | [![JSR](https://jsr.io/badges/@conveyor/store-pg)](https://jsr.io/@conveyor/store-pg)                   |
+| `@conveyor/store-redis`       | Redis store                | [![JSR](https://jsr.io/badges/@conveyor/store-redis)](https://jsr.io/@conveyor/store-redis)             |
 | `@conveyor/store-sqlite-node` | SQLite store (Node.js)     | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-node)](https://jsr.io/@conveyor/store-sqlite-node) |
 | `@conveyor/store-sqlite-bun`  | SQLite store (Bun)         | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-bun)](https://jsr.io/@conveyor/store-sqlite-bun)   |
 | `@conveyor/store-sqlite-deno` | SQLite store (Deno)        | [![JSR](https://jsr.io/badges/@conveyor/store-sqlite-deno)](https://jsr.io/@conveyor/store-sqlite-deno) |
@@ -339,6 +340,19 @@ await store.connect(); // auto-runs migrations
 // ... use with Queue/Worker
 await store.disconnect();
 ```
+
+#### Redis
+
+```typescript
+import { RedisStore } from '@conveyor/store-redis';
+
+const store = new RedisStore({ url: 'redis://localhost:6379' });
+await store.connect();
+// ... use with Queue/Worker
+await store.disconnect();
+```
+
+Single-node Redis 7+ (managed HA endpoints work; native Cluster/Sentinel land in v2).
 
 #### SQLite
 

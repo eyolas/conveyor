@@ -4,6 +4,11 @@ Conveyor is designed to provide a BullMQ-like API without requiring Redis. If yo
 BullMQ, you will find Conveyor's API very similar. This guide covers the differences and the steps
 to migrate.
 
+> **Prefer to keep Redis?** Conveyor also ships [`@conveyor/store-redis`](../stores/redis.md) so
+> BullMQ users can migrate the API without changing their infra. Drop in `RedisStore` wherever
+> the examples below use `PgStore` — everything else in this guide applies unchanged. Then revisit
+> the store choice once you're on Conveyor, without a second migration.
+
 ## What Stays the Same
 
 | Feature         | BullMQ                               | Conveyor                              |
@@ -174,6 +179,10 @@ deno add @conveyor/core @conveyor/store-pg
 # Node.js (npm)
 npx jsr add @conveyor/core @conveyor/store-pg
 ```
+
+If you want to keep your existing Redis instance, swap `@conveyor/store-pg` for
+`@conveyor/store-redis` in the commands above, and substitute `RedisStore` in every code snippet
+below.
 
 ### Step 2: Replace Imports
 
