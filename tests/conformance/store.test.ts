@@ -28,11 +28,34 @@ async function isMetricsEnabled(store: StoreInterface): Promise<boolean> {
   }
 }
 
+/**
+ * Options to tailor the conformance run for a store that legitimately
+ * skips a specific behavior.
+ *
+ * `skip` matches on the free-form label part of the test name — i.e. the
+ * text after the `[StoreName] ` prefix. Pass the exact label to opt out,
+ * e.g. `skip: ['fetchNextJob respects priority']`. Keep the list short
+ * and document each entry in the store's task file.
+ */
+export interface ConformanceOptions {
+  skip?: string[];
+}
+
 export function runConformanceTests(
   storeName: string,
   factory: () => StoreInterface,
+  options: ConformanceOptions = {},
 ): void {
   const queueName = 'test-queue';
+  const skip = new Set(options.skip ?? []);
+  const t = (label: string, fn: () => Promise<void> | void): void => {
+    const name = `[${storeName}] ${label}`;
+    if (skip.has(label)) {
+      test.skip(name, fn);
+    } else {
+      test(name, fn);
+    }
+  };
 
   let store: StoreInterface;
 
@@ -157,7 +180,7 @@ export function runConformanceTests(
     await store.disconnect();
   });
 
-  test(`[${storeName}] fetchNextJob respects priority`, async () => {
+  t('fetchNextJob respects priority', async () => {
     store = factory();
     await store.connect();
 
@@ -1303,7 +1326,7 @@ export function runConformanceTests(
     await store.disconnect();
   });
 
-  test(`[${storeName}] fetchNextJob round-robin across groups`, async () => {
+  t('fetchNextJob round-robin across groups', async () => {
     store = factory();
     await store.connect();
 
@@ -1420,7 +1443,7 @@ export function runConformanceTests(
 
   // ─── updateJob opts syncs priority ─────────────────────────────────
 
-  test(`[${storeName}] updateJob opts syncs priority`, async () => {
+  t('updateJob opts syncs priority', async () => {
     store = factory();
     await store.connect();
 

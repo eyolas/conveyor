@@ -3,18 +3,14 @@
  *
  * Redis-backed store implementation for the Conveyor job queue.
  *
- * **Work in progress** — every required `StoreInterface` method
- * is wired up: lifecycle, job CRUD, atomic `fetchNextJob` leasing
- * (extend / release / active count), delayed scheduling,
- * pause/resume, group counts, stalled detection, queue cleanup
- * (`clean` / `drain` / `obliterate`), flows (`saveFlow`,
- * `notifyChildCompleted`, `failParentOnChildFailure`,
+ * Implements the full required `StoreInterface` surface: lifecycle,
+ * job CRUD, atomic `fetchNextJob` leasing (extend / release / active
+ * count), delayed scheduling, pause/resume, group counts, stalled
+ * detection, queue cleanup (`clean` / `drain` / `obliterate`), retry,
+ * flows (`saveFlow`, `notifyChildCompleted`, `failParentOnChildFailure`,
  * `getChildrenJobs`), cross-process events via Redis Pub/Sub
- * (`publish` / `subscribe` / `unsubscribe`), and the dashboard
- * trio (`listQueues`, `findJobById`, `cancelJob`). The shared
- * conformance harness, CI wiring, and docs land in Phases 8-10.
- * See `tasks/redis-store.md` for the roadmap and the current
- * `implements StoreInterface` coverage status.
+ * (`publish` / `subscribe` / `unsubscribe`), and the dashboard trio
+ * (`listQueues`, `findJobById`, `cancelJob`). See `tasks/redis-store.md`.
  */
 
 export { RedisStore, SCHEMA_VERSION } from './redis-store.ts';

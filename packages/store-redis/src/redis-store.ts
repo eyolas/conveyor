@@ -3,14 +3,12 @@
  *
  * Redis-backed `StoreInterface` implementation.
  *
- * **Work in progress** — every required `StoreInterface` method is wired
- * up: lifecycle, job CRUD, leasing, delayed scheduling, pause/resume,
- * groups, stalled detection, queue cleanup, flows, cross-process events
- * (publish / subscribe / unsubscribe), and the dashboard trio
- * (`listQueues`, `findJobById`, `cancelJob`). The shared conformance
- * harness, CI wiring, and docs land in Phases 8-10; the
- * `implements StoreInterface` clause flips on once Phase 8 lands. See
- * `tasks/redis-store.md`.
+ * Implements the full required `StoreInterface` surface: lifecycle, job
+ * CRUD, leasing, delayed scheduling, pause/resume, groups, stalled
+ * detection, queue cleanup, flows, cross-process events (publish /
+ * subscribe / unsubscribe), retry, and the dashboard trio (`listQueues`,
+ * `findJobById`, `cancelJob`). The shared conformance harness runs
+ * against this store from Phase 8 onward; see `tasks/redis-store.md`.
  */
 
 import type {
@@ -20,6 +18,7 @@ import type {
   Logger,
   QueueInfo,
   StoreEvent,
+  StoreInterface,
   StoreOptions,
   UpdateJobOptions,
 } from '@conveyor/shared';
@@ -89,7 +88,7 @@ export interface RedisStoreOptions extends StoreOptions {
  * await store.disconnect();
  * ```
  */
-export class RedisStore {
+export class RedisStore implements StoreInterface {
   readonly keys: Keys;
   private readonly options: RedisStoreOptions;
   private readonly logger: Logger;
@@ -103,6 +102,13 @@ export class RedisStore {
   private connectPromise: Promise<void> | null = null;
   private scripts: Partial<Record<ScriptName, { source: string; sha: string }>> = {};
   private localSubscribers = new Map<string, Set<(event: StoreEvent) => void>>();
+  /**
+   * Per-instance tag stamped on every outbound event. Same-instance
+   * messages are dispatched synchronously inside `publish()` and skipped
+   * when they echo back through Redis — matches MemoryStore's synchronous
+   * fan-out while still delivering cross-instance events.
+   */
+  private readonly instanceId = generateId();
 
   constructor(options: RedisStoreOptions = {}) {
     this.options = options;
@@ -300,6 +306,12 @@ export class RedisStore {
     multi.hSet(this.keys.job(queueName, id), jobDataToHash(jobData));
     this.addToStateIndex(multi, queueName, jobData, id);
     multi.sAdd(this.keys.queueIndex(), queueName);
+    if (jobData.parentId && jobData.parentQueueName) {
+      multi.sAdd(
+        this.keys.flowChildren(jobData.parentQueueName, jobData.parentId),
+        encodeFlowChild(queueName, id),
+      );
+    }
     await multi.exec();
     return id;
   }
@@ -353,6 +365,12 @@ export class RedisStore {
       for (const jobData of pendingJobs) {
         multi.hSet(this.keys.job(queueName, jobData.id), jobDataToHash(jobData));
         this.addToStateIndex(multi, queueName, jobData, jobData.id);
+        if (jobData.parentId && jobData.parentQueueName) {
+          multi.sAdd(
+            this.keys.flowChildren(jobData.parentQueueName, jobData.parentId),
+            encodeFlowChild(queueName, jobData.id),
+          );
+        }
       }
       multi.sAdd(this.keys.queueIndex(), queueName);
       await multi.exec();
@@ -620,6 +638,42 @@ export class RedisStore {
   }
 
   /**
+   * Move every job in the given terminal state back to `waiting` and reset
+   * the retry-relevant bookkeeping (attemptsMade, progress, returnvalue,
+   * failedReason, failedAt, completedAt, processedAt, stacktrace). Reuses
+   * {@linkcode updateJob} per id so the state-index transition, dedup
+   * cleanup, and group bookkeeping stay on the existing code path.
+   *
+   * Cost: O(n) round trips against Redis (one `updateJob` per job). Fine
+   * for interactive dashboard use on modestly sized queues; bulk "retry
+   * every failed job" on a queue with hundreds of thousands of entries
+   * should eventually move to a Lua script or pipeline.
+   *
+   * Ordering: ids are iterated in `finishedAt` ascending order (the
+   * completed / failed ZSET score). Callers that need a specific retry
+   * order should hydrate and re-enqueue themselves.
+   */
+  async retryJobs(queueName: string, state: 'failed' | 'completed'): Promise<number> {
+    const client = this.getClient();
+    const zkey = state === 'failed' ? this.keys.failed(queueName) : this.keys.completed(queueName);
+    const ids = await client.zRange(zkey, 0, -1);
+    for (const id of ids) {
+      await this.updateJob(queueName, id, {
+        state: 'waiting',
+        attemptsMade: 0,
+        progress: 0,
+        returnvalue: null,
+        failedReason: null,
+        failedAt: null,
+        completedAt: null,
+        processedAt: null,
+        stacktrace: [],
+      });
+    }
+    return ids.length;
+  }
+
+  /**
    * Promote every delayed job in the queue, regardless of `delayUntil`.
    * Same underlying Lua script as {@linkcode promoteDelayedJobs}; the upper
    * bound `"+inf"` tells `ZRANGEBYSCORE` to match every member.
@@ -755,14 +809,37 @@ export class RedisStore {
    */
   async publish(event: StoreEvent): Promise<void> {
     const client = this.getClient();
+    // Sync dispatch to local subscribers first — matches MemoryStore and
+    // lets tests observe the effect without waiting for the Redis Pub/Sub
+    // round-trip. Same-instance messages echoing back through the
+    // subscriber connection are deduped via `instanceId`.
+    this.dispatchLocally(event);
     const payload = JSON.stringify({
       type: event.type,
       queueName: event.queueName,
       jobId: event.jobId,
       data: event.data,
       timestamp: event.timestamp.getTime(),
+      originId: this.instanceId,
     });
     await client.publish(this.keys.eventsChannel(), payload);
+  }
+
+  /**
+   * @internal
+   * Fan an already-local event out to every registered callback for its
+   * queue. A throwing callback is logged and does not break the loop.
+   */
+  private dispatchLocally(event: StoreEvent): void {
+    const set = this.localSubscribers.get(event.queueName);
+    if (!set) return;
+    for (const cb of set) {
+      try {
+        cb(event);
+      } catch (err) {
+        this.logger.warn('[Conveyor] Subscriber callback threw:', err);
+      }
+    }
   }
 
   /**
@@ -810,6 +887,7 @@ export class RedisStore {
       jobId?: string;
       data?: unknown;
       timestamp: number;
+      originId?: string;
     };
     try {
       parsed = JSON.parse(raw);
@@ -830,23 +908,19 @@ export class RedisStore {
       return;
     }
 
-    const event: StoreEvent = {
+    // Skip messages we published ourselves — `publish()` already
+    // dispatched them synchronously to local subscribers. This keeps
+    // same-instance fan-out from double-firing when the subscribe
+    // channel echoes the message back.
+    if (parsed.originId === this.instanceId) return;
+
+    this.dispatchLocally({
       type: parsed.type,
       queueName: parsed.queueName,
       jobId: parsed.jobId,
       data: parsed.data,
       timestamp: new Date(parsed.timestamp),
-    };
-
-    const set = this.localSubscribers.get(event.queueName);
-    if (!set) return;
-    for (const cb of set) {
-      try {
-        cb(event);
-      } catch (err) {
-        this.logger.warn('[Conveyor] Subscriber callback threw:', err);
-      }
-    }
+    });
   }
 
   // ─── Flows ───────────────────────────────────────────────────────────
@@ -943,8 +1017,10 @@ export class RedisStore {
     if (!parent) return false;
     await this.updateJob(parentQueueName, parentId, {
       state: 'failed',
-      failedReason: reason,
+      failedReason: `Child failed: ${reason}`,
       failedAt: new Date(),
+      lockUntil: null,
+      lockedBy: null,
     });
     return true;
   }
@@ -1419,7 +1495,18 @@ export class RedisStore {
     const client = this.getClient();
     const k = this.keys.dedup(queueName, dedupKey);
     const ttlMs = job.opts.deduplication?.ttl;
-    const setOpts = ttlMs && ttlMs > 0 ? { NX: true, PX: ttlMs } : { NX: true };
+    // TTL is measured from the job's `createdAt`, not from the Redis `SET`
+    // call — tests may backdate `createdAt` to simulate an already-expired
+    // reservation. Compute the remaining lifetime and skip the reserve
+    // altogether when it's non-positive.
+    let effectivePx: number | null = null;
+    if (ttlMs && ttlMs > 0) {
+      const elapsed = Date.now() - job.createdAt.getTime();
+      const remaining = ttlMs - Math.max(0, elapsed);
+      if (remaining <= 0) return id;
+      effectivePx = remaining;
+    }
+    const setOpts = effectivePx !== null ? { NX: true, PX: effectivePx } : { NX: true };
 
     const acquired = await client.set(k, id, setOpts);
     if (acquired !== null) return id;
