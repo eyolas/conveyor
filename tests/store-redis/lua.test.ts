@@ -114,8 +114,8 @@ describe.skipIf(!available)('RedisStore — Lua edge cases', () => {
 
     // Window chosen wide enough that the `blocked` check runs well before it
     // rolls, and the post-sleep check runs well after — keeps the test off
-    // the CI flake curve.
-    const window = 500;
+    // the CI flake curve. 1s window + 300ms slack survives slow CI runners.
+    const window = 1_000;
     const first = await store.fetchNextJob(QUEUE, 'w', 30_000, {
       rateLimit: { max: 1, duration: window },
     });
@@ -126,7 +126,7 @@ describe.skipIf(!available)('RedisStore — Lua edge cases', () => {
     });
     expect(blocked).toBeNull();
 
-    await new Promise((r) => setTimeout(r, window + 100));
+    await new Promise((r) => setTimeout(r, window + 300));
 
     const unblocked = await store.fetchNextJob(QUEUE, 'w', 30_000, {
       rateLimit: { max: 1, duration: window },
@@ -136,14 +136,15 @@ describe.skipIf(!available)('RedisStore — Lua edge cases', () => {
 
   // ─── extend-lock / release-lock: token not enforced ───────────────────
 
+  // TODO(lock-token): delete this test once `extend-lock.lua` /
+  // `release-lock.lua` enforce `lockedBy` token ownership. At that point a
+  // foreign worker calling `extendLock` MUST get `false` back, and asserting
+  // `true` here will (correctly) flip red. Tracked in `tasks/redis-store.md`.
   test('extendLock does not enforce worker ownership (documented gap)', async () => {
     await store.saveJob(QUEUE, createJobData(QUEUE, 'j', {}));
     const leased = await store.fetchNextJob(QUEUE, 'original-worker', 30_000);
     expect(leased).not.toBeNull();
 
-    // Any caller can extend while the job is `active` — ownership enforcement
-    // would require a token check inside `extend-lock.lua`. Tracked as a
-    // follow-up in `tasks/redis-store.md`.
     const extended = await store.extendLock(QUEUE, leased!.id, 60_000);
     expect(extended).toBe(true);
   });

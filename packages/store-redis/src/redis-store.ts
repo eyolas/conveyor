@@ -107,6 +107,12 @@ export class RedisStore implements StoreInterface {
    * messages are dispatched synchronously inside `publish()` and skipped
    * when they echo back through Redis — matches MemoryStore's synchronous
    * fan-out while still delivering cross-instance events.
+   *
+   * MUST be globally unique across all processes sharing this Redis — a
+   * collision would let another instance's events be dropped as
+   * "self-echo". Relies on {@linkcode generateId} being UUID-grade;
+   * shortening it (e.g. to a nanoid) would require revisiting this
+   * dedup strategy.
    */
   private readonly instanceId = generateId();
 
@@ -650,6 +656,12 @@ export class RedisStore implements StoreInterface {
    * pipeline them on the shared connection. Dashboard-scale "retry N" is
    * fine; very large bulk retries should move to a dedicated Lua script
    * if the need shows up.
+   *
+   * **Non-atomic**: each `updateJob` is its own MULTI/EXEC. If a batch
+   * rejects, earlier `updateJob` calls in the same (or prior) batch have
+   * already committed — caller sees an exception but the terminal set is
+   * partially drained. Re-invoking on the remaining terminal set is
+   * idempotent and safe.
    *
    * Ordering: ids are iterated in `finishedAt` ascending order (the
    * completed / failed ZSET score). Callers that need a specific retry
@@ -1488,7 +1500,9 @@ export class RedisStore implements StoreInterface {
     // TTL is measured from the job's `createdAt`, not from the Redis `SET`
     // call — tests may backdate `createdAt` to simulate an already-expired
     // reservation. Compute the remaining lifetime and skip the reserve
-    // altogether when it's non-positive.
+    // altogether when it's non-positive. Side effect: callers passing a
+    // hand-built `JobData` with a stale `createdAt` will not get a dedup
+    // pointer written. Matches the "ttl since job creation" semantics.
     let effectivePx: number | null = null;
     if (ttlMs && ttlMs > 0) {
       const elapsed = Date.now() - job.createdAt.getTime();

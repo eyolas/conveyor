@@ -36,6 +36,14 @@ async function isMetricsEnabled(store: StoreInterface): Promise<boolean> {
  * text after the `[StoreName] ` prefix. Pass the exact label to opt out,
  * e.g. `skip: ['fetchNextJob respects priority']`. Keep the list short
  * and document each entry in the store's task file.
+ *
+ * **Important**: only tests registered through the internal `t(label, fn)`
+ * helper populate the safety check that validates skip labels. A test
+ * still written as `test('[Store] foo', ...)` directly is NOT matchable —
+ * adding its label to `skip` will trip the "Unknown skip label" check.
+ * Remedy: migrate that test to `t('foo', ...)` before opting out of it.
+ * The friction is deliberate — it forces maintainers to rename in lockstep
+ * with store opt-outs instead of silently no-op-ing when labels drift.
  */
 export interface ConformanceOptions {
   skip?: string[];
