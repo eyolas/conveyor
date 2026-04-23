@@ -1,6 +1,6 @@
 {
   "name": "@conveyor/store-sqlite-bun",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "exports": "./src/mod.ts",
   "imports": {
     "@conveyor/shared": "jsr:@conveyor/shared@^1.0.0",

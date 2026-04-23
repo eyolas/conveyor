@@ -86,9 +86,9 @@ tasks:
 
   redis-store:
     description: Redis-backed StoreInterface implementation — BullMQ-compatible backend, Lua scripts for atomicity, Pub/Sub for events
-    status: in-progress
+    status: done
     file: tasks/redis-store.md
-    notes: 'Phases 1-7 merged (PRs #52-#54 CRUD + lifecycle, #55/#56 leasing + scheduling Lua, #57 maintenance + group counts, #58 flows, #59 Pub/Sub events, #60 dashboard). Every required StoreInterface method is wired up; the `implements StoreInterface` clause flips on with Phase 8. Phase 8 wires the shared conformance harness + CI test-redis job + docker-compose entry; Phases 9-10 cover docs, example, and release hygiene.'
+    notes: 'All 10 phases shipped (PRs #52-#54 CRUD + lifecycle, #55/#56 leasing + scheduling Lua, #57 maintenance + group counts, #58 flows, #59 Pub/Sub events, #60 dashboard, #61 conformance + CI, #62 docs + example). Released as @conveyor/store-redis 1.5.0. Deferred follow-ups tracked in the task file: priority ordering via waiting-ZSET migration, group round-robin fairness, lock token ownership in Lua, events reconnect simulation.'
 
 # ─── PRD Roadmap ──────────────────────────────────────────────────────────────
 
