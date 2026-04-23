@@ -9,6 +9,7 @@ complete, runnable script.
 | ---------------------------- | ------------- | -------------------------------------------------------- |
 | [Basic (In-Memory)](./basic) | `MemoryStore` | Queue, Worker, events, scheduling, deduplication         |
 | [PostgreSQL](./postgresql)   | `PgStore`     | Cron scheduling, cross-process events, graceful shutdown |
+| [Redis](./redis)             | `RedisStore`  | Cron scheduling, Pub/Sub events, BullMQ-compatible infra |
 | [SQLite](./sqlite)           | `SqliteStore` | Rate limiting, recurring jobs, file-based persistence    |
 
 ## Choosing a Store
@@ -17,6 +18,7 @@ complete, runnable script.
 | ------------- | ---------------------------------------------- | ------------------------------------------------------------ |
 | `MemoryStore` | Testing, prototyping, single-process apps      | Data lost on restart, no cross-process support               |
 | `PgStore`     | Production, multi-process, distributed systems | Requires PostgreSQL server                                   |
+| `RedisStore`  | BullMQ migrants, low-latency, multi-process    | Persistence depends on AOF/RDB; Pub/Sub is best-effort       |
 | `SqliteStore` | Single-server production, embedded apps        | File-based, no real-time cross-process events (uses polling) |
 
 ## Running the Examples
@@ -30,6 +32,10 @@ deno run --allow-all examples/basic/main.ts
 # PostgreSQL (requires PG_URL)
 export PG_URL="postgres://user:pass@localhost:5432/mydb"
 deno run --allow-all examples/with-pg/main.ts
+
+# Redis (defaults to redis://localhost:6379)
+export REDIS_URL="redis://localhost:6379"
+deno run --allow-all examples/redis/main.ts
 
 # SQLite
 deno run --allow-all examples/with-sqlite/main.ts

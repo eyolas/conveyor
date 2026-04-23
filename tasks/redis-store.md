@@ -374,11 +374,11 @@ promote) lands first so reviewers can focus on the atomic `fetchNextJob` script 
 
 ### Phase 9 — docs + examples
 
-- [ ] `packages/store-redis/README.md` (install, usage, options, caveats).
-- [ ] `docs/stores/redis.md` (comparison entry + config reference).
-- [ ] `docs/advanced/migration-from-bullmq.md`: add a "Use Redis if you prefer" call-out.
-- [ ] `examples/redis/main.ts` (Queue + Worker against local Redis).
-- [ ] `README.md` store table: add Redis row.
+- [x] `packages/store-redis/README.md` (install, usage, options, caveats).
+- [x] `docs/stores/redis.md` (comparison entry + config reference).
+- [x] `docs/advanced/migration-from-bullmq.md`: add a "Use Redis if you prefer" call-out.
+- [x] `examples/redis/main.ts` (Queue + Worker against local Redis).
+- [x] `README.md` store table: add Redis row.
 
 ### Phase 10 — release hygiene
 
