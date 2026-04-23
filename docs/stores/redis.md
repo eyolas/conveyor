@@ -251,7 +251,8 @@ await store.connect();
 
 ## Roadmap
 
-Documented follow-ups tracked in [`tasks/redis-store.md`](../../tasks/redis-store.md):
+Documented follow-ups tracked in
+[`tasks/redis-store.md`](https://github.com/eyolas/conveyor/blob/main/tasks/redis-store.md):
 
 - Priority ordering via a `waiting`-as-ZSET migration (score: `priority * 1e13 ± createdAtMs`).
 - Group fairness round-robin.

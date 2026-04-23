@@ -24,14 +24,14 @@ onMounted(() => {
         </div>
 
         <h1 class="hero-title">
-          <span class="title-line line-1">Job queues</span>
-          <span class="title-line line-2">without <em>Redis</em></span>
+          <span class="title-line line-1">Job queues,</span>
+          <span class="title-line line-2">your <em>way</em></span>
         </h1>
 
         <p class="hero-tagline">
-          A multi-backend job queue with a BullMQ-like API. PostgreSQL, SQLite,
-          or in-memory — switch stores in one line. First-class TypeScript for
-          Deno, Node.js, and Bun.
+          A multi-backend job queue with a BullMQ-like API. Pick your store —
+          PostgreSQL, Redis, SQLite, or in-memory — and your runtime — Deno,
+          Node.js, or Bun. Switch in one line.
         </p>
 
         <div class="hero-actions">
@@ -204,6 +204,21 @@ onMounted(() => {
             <p>Production-grade. LISTEN/NOTIFY for real-time events, row-level locking.</p>
             <span class="store-tag">Recommended for production</span>
           </a>
+          <a href="/stores/redis" class="store-card">
+            <div class="store-icon redis">
+              <!-- Generic stacked-disk database mark (Redis-like) -->
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <ellipse cx="12" cy="5" rx="8" ry="2.5" fill="currentColor" opacity="0.15"/>
+                <ellipse cx="12" cy="5" rx="8" ry="2.5"/>
+                <path d="M4 5v4c0 1.381 3.582 2.5 8 2.5s8-1.119 8-2.5V5"/>
+                <path d="M4 11v4c0 1.381 3.582 2.5 8 2.5s8-1.119 8-2.5v-4"/>
+                <path d="M4 17v2c0 1.381 3.582 2.5 8 2.5s8-1.119 8-2.5v-2"/>
+              </svg>
+            </div>
+            <h4>Redis</h4>
+            <p>Low-latency. Lua-atomic leasing, Pub/Sub events, BullMQ-compatible infra.</p>
+            <span class="store-tag">For BullMQ migrants</span>
+          </a>
           <a href="/stores/sqlite" class="store-card">
             <div class="store-icon sqlite">
               <!-- Official SQLite logo -->
@@ -235,8 +250,8 @@ onMounted(() => {
     <!-- ─── CTA Section ───────────────────────────── -->
     <section class="cta-section">
       <div class="cta-container">
-        <h2>Ready to ditch Redis?</h2>
-        <p>Get started in under a minute. Full TypeScript, zero infrastructure.</p>
+        <h2>Your stack, your rules.</h2>
+        <p>Pick a store, pick a runtime, ship in under a minute. Full TypeScript, zero lock-in.</p>
         <a href="/guide/getting-started" class="btn btn-primary btn-lg">
           <span>Read the docs</span>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -838,7 +853,7 @@ export default {
 
 .store-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 1.5rem;
 }
 
@@ -871,6 +886,7 @@ export default {
 }
 
 .store-icon.pg { background: rgba(51, 103, 145, 0.1); }
+.store-icon.redis { background: rgba(220, 56, 45, 0.1); color: #DC382D; }
 .store-icon.sqlite { background: rgba(0, 130, 200, 0.08); color: #0F80CC; }
 .store-icon.mem { background: rgba(52, 211, 153, 0.1); color: var(--c-green); }
 
@@ -1065,6 +1081,7 @@ export default {
 
 /* Store icon backgrounds — slightly stronger in light */
 :root:not(.dark) .store-icon.pg { background: rgba(51, 103, 145, 0.08); }
+:root:not(.dark) .store-icon.redis { background: rgba(220, 56, 45, 0.07); color: #C0241B; }
 :root:not(.dark) .store-icon.sqlite { background: rgba(0, 130, 200, 0.06); color: #0A6FB8; }
 :root:not(.dark) .store-icon.mem { background: rgba(5, 150, 105, 0.08); color: #059669; }
 
