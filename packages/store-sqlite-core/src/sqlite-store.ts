@@ -40,14 +40,14 @@ type EventCallback = (event: StoreEvent) => void;
  * directly into SQL — keep this list tight.
  * @internal
  */
-const SAFE_FETCH_ORDERS = ['seq ASC', 'seq DESC'] as const;
+export const SAFE_FETCH_ORDERS = ['seq ASC', 'seq DESC'] as const;
 type SafeFetchOrder = typeof SAFE_FETCH_ORDERS[number];
 
 /**
  * Allowlisted `ORDER BY` fragments for {@linkcode BaseSqliteStore.listJobs}.
  * @internal
  */
-const SAFE_LIST_ORDERS = [
+export const SAFE_LIST_ORDERS = [
   'completed_at DESC',
   'failed_at DESC',
   'created_at ASC',
@@ -59,7 +59,7 @@ type SafeListOrder = typeof SAFE_LIST_ORDERS[number];
  * interpolated into SQL must come from a static allowlist.
  * @internal
  */
-function assertSafeSqlFragment<T extends string>(
+export function assertSafeSqlFragment<T extends string>(
   value: string,
   allowed: readonly T[],
 ): T {
