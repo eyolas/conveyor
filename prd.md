@@ -1,15 +1,16 @@
 # Conveyor — Product Requirements Document
 
-> A multi-backend job queue for Node.js and Deno. BullMQ-like API with PostgreSQL, SQLite, and
-> in-memory support.
+> A multi-backend job queue for Node.js and Deno. BullMQ-like API with PostgreSQL, SQLite, Redis,
+> and in-memory support.
 
 ---
 
 ## 1. Vision
 
-Conveyor is a TypeScript job queue library with interchangeable storage backends. It aims to provide
-a familiar API (inspired by BullMQ) without requiring Redis, supporting PostgreSQL, SQLite, and an
-in-memory store.
+Conveyor is a TypeScript job queue library with interchangeable storage backends. It provides a
+familiar API (inspired by BullMQ) with first-class support for PostgreSQL, SQLite, and in-memory
+backends — Redis no longer required, but available as an opt-in backend for teams who already
+operate it.
 
 ### Why Conveyor?
 
@@ -59,15 +60,24 @@ conveyor/
 │   │       ├── mod.ts
 │   │       ├── pg-store.ts
 │   │       └── migrations/
-│   └── store-sqlite-node/     # @conveyor/store-sqlite-node
+│   ├── store-sqlite-node/     # @conveyor/store-sqlite-node
+│   │   ├── deno.json
+│   │   └── src/
+│   │       ├── mod.ts
+│   │       └── sqlite-store.ts
+│   └── store-redis/           # @conveyor/store-redis
 │       ├── deno.json
 │       └── src/
 │           ├── mod.ts
-│           └── sqlite-store.ts
+│           ├── redis-store.ts
+│           ├── keys.ts
+│           ├── mapping.ts
+│           └── lua/           # Lua scripts (fetch-next-job, promote-delayed, ...)
 └── examples/
     ├── basic/
     ├── with-pg/
-    └── with-sqlite/
+    ├── with-sqlite/
+    └── redis/
 ```
 
 ### Store Pattern (Adapter)
@@ -80,9 +90,9 @@ conveyor/
 │          StoreInterface          │
 │  save · fetch · lock · update    │
 │  remove · listByState · count    │
-├──────────┬───────────┬───────────┤
-│  Memory  │ PostgreSQL│  SQLite   │
-└──────────┴───────────┴───────────┘
+├──────────┬──────────┬─────────┬──────────┤
+│  Memory  │PostgreSQL│ SQLite  │  Redis   │
+└──────────┴──────────┴─────────┴──────────┘
 ```
 
 The core **never** depends on a concrete driver. Each store implements `StoreInterface`.
@@ -695,6 +705,23 @@ await queue.close();
 - **Limitations**: no multi-process distribution (file lock)
 - **Driver**: Deno FFI SQLite or `better-sqlite3` for Node
 
+### 5.4 Redis Store (`@conveyor/store-redis`)
+
+- **Usage**: production, distributed systems, BullMQ migrants, high-throughput short-lived jobs
+- **Persistence**: durable (AOF/RDB tuned by the operator)
+- **Locking**: `SET ... NX PX <lockDurationMs>` with a `workerId:token` value; atomic fetch+lease
+  via Lua (`fetch-next-job.lua`)
+- **Events**: Redis Pub/Sub on a single `conveyor:events` channel; in-process fan-out filtered by
+  queue name
+- **Performance**: excellent for short-lived jobs; fetch, lease, rate-limit, and group-cap decisions
+  collapse into one Lua round-trip
+- **Bonus features**: cluster-ready key layout (hash-tagged `{prefix:queue}` namespace), BYO client
+  (node-redis, ioredis, or `Bun.redis`)
+- **Minimum version**: Redis 7+
+- **Driver**: `npm:redis@^5` (node-redis) default; any node-redis-compatible client accepted
+- **Limitations**: single-node Redis in v1 (managed HA endpoints present as single endpoints);
+  cluster and Sentinel deferred to v2
+
 ---
 
 ## 6. Out of Scope (V1)
@@ -717,7 +744,6 @@ The following features are intentionally **excluded** from V1 to keep the scope 
 
 ### Under consideration (thinking)
 
-- **Redis Store** (ironic) — if requested by the community
 - **Cloudflare D1 store** (requires a Worker pull/edge mode)
 - **Dead letter queue** — for permanently failed jobs
 
@@ -839,7 +865,7 @@ A **single test suite** that runs against **each store** to guarantee identical 
 
 ## 10. Success Metrics
 
-- **Conformance**: 100% of the test suite passes on all 3 stores
+- **Conformance**: 100% of the test suite passes on all 4 stores
 - **API parity**: 90%+ of core BullMQ features covered
 - **Performance**: ≤ 2x overhead vs BullMQ on a standard benchmark (1000 jobs, 10 workers)
 - **DX**: working setup in < 5 lines of code

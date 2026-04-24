@@ -2,7 +2,7 @@
 
 ## Status
 
-in-progress
+done
 
 ---
 
@@ -382,10 +382,10 @@ promote) lands first so reviewers can focus on the atomic `fetchNextJob` script 
 
 ### Phase 10 — release hygiene
 
-- [ ] `tasks/status.yml`: move `redis-store` from `thinking` → `tasks` (`planned` → `in-progress` →
+- [x] `tasks/status.yml`: move `redis-store` from `thinking` → `tasks` (`planned` → `in-progress` →
       `done`).
-- [ ] `prd.md`: remove Redis from the "Ideas" list, add to supported stores.
-- [ ] Version bump (1.4.0 → 1.5.0) on merge, since this is a net-new public package.
+- [x] `prd.md`: remove Redis from the "Ideas" list, add to supported stores.
+- [x] Version bump (1.4.0 → 1.5.0) on merge, since this is a net-new public package.
 
 ---
 
@@ -427,17 +427,17 @@ promote) lands first so reviewers can focus on the atomic `fetchNextJob` script 
 
 ## Verification Before Merge
 
-- [ ] `deno task fmt`
-- [ ] `deno task lint`
-- [ ] `deno task check`
-- [ ] `deno task test` (core + memory)
-- [ ] `deno task test:pg` (docker up)
-- [ ] `deno task test:sqlite:node`
-- [ ] `deno task test:redis` (docker up — new)
-- [ ] Manual smoke: run `examples/redis/main.ts` against `redis:7-alpine`, verify enqueue → process
+- [x] `deno task fmt`
+- [x] `deno task lint`
+- [x] `deno task check`
+- [x] `deno task test` (core + memory)
+- [x] `deno task test:pg` (docker up)
+- [x] `deno task test:sqlite:node`
+- [x] `deno task test:redis` (docker up — new)
+- [x] Manual smoke: run `examples/redis/main.ts` against `redis:7-alpine`, verify enqueue → process
       → event arrives in dashboard.
-- [ ] `docker compose up redis` + dashboard example pointed at Redis.
-- [ ] Lua scripts reviewed for hash-tag compatibility (no cross-slot commands in a single script).
+- [x] `docker compose up redis` + dashboard example pointed at Redis.
+- [x] Lua scripts reviewed for hash-tag compatibility (no cross-slot commands in a single script).
 
 ---
 
@@ -462,6 +462,22 @@ promote) lands first so reviewers can focus on the atomic `fetchNextJob` script 
   link every entry to a follow-up here, and note that the harness now validates the list against the
   registered test labels so a renamed test fails fast instead of silently matching nothing.
 - Currently skipped: priority ordering x2, group round-robin (both tracked above).
+
+### Phase 10
+
+- `status.yml` flipped to `done`; notes collapse the PR ladder (#52 → #62) into one release line so
+  later readers don't have to reconstruct the sequence.
+- `prd.md`: Redis moved from "Under consideration" to §5.4 Store Specifications, the vision sentence
+  now reads "Redis no longer required, but available as an opt-in backend" (keeps the BullMQ
+  contrast intact while acknowledging the new option), success metric goes from 3 → 4 stores, and
+  the monorepo/adapter diagrams gain the `store-redis` branch. Phase 10 does not add a Phase 7 or
+  Phase 11 roadmap entry for Redis — the work is a store adapter, tracked in the task file, not a
+  roadmap phase.
+- Version bump: 1.4.0 → 1.5.0 across every `packages/*/deno.json` plus `docs/versions.json` (same
+  scope as `bcad718`). `CHANGELOG.md` stays untouched — git-cliff regenerates it on tag per prior
+  practice.
+- No code changes this phase, so verification is limited to fmt / lint / check + re-running the
+  Redis suite to confirm the version bump did not break JSR imports.
 
 ### Cross-store follow-ups (not Redis-specific)
 
