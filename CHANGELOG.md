@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-04-24
+
+### Features
+
+- **store-redis**: Phase 8 — conformance, lua spot tests, CI
+  (#61)([d60693e](https://github.com/eyolas/conveyor/commit/d60693eb32b2233f632c549c56632794e21e4ddd))
+- **store-redis**: Phase 7 — dashboard (listQueues, findJobById, cancelJob)
+  (#60)([6a28c16](https://github.com/eyolas/conveyor/commit/6a28c16a99ee3fc400b10c547c7e8ebb314ec9df))
+- **store-redis**: Phase 6 — events via Redis Pub/Sub
+  (#59)([b423afc](https://github.com/eyolas/conveyor/commit/b423afc596d3cb49005a65c4ab11083267fd31a9))
+- **store-redis**: Phase 5b — flows (saveFlow, notifyChildCompleted, failParentOnChildFailure,
+  getChildrenJobs)
+  (#58)([2079b2a](https://github.com/eyolas/conveyor/commit/2079b2ad80699f9c23909ced94368d3e026f8b31))
+- **store-redis**: Phase 5a — group counts + stalled + clean/drain/obliterate
+  (#57)([58edce8](https://github.com/eyolas/conveyor/commit/58edce84af76abfb1c22bdbc640e185d00aba8ff))
+- **store-redis**: Phase 4b — atomic fetchNextJob Lua script
+  (#56)([cfcf6c8](https://github.com/eyolas/conveyor/commit/cfcf6c8c8008720994e5838585b9d11ce1d765dc))
+- **store-redis**: Phase 4a — leasing foundation + Phase 3 follow-ups
+  (#55)([813d413](https://github.com/eyolas/conveyor/commit/813d41380c05277a700ba8a3b6444a0012f4254f))
+- **store-redis**: Phase 3 — job CRUD via pipelined commands
+  (#54)([c721588](https://github.com/eyolas/conveyor/commit/c721588ff4d6b5daaa97224b2f2849f31570a3d6))
+- **store-redis**: Phase 2 — keys, mapping, and lifecycle
+  (#53)([5da7545](https://github.com/eyolas/conveyor/commit/5da75455b739199b28e7fa33a141fbb62d3ad257))
+- **store-redis**: Phase 1 — scaffold + runtime smoke validated
+  (#52)([f48ca01](https://github.com/eyolas/conveyor/commit/f48ca01d5b54f6d2eb00b010219ac4594d160026))
+
+### Bug Fixes
+
+- **store-redis**: Explicit Keys return type for JSR publish
+  (#65)([ea3c4e2](https://github.com/eyolas/conveyor/commit/ea3c4e2ee0618348f6457e62e30a8e47b49cfd06))
+
+### Documentation
+
+- **store-redis**: Phase 9 — docs + example
+  (#62)([41ed8a7](https://github.com/eyolas/conveyor/commit/41ed8a7457b79fb7731004d5c1a0afb971054432))
+- **tasks**: Plan redis-store adapter
+  (#51)([2f748fa](https://github.com/eyolas/conveyor/commit/2f748fa2235ff26b4bcaf4f48563ed564e2d1876))
+- Update CHANGELOG.md for
+  v1.4.0([c7db821](https://github.com/eyolas/conveyor/commit/c7db821c1bea81f0fb7c2c97c13bdd85d2937370))
+
 ## [1.4.0] - 2026-04-20
 
 ### Features
