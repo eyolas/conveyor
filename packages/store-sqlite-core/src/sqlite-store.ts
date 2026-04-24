@@ -35,6 +35,41 @@ import { runMigrations } from './migrations.ts';
 type EventCallback = (event: StoreEvent) => void;
 
 /**
+ * Allowlisted `ORDER BY` fragments for {@linkcode BaseSqliteStore.fetchNextJob}
+ * and {@linkcode BaseSqliteStore.fetchNextJobGrouped}. Values are interpolated
+ * directly into SQL — keep this list tight.
+ * @internal
+ */
+const SAFE_FETCH_ORDERS = ['seq ASC', 'seq DESC'] as const;
+type SafeFetchOrder = typeof SAFE_FETCH_ORDERS[number];
+
+/**
+ * Allowlisted `ORDER BY` fragments for {@linkcode BaseSqliteStore.listJobs}.
+ * @internal
+ */
+const SAFE_LIST_ORDERS = [
+  'completed_at DESC',
+  'failed_at DESC',
+  'created_at ASC',
+] as const;
+type SafeListOrder = typeof SAFE_LIST_ORDERS[number];
+
+/**
+ * Defense-in-depth guard against future regressions: any ORDER BY fragment
+ * interpolated into SQL must come from a static allowlist.
+ * @internal
+ */
+function assertSafeSqlFragment<T extends string>(
+  value: string,
+  allowed: readonly T[],
+): T {
+  if (!(allowed as readonly string[]).includes(value)) {
+    throw new Error(`Unsafe SQL fragment: ${value}`);
+  }
+  return value as T;
+}
+
+/**
  * Configuration options for {@linkcode BaseSqliteStore}.
  */
 export interface BaseSqliteStoreOptions extends StoreOptions {
@@ -479,7 +514,10 @@ export class BaseSqliteStore implements StoreInterface {
       }
 
       const nameFilter = opts?.jobName ? 'AND name = ?' : '';
-      const order = lifo ? 'seq DESC' : 'seq ASC';
+      const order: SafeFetchOrder = assertSafeSqlFragment(
+        lifo ? 'seq DESC' : 'seq ASC',
+        SAFE_FETCH_ORDERS,
+      );
       const query = `
         SELECT id FROM conveyor_jobs
         WHERE queue_name = ? AND state = 'waiting'
@@ -530,8 +568,10 @@ export class BaseSqliteStore implements StoreInterface {
     const now = Date.now();
     const lockUntil = now + lockDuration;
     const lifo = opts.lifo ?? false;
-    // order is always 'seq ASC' or 'seq DESC' — safe to interpolate in SQL
-    const order = lifo ? 'seq DESC' : 'seq ASC';
+    const order: SafeFetchOrder = assertSafeSqlFragment(
+      lifo ? 'seq DESC' : 'seq ASC',
+      SAFE_FETCH_ORDERS,
+    );
     const excludeGroups = opts.excludeGroups ?? [];
     const groupConcurrency = opts.groupConcurrency;
 
@@ -702,11 +742,14 @@ export class BaseSqliteStore implements StoreInterface {
     end = 100,
   ): Promise<JobData[]> {
     const limit = Math.max(0, end - start);
-    const orderBy = state === 'completed'
-      ? 'completed_at DESC'
-      : state === 'failed'
-      ? 'failed_at DESC'
-      : 'created_at ASC';
+    const orderBy: SafeListOrder = assertSafeSqlFragment(
+      state === 'completed'
+        ? 'completed_at DESC'
+        : state === 'failed'
+        ? 'failed_at DESC'
+        : 'created_at ASC',
+      SAFE_LIST_ORDERS,
+    );
     const rows = this.db.prepare(`
       SELECT * FROM conveyor_jobs
       WHERE queue_name = ? AND state = ?
