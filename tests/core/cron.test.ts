@@ -183,6 +183,89 @@ test('Worker cron invalid expression emits error', async () => {
   await store.disconnect();
 });
 
+test('Queue.add() rejects invalid IANA timezone', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  await expect(
+    queue.add('bad-tz', {}, { repeat: { cron: '* * * * *', tz: 'Foo/Bar' } }),
+  ).rejects.toThrow(/Invalid timezone/);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Queue.add() rejects endDate <= startDate', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  const startDate = new Date(Date.now() + 60_000);
+  const endDate = new Date(Date.now() + 30_000);
+  await expect(
+    queue.add('bad-window', {}, { repeat: { cron: '* * * * *', startDate, endDate } }),
+  ).rejects.toThrow(/endDate.*must be after startDate/);
+
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Worker repeat respects startDate (every)', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  let processCount = 0;
+  const worker = createWorker(store, () => {
+    processCount++;
+    return Promise.resolve('done');
+  });
+
+  // startDate 2s in the future — first run must wait, not fire immediately
+  const startDate = new Date(Date.now() + 2000);
+  await queue.add('start-every', {}, {
+    repeat: { every: 500, startDate, limit: 1 },
+  });
+
+  await waitFor(1000);
+  expect(processCount).toEqual(0);
+
+  await waitFor(2500);
+  expect(processCount >= 1).toEqual(true);
+
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Worker repeat respects startDate (cron)', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  let processCount = 0;
+  const worker = createWorker(store, () => {
+    processCount++;
+    return Promise.resolve('done');
+  });
+
+  const startDate = new Date(Date.now() + 2000);
+  await queue.add('start-cron', {}, {
+    repeat: { cron: '* * * * * *', startDate, limit: 1 },
+  });
+
+  await waitFor(1000);
+  expect(processCount).toEqual(0);
+
+  await waitFor(3000);
+  expect(processCount >= 1).toEqual(true);
+
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
+
 test('Queue.cron() convenience method creates repeat job', async () => {
   const store = new MemoryStore();
   await store.connect();

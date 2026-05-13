@@ -817,12 +817,18 @@ export class Worker<T = unknown> {
     let delay: number;
 
     if (repeat.cron) {
-      delay = this.getNextCronDelay(repeat.cron, repeat.tz);
+      delay = this.getNextCronDelay(repeat.cron, repeat.tz, repeat.startDate);
 
       // Check endDate against next run time
       if (repeat.endDate && new Date(Date.now() + delay) >= repeat.endDate) return;
     } else if (repeat.every) {
       delay = parseDelay(repeat.every);
+
+      // Bump to startDate if next run would land before it
+      if (repeat.startDate) {
+        const startDelay = repeat.startDate.getTime() - Date.now();
+        if (startDelay > delay) delay = startDelay;
+      }
 
       // Check endDate against next run time
       if (repeat.endDate && new Date(Date.now() + delay) >= repeat.endDate) return;
@@ -900,13 +906,16 @@ export class Worker<T = unknown> {
 
   // ─── Cron Helpers ─────────────────────────────────────────────────
 
-  private getNextCronDelay(cronExpr: string, tz?: string): number {
+  private getNextCronDelay(cronExpr: string, tz?: string, startAt?: Date): number {
     const cron = new Cron(cronExpr, { timezone: tz });
-    const nextRun = cron.nextRun();
+    // If startAt is in the future, ask croner for the next match after it.
+    // Otherwise default to "next match after now".
+    const after = startAt && startAt.getTime() > Date.now() ? startAt : undefined;
+    const nextRun = cron.nextRun(after);
     if (!nextRun) {
       throw new Error(`Cron expression "${cronExpr}" has no future runs`);
     }
-    return nextRun.getTime() - Date.now();
+    return Math.max(0, nextRun.getTime() - Date.now());
   }
 
   // ─── Publish Helper ──────────────────────────────────────────────────

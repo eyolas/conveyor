@@ -145,6 +145,22 @@ export function validateQueueName(name: string): void {
   }
 }
 
+/**
+ * Validate that a string is a valid IANA timezone identifier.
+ *
+ * @param tz - The timezone string to validate (e.g. `"America/New_York"`, `"UTC"`).
+ * @throws {Error} If the timezone is not recognized by the runtime's Intl implementation.
+ */
+export function validateTimezone(tz: string): void {
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone: tz });
+  } catch {
+    throw new Error(
+      `Invalid timezone: "${tz}". Must be a valid IANA timezone identifier (e.g. "UTC", "America/New_York").`,
+    );
+  }
+}
+
 /** All valid job states as a readonly array. */
 export const JOB_STATES: readonly JobState[] = [
   'waiting',
@@ -234,9 +250,25 @@ export function createJobData<T>(
   if (opts.priority !== undefined && !Number.isFinite(opts.priority)) {
     throw new Error(`Invalid priority: ${opts.priority}. Must be a finite number.`);
   }
+  if (opts.repeat?.tz !== undefined) {
+    validateTimezone(opts.repeat.tz);
+  }
+  if (
+    opts.repeat?.startDate &&
+    opts.repeat?.endDate &&
+    opts.repeat.endDate.getTime() <= opts.repeat.startDate.getTime()
+  ) {
+    throw new Error(
+      `Invalid repeat options: endDate (${opts.repeat.endDate.toISOString()}) must be after startDate (${opts.repeat.startDate.toISOString()}).`,
+    );
+  }
 
-  const delay = opts.delay ? parseDelay(opts.delay) : 0;
   const now = new Date();
+  const baseDelay = opts.delay ? parseDelay(opts.delay) : 0;
+  const startDateDelay = opts.repeat?.startDate
+    ? Math.max(0, opts.repeat.startDate.getTime() - now.getTime())
+    : 0;
+  const delay = Math.max(baseDelay, startDateDelay);
 
   const result: Omit<JobData<T>, 'id'> & { id?: string } = {
     name,

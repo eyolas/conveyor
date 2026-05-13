@@ -57,6 +57,7 @@ export {
   noopLogger,
   parseDelay,
   validateQueueName,
+  validateTimezone,
 } from './utils.ts';
 
 export {
