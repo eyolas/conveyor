@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":semanticCommitScope(deps)"
+  ],
+  "schedule": ["before 6am on monday"],
+  "timezone": "Europe/Paris",
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Internal workspace packages are published to JSR via CI, never bump cross-refs",
+      "matchPackageNames": ["@conveyor/**"],
+      "enabled": false
+    },
+    {
+      "description": "Group all GitHub Actions bumps into one PR (matches former Dependabot 'actions' group)",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "Group non-major npm/JSR/Deno dev/minor/patch updates",
+      "matchManagers": ["npm", "deno"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "deno & npm (non-major)"
+    }
+  ]
+}
