@@ -4,7 +4,7 @@
   "exports": "./src/mod.ts",
   "imports": {
     "@conveyor/shared": "jsr:@conveyor/shared@^1.0.0",
-    "redis": "npm:redis@^5.12.1"
+    "redis": "npm:redis@^6.0.0"
   },
   "publish": {
     "include": ["src/**/*.ts", "src/**/*.lua", "deno.json", "README.md", "LICENSE"]
