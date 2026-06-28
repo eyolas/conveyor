@@ -28,7 +28,7 @@
     "@conveyor/store-sqlite-deno": "./packages/store-sqlite-deno/src/mod.ts",
     "@conveyor/store-redis": "./packages/store-redis/src/mod.ts",
     "@db/sqlite": "jsr:@db/sqlite@^0.13",
-    "redis": "npm:redis@^5.12.1",
+    "redis": "npm:redis@^6.0.0",
     "vitest": "npm:vitest@^4"
   },
   "tasks": {
