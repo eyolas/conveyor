@@ -24,7 +24,7 @@
 ## Why Conveyor?
 
 - **No Redis required (but supported)** -- pick from PostgreSQL, Redis, SQLite, or in-memory
-- **Runtime-agnostic** -- works on Deno 2, Node.js 18+, and Bun 1.1+
+- **Runtime-agnostic** -- works on Deno 2, Node.js 22+, and Bun 1.1+
 - **BullMQ-compatible API** -- familiar interface, minimal migration effort
 - **Type-safe** -- full TypeScript with generics on job payloads
 - **Adapter pattern** -- implement `StoreInterface` to support any backend

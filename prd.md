@@ -754,7 +754,7 @@ The following features are intentionally **excluded** from V1 to keep the scope 
 | Runtime     | Support     | Notes                             |
 | ----------- | ----------- | --------------------------------- |
 | Deno 2+     | First-class | Native workspaces, JSR publish    |
-| Node.js 18+ | First-class | Via `deno compile` or JSR/npm     |
+| Node.js 22+ | First-class | Via `deno compile` or JSR/npm     |
 | Bun 1.1+    | First-class | Compatible via npm/JSR, CI tested |
 
 ### Multi-Runtime Constraints
@@ -869,4 +869,4 @@ A **single test suite** that runs against **each store** to guarantee identical 
 - **API parity**: 90%+ of core BullMQ features covered
 - **Performance**: ≤ 2x overhead vs BullMQ on a standard benchmark (1000 jobs, 10 workers)
 - **DX**: working setup in < 5 lines of code
-- **Compatibility**: works without modification on Deno 2 and Node.js 18+
+- **Compatibility**: works without modification on Deno 2 and Node.js 22+
