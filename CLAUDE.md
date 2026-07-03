@@ -9,7 +9,7 @@ BullMQ-like API, no Redis needed. Full specs in `prd.md`.
 
 - **Zero lock-in**: switch backend = change one config line
 - **Familiar API**: know BullMQ? know Conveyor
-- **Runtime agnostic**: Deno 2, Node.js 18+, Bun all first-class
+- **Runtime agnostic**: Deno 2, Node.js 22+, Bun all first-class
 - **Type-safe**: strict TypeScript, generics on payloads
 - **Testable**: in-memory store = fast deterministic tests
 - **No runtime-specific APIs in core**: Web Standards only (`setTimeout`, `EventTarget`,
