@@ -1,12 +1,13 @@
 import { expect, test } from 'vitest';
 import { Queue, Worker } from '@conveyor/core';
 import type { Job } from '@conveyor/core';
+import type { StoreInterface, WorkerRegistration } from '@conveyor/shared';
 import { MemoryStore } from '@conveyor/store-memory';
 
 const queueName = 'test-queue';
 
 function createWorker<T = unknown>(
-  store: MemoryStore,
+  store: StoreInterface,
   processor: (job: Job<T>) => Promise<unknown>,
   opts?: Record<string, unknown>,
 ) {
@@ -21,6 +22,43 @@ function createWorker<T = unknown>(
 
 function waitFor(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Worker-registry hooks a test can install on a store. */
+interface RegistryHooks {
+  registerWorker?: (info: WorkerRegistration) => Promise<void>;
+  heartbeatWorker?: (id: string) => Promise<void>;
+  unregisterWorker?: (id: string) => Promise<void>;
+}
+
+const REGISTRY_METHODS: readonly string[] = [
+  'registerWorker',
+  'heartbeatWorker',
+  'unregisterWorker',
+  'listWorkers',
+];
+
+/**
+ * Wrap a store so its worker-registry methods are exactly the given hooks.
+ * Passing `{}` yields a store with no registry at all (back-compat case),
+ * whatever the underlying store actually implements.
+ */
+function withRegistry(store: StoreInterface, hooks: RegistryHooks): StoreInterface {
+  return new Proxy(store, {
+    get(target, prop) {
+      if (typeof prop === 'string' && REGISTRY_METHODS.includes(prop)) {
+        return (hooks as Record<string, unknown>)[prop];
+      }
+      const value = Reflect.get(target, prop, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+    has(target, prop) {
+      if (typeof prop === 'string' && REGISTRY_METHODS.includes(prop)) {
+        return prop in hooks;
+      }
+      return Reflect.has(target, prop);
+    },
+  });
 }
 
 // ─── Basic Processing ────────────────────────────────────────────────
@@ -555,5 +593,306 @@ test('Worker removes job on complete when configured', async () => {
 
   await worker.close();
   await queue.close();
+  await store.disconnect();
+});
+
+// ─── Worker Registry ─────────────────────────────────────────────────
+
+test('Worker.start registers itself in the store registry', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+
+  const registrations: WorkerRegistration[] = [];
+  const wrapped = withRegistry(store, {
+    registerWorker: (info) => {
+      registrations.push(info);
+      return Promise.resolve();
+    },
+    heartbeatWorker: () => Promise.resolve(),
+    unregisterWorker: () => Promise.resolve(),
+  });
+
+  const worker = createWorker(wrapped, () => Promise.resolve('done'), {
+    hostname: 'test-host',
+    pid: 4242,
+    version: '1.2.3',
+    metadata: { region: 'eu-west' },
+  });
+
+  await waitFor(100);
+
+  expect(registrations.length).toEqual(1);
+  const info = registrations[0]!;
+  expect(info.id).toEqual(worker.id);
+  expect(info.queueName).toEqual(queueName);
+  expect(info.concurrency).toEqual(1);
+  expect(info.hostname).toEqual('test-host');
+  expect(info.pid).toEqual(4242);
+  expect(info.version).toEqual('1.2.3');
+  expect(info.metadata).toEqual({ region: 'eu-west' });
+  expect(info.startedAt instanceof Date).toEqual(true);
+
+  await worker.close();
+  await store.disconnect();
+});
+
+test('Worker.start registers null host details when not supplied', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+
+  const registrations: WorkerRegistration[] = [];
+  const wrapped = withRegistry(store, {
+    registerWorker: (info) => {
+      registrations.push(info);
+      return Promise.resolve();
+    },
+  });
+
+  const worker = createWorker(wrapped, () => Promise.resolve('done'));
+  await waitFor(100);
+
+  const info = registrations[0]!;
+  expect(info.hostname).toEqual(null);
+  expect(info.pid).toEqual(null);
+  expect(info.version).toEqual(null);
+  expect(info.metadata).toEqual(null);
+
+  await worker.close();
+  await store.disconnect();
+});
+
+test('Worker.start registers only once across repeated start calls', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+
+  let registerCount = 0;
+  const beats: string[] = [];
+  const wrapped = withRegistry(store, {
+    registerWorker: () => {
+      registerCount++;
+      return Promise.resolve();
+    },
+    heartbeatWorker: (id) => {
+      beats.push(id);
+      return Promise.resolve();
+    },
+  });
+
+  const worker = createWorker(wrapped, () => Promise.resolve('done'), {
+    autoStart: false,
+    heartbeatInterval: 50,
+  });
+
+  worker.start();
+  worker.start();
+  await waitFor(300);
+
+  expect(registerCount).toEqual(1);
+  expect(beats.length >= 3).toEqual(true);
+  // A single heartbeat interval — not one per start() call
+  expect(beats.length < 10).toEqual(true);
+
+  await worker.close();
+  await store.disconnect();
+});
+
+test('Worker heartbeats the registry on the configured interval', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+
+  const beats: string[] = [];
+  const wrapped = withRegistry(store, {
+    registerWorker: () => Promise.resolve(),
+    heartbeatWorker: (id) => {
+      beats.push(id);
+      return Promise.resolve();
+    },
+    unregisterWorker: () => Promise.resolve(),
+  });
+
+  const worker = createWorker(wrapped, () => Promise.resolve('done'), {
+    heartbeatInterval: 50,
+  });
+
+  await waitFor(300);
+
+  expect(beats.length >= 3).toEqual(true);
+  expect(beats.every((id) => id === worker.id)).toEqual(true);
+
+  await worker.close();
+  await store.disconnect();
+});
+
+test('Worker keeps heartbeating while paused', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+
+  const beats: string[] = [];
+  const wrapped = withRegistry(store, {
+    registerWorker: () => Promise.resolve(),
+    heartbeatWorker: (id) => {
+      beats.push(id);
+      return Promise.resolve();
+    },
+  });
+
+  const worker = createWorker(wrapped, () => Promise.resolve('done'), {
+    heartbeatInterval: 50,
+  });
+
+  await waitFor(150);
+  worker.pause();
+  const whilePaused = beats.length;
+  await waitFor(250);
+
+  // A paused worker is still a live process: it must stay visible
+  expect(beats.length > whilePaused).toEqual(true);
+
+  worker.resume();
+  const beforeResume = beats.length;
+  await waitFor(250);
+  // resume() must not double-arm the interval
+  expect(beats.length - beforeResume < 10).toEqual(true);
+
+  await worker.close();
+  await store.disconnect();
+});
+
+test('Worker.close unregisters and stops the heartbeat', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+
+  const beats: string[] = [];
+  const unregistered: string[] = [];
+  const wrapped = withRegistry(store, {
+    registerWorker: () => Promise.resolve(),
+    heartbeatWorker: (id) => {
+      beats.push(id);
+      return Promise.resolve();
+    },
+    unregisterWorker: (id) => {
+      unregistered.push(id);
+      return Promise.resolve();
+    },
+  });
+
+  const worker = createWorker(wrapped, () => Promise.resolve('done'), {
+    heartbeatInterval: 50,
+  });
+
+  await waitFor(200);
+  await worker.close();
+
+  expect(unregistered).toEqual([worker.id]);
+
+  const afterClose = beats.length;
+  await waitFor(200);
+  expect(beats.length).toEqual(afterClose);
+
+  await store.disconnect();
+});
+
+test('Worker.close resolves when unregisterWorker rejects', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+
+  const wrapped = withRegistry(store, {
+    registerWorker: () => Promise.resolve(),
+    unregisterWorker: () => Promise.reject(new Error('unregister failed')),
+  });
+
+  const errors: unknown[] = [];
+  const worker = createWorker(wrapped, () => Promise.resolve('done'), {
+    autoStart: false,
+  });
+  worker.on('error', (err) => errors.push(err));
+  worker.start();
+
+  await waitFor(100);
+  await worker.close();
+
+  expect((errors[0] as Error).message).toEqual('unregister failed');
+
+  await store.disconnect();
+});
+
+test('Worker works with a store that has no worker registry', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+  const queue = new Queue(queueName, { store });
+
+  // No registry methods at all — the back-compat guarantee
+  const wrapped = withRegistry(store, {});
+  expect(wrapped.registerWorker).toEqual(undefined);
+
+  const processed: string[] = [];
+  const errors: unknown[] = [];
+  const worker = createWorker(wrapped, (job) => {
+    processed.push(job.name);
+    return Promise.resolve('done');
+  }, { autoStart: false });
+  worker.on('error', (err) => errors.push(err));
+  worker.start();
+
+  await queue.add('no-registry-job', {});
+  await waitFor(2500);
+
+  expect(processed).toEqual(['no-registry-job']);
+  expect(errors).toEqual([]);
+
+  await worker.close();
+  await queue.close();
+  await store.disconnect();
+});
+
+test('Worker emits error when registerWorker rejects', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+
+  const wrapped = withRegistry(store, {
+    registerWorker: () => Promise.reject(new Error('register failed')),
+  });
+
+  const errors: unknown[] = [];
+  const worker = createWorker(wrapped, () => Promise.resolve('done'), {
+    autoStart: false,
+  });
+  worker.on('error', (err) => errors.push(err));
+
+  // Must not throw even though registration fails
+  worker.start();
+  await waitFor(100);
+
+  expect(errors.length).toEqual(1);
+  expect((errors[0] as Error).message).toEqual('register failed');
+
+  await worker.close();
+  await store.disconnect();
+});
+
+test('Worker emits error when heartbeatWorker rejects', async () => {
+  const store = new MemoryStore();
+  await store.connect();
+
+  const wrapped = withRegistry(store, {
+    registerWorker: () => Promise.resolve(),
+    heartbeatWorker: () => Promise.reject(new Error('heartbeat failed')),
+    unregisterWorker: () => Promise.resolve(),
+  });
+
+  const errors: unknown[] = [];
+  const worker = createWorker(wrapped, () => Promise.resolve('done'), {
+    autoStart: false,
+    heartbeatInterval: 50,
+  });
+  worker.on('error', (err) => errors.push(err));
+  worker.start();
+
+  await waitFor(200);
+
+  expect(errors.length >= 1).toEqual(true);
+  expect((errors[0] as Error).message).toEqual('heartbeat failed');
+
+  await worker.close();
   await store.disconnect();
 });

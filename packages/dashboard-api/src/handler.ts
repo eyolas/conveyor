@@ -17,6 +17,7 @@ import { registerEventRoutes } from './controllers/events.ts';
 import { registerSearchRoutes } from './controllers/search.ts';
 import { registerMetricsRoutes } from './controllers/metrics.ts';
 import { registerConfigRoutes } from './controllers/config.ts';
+import { registerWorkerRoutes } from './controllers/workers.ts';
 
 /**
  * Create a dashboard API handler.
@@ -65,6 +66,7 @@ export function createDashboardHandler(options: DashboardOptions): DashboardHand
   registerEventRoutes(app, apiBase, store, filterQueues);
   registerSearchRoutes(app, apiBase, store, filterQueues);
   registerMetricsRoutes(app, apiBase, store, filterQueues);
+  registerWorkerRoutes(app, apiBase, store, filterQueues);
 
   // Start metrics aggregation timer (every 5 minutes) + run once immediately
   // Only if metrics are enabled (aggregateMetrics throws MetricsDisabledError otherwise)

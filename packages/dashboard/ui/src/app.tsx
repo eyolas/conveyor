@@ -12,6 +12,7 @@ import { HomePage } from './pages/home';
 import { QueuePage } from './pages/queue';
 import { JobPage } from './pages/job';
 import { SearchPage } from './pages/search';
+import { WorkersPage } from './pages/workers';
 
 export function App() {
   const [url, setUrl] = useState(getCurrentUrl());
@@ -41,6 +42,7 @@ export function App() {
         <Layout url={url}>
           <Router onChange={(e) => setUrl(e.url)}>
             <SearchPage path="/search" />
+            <WorkersPage path="/workers" />
             <FlowsPage path="/flows" />
             <FlowDetailPage path="/flows/:name/:id" />
             <JobPage path="/queues/:name/jobs/:id" />

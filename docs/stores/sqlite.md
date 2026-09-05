@@ -121,6 +121,7 @@ The store uses a `conveyor_migrations` table to track schema versions. On `conne
 - `conveyor_jobs` -- stores all job data
 - `conveyor_paused_names` -- tracks paused job names per queue
 - `conveyor_group_cursors` -- tracks round-robin group cursors
+- `conveyor_workers` -- worker registry (one row per running worker, with its heartbeat)
 - `conveyor_migrations` -- migration version tracking
 
 ### Sequence Counter

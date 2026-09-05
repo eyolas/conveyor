@@ -1,11 +1,11 @@
 /**
  * @module @conveyor/store-sqlite-core/mapping
  *
- * Mapping functions between {@linkcode JobData} and SQLite row format.
+ * Mapping functions between {@linkcode JobData} / {@linkcode WorkerInfo} and SQLite row format.
  * JSON columns are stored as TEXT and timestamps as INTEGER (ms since epoch).
  */
 
-import type { AttemptRecord, JobData, JobOptions } from '@conveyor/shared';
+import type { AttemptRecord, JobData, JobOptions, WorkerInfo } from '@conveyor/shared';
 import { assertJobState } from '@conveyor/shared';
 
 /**
@@ -150,5 +150,45 @@ export function jobDataToRow(
     discarded: job.discarded ? 1 : 0,
     attempt_logs: JSON.stringify(job.attemptLogs ?? []),
     children_ids: JSON.stringify(job.childrenIds ?? []),
+  };
+}
+
+// ─── Workers ────────────────────────────────────────────────────────
+
+/**
+ * Row shape returned by `conveyor_workers` queries.
+ * Timestamps are INTEGER (ms since epoch) and `metadata` is JSON TEXT.
+ * Numeric columns are widened to `bigint` because some drivers return
+ * large integers as `bigint`.
+ */
+export interface WorkerRow {
+  id: string;
+  queue_name: string;
+  hostname: string | null;
+  pid: number | bigint | null;
+  version: string | null;
+  concurrency: number | bigint;
+  started_at: number | bigint;
+  last_heartbeat_at: number | bigint;
+  metadata: string | null;
+}
+
+/**
+ * Convert a `conveyor_workers` row into a {@linkcode WorkerInfo} object.
+ *
+ * @param row - The raw row from the database.
+ * @returns A fully typed WorkerInfo object.
+ */
+export function rowToWorkerInfo(row: WorkerRow): WorkerInfo {
+  return {
+    id: row.id,
+    queueName: row.queue_name,
+    hostname: row.hostname ?? null,
+    pid: row.pid !== null && row.pid !== undefined ? Number(row.pid) : null,
+    version: row.version ?? null,
+    concurrency: Number(row.concurrency),
+    startedAt: new Date(Number(row.started_at)),
+    lastHeartbeatAt: new Date(Number(row.last_heartbeat_at)),
+    metadata: (parseJson(row.metadata) ?? null) as Record<string, unknown> | null,
   };
 }

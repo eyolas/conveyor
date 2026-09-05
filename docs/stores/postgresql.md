@@ -104,6 +104,7 @@ tables created are:
 - `conveyor_jobs` -- stores all job data
 - `conveyor_paused_names` -- tracks paused job names per queue
 - `conveyor_group_cursors` -- tracks round-robin group cursors
+- `conveyor_workers` -- worker registry (one row per running worker, with its heartbeat)
 - `conveyor_migrations` -- migration version tracking
 
 Migrations are idempotent and safe to run concurrently from multiple processes.

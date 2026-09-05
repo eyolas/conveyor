@@ -37,6 +37,11 @@ new Worker<T = unknown>(
 | `lifo`                 | `boolean`            | `false`    | Fetch most recently added job first           |
 | `batch`                | `BatchOptions`       | --         | Batch processing config: `{ size }`           |
 | `group`                | `GroupWorkerOptions` | --         | Per-group concurrency and rate limiting       |
+| `heartbeatInterval`    | `number`             | `lockDuration / 2` | Worker registry heartbeat interval in ms      |
+| `hostname`             | `string`             | `null`     | Host to advertise in the worker registry      |
+| `pid`                  | `number`             | `null`     | Process id to advertise in the worker registry |
+| `version`              | `string`             | `null`     | Build identifier to advertise in the registry |
+| `metadata`             | `Record<string, unknown>` | `null` | Arbitrary metadata to advertise in the registry |
 
 ::: tip Logger
 The worker inherits its logger from the store. Pass `logger` to your store options to enable logging
@@ -229,6 +234,77 @@ processing worker crashed or hung). Stalled jobs are automatically re-enqueued t
 
 Configure with `stalledInterval` (default: 30 seconds) and `lockDuration` (default: 30 seconds). The
 worker renews locks at half the `lockDuration` interval.
+
+## Worker Registry
+
+Job rows tell you what is queued; they do not tell you what is *running*. The worker registry closes
+that gap and lets you answer the questions a job list cannot:
+
+- Jobs sit in `active` and never move -- did a worker crash between fetching a job and stall
+  detection?
+- The backlog grows while workers are "up" -- is anything actually subscribed to *this* queue?
+- A rollout is half done -- which workers are still on the old build?
+
+Every worker announces itself to the store on start, refreshes a heartbeat every
+`heartbeatInterval` (default: half of `lockDuration`, so a worker is late long before its locks
+expire), and removes itself on [`close()`](#close). A paused worker keeps heartbeating -- it is
+still a live process, and pausing it should not make it look dead.
+
+The registry is populated in the dashboard's `/workers` page and via the API's
+[`GET /api/workers`](/dashboard/api-reference#workers) endpoint.
+
+### Enabling It
+
+Nothing to enable. It turns on automatically when the store implements the optional
+[worker registry methods](./store-interface#worker-registry-optional) -- which all built-in stores
+do (Memory, PostgreSQL, Redis, SQLite). With a store that does not, the worker skips registration
+and behaves exactly as before.
+
+```typescript
+const worker = new Worker('emails', handler, { store, concurrency: 5 });
+// -> already listed in the registry as { queueName: 'emails', concurrency: 5 }
+```
+
+### Advertising Host, PID, and Version
+
+`hostname`, `pid`, `version`, and `metadata` default to `null`. Conveyor never reads them from the
+runtime: the core is runtime-agnostic (no `process`, no `Deno`), and process identity is not
+something a queue library should disclose on your behalf. Pass them explicitly if you want them
+shown:
+
+```typescript
+import { hostname } from 'node:os';
+
+const worker = new Worker('emails', handler, {
+  store,
+  concurrency: 5,
+  hostname: hostname(),
+  pid: process.pid,
+  version: process.env.GIT_SHA,
+  metadata: { region: process.env.AWS_REGION },
+});
+```
+
+::: tip
+`version` is what makes a rollout legible: set it from your build SHA or release tag and a mixed
+deploy becomes obvious at a glance in the dashboard.
+:::
+
+### Heartbeats and Staleness
+
+| Constant | Value | Meaning |
+| -------- | ----- | ------- |
+| `WORKER_STALE_AFTER_MS` | `30_000` | Default cutoff: workers quieter than this are not listed |
+| `WORKER_DEAD_AFTER_MS` | `150_000` | Age at which the store sweeps the row away for good |
+
+A worker that dies without calling `close()` -- `SIGKILL`, an OOM, a lost container -- leaves its
+row behind. It drops off the default listing after 30s, and the store deletes it the next time any
+worker registers. Registry failures never break processing: they surface on the worker's `error`
+event.
+
+```typescript
+worker.on('error', (err) => console.error('worker error', err));
+```
 
 ## Retry and Backoff
 

@@ -42,6 +42,19 @@ export function generateWorkerId(): string {
 }
 
 /**
+ * Default staleness threshold for the worker registry, in ms.
+ * A worker whose last heartbeat is older than this is no longer listed as live.
+ */
+export const WORKER_STALE_AFTER_MS = 30_000;
+
+/**
+ * Age past which a worker row is swept from the registry, in ms.
+ * Deliberately several staleness windows wide so a briefly paused process is
+ * not evicted while it is still able to resume heartbeating.
+ */
+export const WORKER_DEAD_AFTER_MS = 5 * WORKER_STALE_AFTER_MS;
+
+/**
  * Parse a delay value that can be a number (ms) or human-readable string.
  *
  * Supported formats:

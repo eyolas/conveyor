@@ -78,6 +78,25 @@ export interface ClientGroupInfo {
   waitingCount: number;
 }
 
+// ─── Worker Types ───────────────────────────────────────────────────
+
+/** Heartbeat freshness bucket derived by the API from `lastHeartbeatAt`. */
+export type ClientWorkerStatus = 'live' | 'warning' | 'stale';
+
+/** Worker as returned by `GET /api/workers` (dates are ISO 8601 strings). */
+export interface ClientWorkerInfo {
+  id: string;
+  queueName: string;
+  hostname: string | null;
+  pid: number | null;
+  version: string | null;
+  concurrency: number;
+  startedAt: string;
+  lastHeartbeatAt: string;
+  metadata: Record<string, unknown> | null;
+  status: ClientWorkerStatus;
+}
+
 // ─── Job Types ──────────────────────────────────────────────────────
 
 /** Job data as returned by the API (dates are ISO 8601 strings). */

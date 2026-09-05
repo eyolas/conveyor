@@ -10,11 +10,14 @@
  * sentinel string.
  */
 
-import type { AttemptRecord, JobData, JobOptions } from '@conveyor/shared';
+import type { AttemptRecord, JobData, JobOptions, WorkerInfo } from '@conveyor/shared';
 import { assertJobState } from '@conveyor/shared';
 
 /** Raw hash shape as it lives in Redis — every value is a string. */
 export type JobHash = Record<string, string>;
+
+/** Raw hash shape of a registered worker — every value is a string. */
+export type WorkerHash = Record<string, string>;
 
 /**
  * Encode a {@linkcode JobData} object as a flat string map for `HSET`.
@@ -148,5 +151,99 @@ export function hashToJobData(hash: JobHash): JobData {
     discarded: bool('discarded'),
     childrenIds: json<string[]>('childrenIds', []),
     attemptLogs: json<AttemptRecord[]>('attemptLogs', []),
+  };
+}
+
+// ─── Worker registry ─────────────────────────────────────────────────
+
+/**
+ * Encode a {@linkcode WorkerInfo} object as a flat string map for `HSET`.
+ *
+ * Same conventions as {@linkcode jobDataToHash}: dates become epoch ms,
+ * `metadata` is JSON, and `null` fields are omitted so a missing field
+ * decodes straight back to `null`.
+ */
+export function workerInfoToHash(info: WorkerInfo): WorkerHash {
+  const hash: WorkerHash = {};
+  const setString = (k: string, v: string | null | undefined) => {
+    if (v != null) hash[k] = v;
+  };
+  const setNumber = (k: string, v: number | null | undefined) => {
+    if (v != null) hash[k] = String(v);
+  };
+  const setDate = (k: string, v: Date | null | undefined) => {
+    if (v != null) hash[k] = String(v.getTime());
+  };
+  const setJson = (k: string, v: unknown) => {
+    if (v !== undefined && v !== null) hash[k] = JSON.stringify(v);
+  };
+
+  setString('id', info.id);
+  setString('queueName', info.queueName);
+  setString('hostname', info.hostname);
+  setNumber('pid', info.pid);
+  setString('version', info.version);
+  setNumber('concurrency', info.concurrency);
+  setDate('startedAt', info.startedAt);
+  setDate('lastHeartbeatAt', info.lastHeartbeatAt);
+  setJson('metadata', info.metadata);
+  return hash;
+}
+
+/**
+ * Decode a Redis hash back into a {@linkcode WorkerInfo} object.
+ *
+ * @throws if the hash is empty, misses a required field, or holds a
+ * malformed date / number encoding.
+ */
+export function hashToWorkerInfo(hash: WorkerHash): WorkerInfo {
+  if (Object.keys(hash).length === 0) {
+    throw new Error('[Conveyor] Cannot decode empty Redis hash into WorkerInfo');
+  }
+
+  const date = (k: string): Date => {
+    const v = hash[k];
+    if (v === undefined) {
+      throw new Error(`[Conveyor] Redis hash is missing required worker field "${k}"`);
+    }
+    const n = Number(v);
+    if (!Number.isFinite(n)) {
+      throw new Error(
+        `[Conveyor] Invalid date encoding for field "${k}": ${JSON.stringify(v)}`,
+      );
+    }
+    return new Date(n);
+  };
+  const optionalNumber = (k: string): number | null => {
+    const v = hash[k];
+    if (v === undefined) return null;
+    const n = Number(v);
+    if (!Number.isFinite(n)) {
+      throw new Error(
+        `[Conveyor] Invalid number encoding for field "${k}": ${JSON.stringify(v)}`,
+      );
+    }
+    return n;
+  };
+  const str = (k: string) => hash[k] ?? null;
+
+  const id = hash.id;
+  const queueName = hash.queueName;
+  if (!id || !queueName) {
+    throw new Error('[Conveyor] Redis hash is missing required worker fields');
+  }
+
+  return {
+    id,
+    queueName,
+    hostname: str('hostname'),
+    pid: optionalNumber('pid'),
+    version: str('version'),
+    concurrency: optionalNumber('concurrency') ?? 0,
+    startedAt: date('startedAt'),
+    lastHeartbeatAt: date('lastHeartbeatAt'),
+    metadata: hash.metadata === undefined
+      ? null
+      : JSON.parse(hash.metadata) as Record<string, unknown>,
   };
 }
