@@ -308,6 +308,51 @@ interface WorkerOptions {
   lifo?: boolean; // default: false
   batch?: BatchOptions;
   group?: GroupWorkerOptions;
+
+  // Worker registry (only used when the store supports it)
+  heartbeatInterval?: number; // default: lockDuration / 2
+  hostname?: string; // default: null -- opt-in, never read from the runtime
+  pid?: number; // default: null -- opt-in
+  version?: string; // default: null
+  metadata?: Record<string, unknown>; // default: null
+}
+```
+
+## WorkerInfo
+
+A worker process registered against a queue, as returned by
+[`StoreInterface.listWorkers()`](./store-interface#listworkers).
+
+```typescript
+interface WorkerInfo {
+  id: string; // worker id, stable across heartbeats
+  queueName: string;
+  hostname: string | null;
+  pid: number | null;
+  version: string | null;
+  concurrency: number;
+  startedAt: Date;
+  lastHeartbeatAt: Date;
+  metadata: Record<string, unknown> | null;
+}
+
+/** Registration payload -- the store sets `lastHeartbeatAt` itself. */
+type WorkerRegistration = Omit<WorkerInfo, 'lastHeartbeatAt'>;
+```
+
+A worker counts as *live* while `Date.now() - lastHeartbeatAt` stays below the
+staleness threshold (`WORKER_STALE_AFTER_MS`, 30s by default).
+
+## ListWorkersFilter
+
+Filter for [`StoreInterface.listWorkers()`](./store-interface#listworkers).
+
+```typescript
+interface ListWorkersFilter {
+  /** Restrict to a single queue. */
+  queueName?: string;
+  /** Drop workers whose last heartbeat is older than this many ms (default: 30_000). */
+  staleAfterMs?: number;
 }
 ```
 

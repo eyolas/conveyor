@@ -37,6 +37,7 @@ export function Sidebar({ collapsed, onToggle, activeQueue }: SidebarProps) {
   const isQueuesView = path === '/' || path.startsWith('/queues');
   const isFlowsView = path === '/flows' || path.startsWith('/flows/');
   const isSearchView = path === '/search';
+  const isWorkersView = path === '/workers';
 
   const navItemClass = (active: boolean) =>
     `group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left font-display text-xs font-semibold transition-all duration-200 ${
@@ -154,6 +155,24 @@ export function Sidebar({ collapsed, onToggle, activeQueue }: SidebarProps) {
               </svg>
             </span>
             <span class="min-w-0 flex-1 truncate">Flows</span>
+          </a>
+          <a href="/workers" class={navItemClass(isWorkersView)}>
+            <span
+              class={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border transition-colors ${
+                isWorkersView
+                  ? 'border-accent/25 bg-accent/5 text-accent dark:border-accent/30 dark:bg-accent/10 dark:text-accent-bright'
+                  : 'border-slate-200/80 bg-slate-50 text-slate-500 group-hover:border-slate-300 group-hover:text-slate-700 dark:border-border-default dark:bg-surface-2 dark:text-text-muted dark:group-hover:border-border-bright'
+              }`}
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+            </span>
+            <span class="min-w-0 flex-1 truncate">Workers</span>
           </a>
           <a href="/search" class={navItemClass(isSearchView)}>
             <span

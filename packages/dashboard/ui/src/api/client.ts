@@ -18,6 +18,7 @@ import type {
   ClientQueueDetail,
   ClientQueueInfo,
   ClientSearchJobsFilter,
+  ClientWorkerInfo,
   PaginatedResponse,
   SSEEvent,
 } from '@conveyor/dashboard-client';
@@ -31,6 +32,7 @@ export type GroupInfo = ClientGroupInfo;
 export type MetricsBucket = ClientMetricsBucket;
 export type SearchJobsFilter = ClientSearchJobsFilter;
 export type DashboardConfig = ClientDashboardConfig;
+export type WorkerInfo = ClientWorkerInfo;
 export type { SSEEvent, PaginatedResponse };
 
 // ─── Singleton Client ───────────────────────────────────────────────
@@ -197,6 +199,14 @@ export function searchJobs(
 
 export function listFlowParents(state?: string): Promise<JobData[]> {
   return client.listFlowParents(state);
+}
+
+// ─── Workers ────────────────────────────────────────────────────────
+
+export function listWorkers(
+  options?: { queue?: string; staleAfterMs?: number },
+): Promise<WorkerInfo[]> {
+  return client.listWorkers(options);
 }
 
 // ─── Metrics ────────────────────────────────────────────────────────

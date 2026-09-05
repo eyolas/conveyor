@@ -4,7 +4,13 @@
  * Mapping functions between {@linkcode JobData} and PostgreSQL row format.
  */
 
-import type { AttemptRecord, JobData, JobOptions } from '@conveyor/shared';
+import type {
+  AttemptRecord,
+  JobData,
+  JobOptions,
+  WorkerInfo,
+  WorkerRegistration,
+} from '@conveyor/shared';
 import { assertJobState } from '@conveyor/shared';
 
 /**
@@ -138,5 +144,69 @@ export function jobDataToRow(
     discarded: job.discarded ?? false,
     attempt_logs: job.attemptLogs ?? [],
     children_ids: job.childrenIds ?? [],
+  };
+}
+
+// ─── Worker Registry ───────────────────────────────────────────────────
+
+/**
+ * Row shape of the `conveyor_workers` table.
+ * The `metadata` JSONB column is auto-parsed by the `postgres` driver.
+ */
+export interface WorkerRow {
+  id: string;
+  queue_name: string;
+  hostname: string | null;
+  pid: number | null;
+  version: string | null;
+  concurrency: number;
+  started_at: Date;
+  last_heartbeat_at: Date;
+  metadata: unknown;
+}
+
+/**
+ * Convert a `conveyor_workers` row into a {@linkcode WorkerInfo} object.
+ *
+ * @param row - The raw row from the database.
+ * @returns A fully typed WorkerInfo object.
+ */
+export function workerRowToInfo(row: WorkerRow): WorkerInfo {
+  return {
+    id: row.id,
+    queueName: row.queue_name,
+    hostname: row.hostname ?? null,
+    pid: row.pid != null ? Number(row.pid) : null,
+    version: row.version ?? null,
+    concurrency: Number(row.concurrency),
+    startedAt: new Date(row.started_at),
+    lastHeartbeatAt: new Date(row.last_heartbeat_at),
+    metadata: row.metadata != null ? ensureParsed<Record<string, unknown>>(row.metadata) : null,
+  };
+}
+
+/**
+ * Convert a {@linkcode WorkerRegistration} into a `conveyor_workers` row for insertion.
+ * The `metadata` JSONB field is passed as a native JS object (the `postgres` driver
+ * auto-serializes it).
+ *
+ * @param info - The worker registration payload.
+ * @param lastHeartbeatAt - Heartbeat timestamp to store alongside the registration.
+ * @returns A flat record suitable for parameterized INSERT.
+ */
+export function workerInfoToRow(
+  info: WorkerRegistration,
+  lastHeartbeatAt: Date,
+): Record<string, unknown> {
+  return {
+    id: info.id,
+    queue_name: info.queueName,
+    hostname: info.hostname ?? null,
+    pid: info.pid ?? null,
+    version: info.version ?? null,
+    concurrency: info.concurrency,
+    started_at: info.startedAt,
+    last_heartbeat_at: lastHeartbeatAt,
+    metadata: info.metadata ?? null,
   };
 }

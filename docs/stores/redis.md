@@ -134,6 +134,9 @@ Every key is hash-tagged `{prefix:queueName}:…`. Examples (default prefix `con
 | `{conveyor:emails}:group:<gid>:active`       | Set    | Active IDs per group                                 |
 | `{conveyor:emails}:group:<gid>:waiting`      | ZSET   | Waiting IDs per group, scored by enqueue time        |
 | `{conveyor:emails}:flow:<parentId>:children` | Set    | Child tuples `queueName\x00id` (cross-queue-safe)    |
+| `{conveyor:emails}:worker:<id>`               | Hash   | Registered worker, TTL = 150s, refreshed on heartbeat |
+| `{conveyor:emails}:workers`                  | ZSET   | Worker IDs scored by `lastHeartbeatAt`               |
+| `conveyor:worker-queues`                     | Hash   | Worker ID -> queue name (cross-queue, no hash tag)   |
 | `conveyor:queues`                            | Set    | All queue names (cross-queue, no hash tag)           |
 | `conveyor:events`                            | PubSub | Cross-process event channel                          |
 

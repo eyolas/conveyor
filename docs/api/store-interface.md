@@ -330,6 +330,85 @@ Count waiting jobs in a specific group.
 getWaitingGroupCount(queueName: string, groupId: string): Promise<number>
 ```
 
+## Worker Registry (optional)
+
+Four **optional** methods let a store track the worker processes consuming its
+queues. They are marked optional on `StoreInterface`, so a store that omits them
+keeps working exactly as before -- `Worker` skips registration, and the dashboard
+`/api/workers` endpoint returns an empty list.
+
+All four built-in stores implement them (Memory, PostgreSQL, Redis, SQLite).
+
+```typescript
+import { WORKER_DEAD_AFTER_MS, WORKER_STALE_AFTER_MS } from '@conveyor/shared';
+
+WORKER_STALE_AFTER_MS; // 30_000  -- default `listWorkers` freshness window
+WORKER_DEAD_AFTER_MS; //  150_000 -- age past which a row is swept
+```
+
+### registerWorker
+
+Announce a worker. Called once when the worker starts.
+
+```typescript
+registerWorker?(info: WorkerRegistration): Promise<void>
+```
+
+`WorkerRegistration` is `Omit<WorkerInfo, 'lastHeartbeatAt'>`. Contract:
+
+- **Upsert by `id`.** Re-registering an existing id replaces the row entirely --
+  a field that is `null` this time must not survive from a previous
+  registration.
+- Set `lastHeartbeatAt` to the current time.
+- **Sweep dead rows.** In the same call, delete rows whose `lastHeartbeatAt` is
+  older than `WORKER_DEAD_AFTER_MS`. Worker boot is the cleanup trigger, which
+  keeps the sweep bounded and means the store needs no background timer. (A
+  store with native key expiry, like Redis, can lean on a TTL instead.)
+
+### heartbeatWorker
+
+Refresh a worker's `lastHeartbeatAt`.
+
+```typescript
+heartbeatWorker?(id: string): Promise<void>
+```
+
+Must be a **no-op on an unknown id, and must never throw** -- it runs on a timer
+inside the worker, and a rejection there would surface on the `error` event on
+every tick.
+
+### unregisterWorker
+
+Remove a worker from the registry. Called by `Worker.close()`.
+
+```typescript
+unregisterWorker?(id: string): Promise<void>
+```
+
+Same rule: a no-op on an unknown id, never throws.
+
+### listWorkers
+
+List live workers.
+
+```typescript
+listWorkers?(filter?: ListWorkersFilter): Promise<WorkerInfo[]>
+```
+
+| Filter field | Default | Description |
+| --- | --- | --- |
+| `queueName` | all queues | Restrict to a single queue |
+| `staleAfterMs` | `WORKER_STALE_AFTER_MS` (30_000) | Return only rows whose `lastHeartbeatAt` is newer than this many ms |
+
+Contract:
+
+- Return rows **fresher than** `filter.staleAfterMs ?? WORKER_STALE_AFTER_MS`.
+- `staleAfterMs: Infinity` returns everything still in the registry -- useful for
+  post-mortem views.
+- Sort by `queueName` ascending, then `lastHeartbeatAt` descending.
+- **Reads never sweep.** Listing must not delete rows; only `registerWorker`
+  (or a native TTL) removes dead entries.
+
 ## StoreOptions
 
 Base options shared by all store implementations. Pass these to any store constructor.

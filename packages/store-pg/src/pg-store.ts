@@ -2,6 +2,7 @@ import type {
   FetchOptions,
   JobData,
   JobState,
+  ListWorkersFilter,
   MetricsBucket,
   MetricsQueryOptions,
   QueueInfo,
@@ -11,6 +12,8 @@ import type {
   StoreInterface,
   StoreOptions,
   UpdateJobOptions,
+  WorkerInfo,
+  WorkerRegistration,
 } from '@conveyor/shared';
 import {
   assertJobState,
@@ -18,10 +21,12 @@ import {
   InvalidJobStateError,
   MetricsDisabledError,
   noopLogger,
+  WORKER_DEAD_AFTER_MS,
+  WORKER_STALE_AFTER_MS,
 } from '@conveyor/shared';
 import postgres from 'postgres';
-import type { JobRow } from './mapping.ts';
-import { jobDataToRow, rowToJobData } from './mapping.ts';
+import type { JobRow, WorkerRow } from './mapping.ts';
+import { jobDataToRow, rowToJobData, workerInfoToRow, workerRowToInfo } from './mapping.ts';
 import { runMigrations } from './migrations.ts';
 import { sql } from './utils.ts';
 
@@ -756,6 +761,7 @@ export class PgStore implements StoreInterface {
       await tx`DELETE FROM conveyor_group_cursors WHERE queue_name = ${queueName}`;
       await tx`DELETE FROM conveyor_rate_limits WHERE queue_name = ${queueName}`;
       await tx`DELETE FROM conveyor_metrics WHERE queue_name = ${queueName}`;
+      await tx`DELETE FROM conveyor_workers WHERE queue_name = ${queueName}`;
     });
   }
 
@@ -1160,6 +1166,92 @@ export class PgStore implements StoreInterface {
     });
   }
 
+  // ─── Worker Registry ────────────────────────────────────────────────
+
+  /**
+   * Register (or re-register) a worker, resetting its heartbeat.
+   *
+   * The same call sweeps rows whose last heartbeat is older than
+   * {@linkcode WORKER_DEAD_AFTER_MS}, keeping dead-row cleanup bounded and
+   * tied to worker boot rather than to reads.
+   *
+   * @param info - The worker to register.
+   */
+  async registerWorker(info: WorkerRegistration): Promise<void> {
+    const now = new Date();
+    const deadBefore = new Date(now.getTime() - WORKER_DEAD_AFTER_MS);
+    const row = workerInfoToRow(info, now);
+
+    await this.sql.begin(async (_tx) => {
+      const tx = sql(_tx);
+      await tx`
+        INSERT INTO conveyor_workers ${tx(row)}
+        ON CONFLICT (id) DO UPDATE SET
+          queue_name        = EXCLUDED.queue_name,
+          hostname          = EXCLUDED.hostname,
+          pid               = EXCLUDED.pid,
+          version           = EXCLUDED.version,
+          concurrency       = EXCLUDED.concurrency,
+          started_at        = EXCLUDED.started_at,
+          last_heartbeat_at = EXCLUDED.last_heartbeat_at,
+          metadata          = EXCLUDED.metadata
+      `;
+      await tx`DELETE FROM conveyor_workers WHERE last_heartbeat_at < ${deadBefore}`;
+    });
+  }
+
+  /**
+   * Refresh a worker's heartbeat. A no-op when the id is unknown.
+   *
+   * @param id - The worker id.
+   */
+  async heartbeatWorker(id: string): Promise<void> {
+    await this.sql`
+      UPDATE conveyor_workers SET last_heartbeat_at = ${new Date()} WHERE id = ${id}
+    `;
+  }
+
+  /**
+   * Remove a worker from the registry. A no-op when the id is unknown.
+   *
+   * @param id - The worker id.
+   */
+  async unregisterWorker(id: string): Promise<void> {
+    await this.sql`DELETE FROM conveyor_workers WHERE id = ${id}`;
+  }
+
+  /**
+   * List registered workers whose heartbeat is still within the staleness window.
+   *
+   * A non-finite `staleAfterMs` (e.g. `Infinity`) disables the heartbeat filter
+   * entirely instead of building an invalid timestamp bound.
+   *
+   * @param filter - Optional queue and staleness filters.
+   * @returns Matching workers, ordered by queue name then freshest heartbeat.
+   */
+  async listWorkers(filter?: ListWorkersFilter): Promise<WorkerInfo[]> {
+    const staleAfterMs = filter?.staleAfterMs ?? WORKER_STALE_AFTER_MS;
+    const conditions: ReturnType<typeof this.sql>[] = [];
+
+    if (filter?.queueName) {
+      conditions.push(this.sql`queue_name = ${filter.queueName}`);
+    }
+    if (Number.isFinite(staleAfterMs)) {
+      const freshSince = new Date(Date.now() - staleAfterMs);
+      conditions.push(this.sql`last_heartbeat_at >= ${freshSince}`);
+    }
+
+    const where = conditions.length > 0
+      ? this.sql`WHERE ${conditions.reduce((a, b) => this.sql`${a} AND ${b}`)}`
+      : this.sql``;
+
+    const rows = await this.sql<WorkerRow[]>`
+      SELECT * FROM conveyor_workers ${where}
+      ORDER BY queue_name ASC, last_heartbeat_at DESC
+    `;
+    return rows.map(workerRowToInfo);
+  }
+
   // ─── Helpers ────────────────────────────────────────────────────────
 
   /**
@@ -1284,6 +1376,6 @@ export class PgStore implements StoreInterface {
   /** Truncate all Conveyor tables. Intended for test cleanup only. */
   async truncateAll(): Promise<void> {
     await this
-      .sql`TRUNCATE conveyor_jobs, conveyor_paused_names, conveyor_group_cursors, conveyor_rate_limits, conveyor_metrics`;
+      .sql`TRUNCATE conveyor_jobs, conveyor_paused_names, conveyor_group_cursors, conveyor_rate_limits, conveyor_metrics, conveyor_workers`;
   }
 }

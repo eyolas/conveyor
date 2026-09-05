@@ -23,7 +23,7 @@ interface CommandItem {
   description?: string;
   detail?: string;
   state?: string;
-  section: 'queues' | 'jobs' | 'actions' | 'search';
+  section: 'views' | 'queues' | 'jobs' | 'actions' | 'search';
   action: () => void | Promise<void>;
 }
 
@@ -37,6 +37,10 @@ const STATE_DOTS: Record<string, string> = {
 };
 
 const SECTION_CONFIG = {
+  views: {
+    label: 'Views',
+    icon: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
+  },
   queues: {
     label: 'Queues',
     icon: 'M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4',
@@ -55,6 +59,14 @@ const SECTION_CONFIG = {
   },
 } as const;
 
+/** Static workspace destinations, mirroring the sidebar nav. */
+const VIEWS = [
+  { label: 'Queues', path: '/' },
+  { label: 'Flows', path: '/flows' },
+  { label: 'Workers', path: '/workers' },
+  { label: 'Search', path: '/search' },
+] as const;
+
 export function CommandPalette({ open, onClose, activeQueue }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<CommandItem[]>([]);
@@ -64,6 +76,20 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
 
   const buildItems = useCallback(async (q: string) => {
     const result: CommandItem[] = [];
+
+    // ─── Workspace views (only when the query matches a label) ───
+    if (q) {
+      for (const view of VIEWS) {
+        if (!view.label.toLowerCase().includes(q.toLowerCase())) continue;
+        result.push({
+          id: `view:${view.path}`,
+          label: view.label,
+          description: view.path,
+          section: 'views',
+          action: () => route(view.path),
+        });
+      }
+    }
 
     // ─── Queues (inline, client-side filter) ────────────────────
     if (!q || q.length <= 36) {
@@ -165,8 +191,7 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
     }
 
     // ─── Quick actions ──────────────────────────────────────────
-    const targetQueue = activeQueue ??
-      (result.length > 0 && result[0]!.section === 'queues' ? result[0]!.label : undefined);
+    const targetQueue = activeQueue ?? result.find((i) => i.section === 'queues')?.label;
     if (targetQueue && (!q || 'pause resume retry drain promote'.includes(q.toLowerCase()))) {
       const actions = [
         { label: 'Pause queue', fn: () => api.pauseQueue(targetQueue) },
@@ -230,7 +255,7 @@ export function CommandPalette({ open, onClose, activeQueue }: CommandPalettePro
 
   if (!open) return null;
 
-  const sections = ['queues', 'jobs', 'search', 'actions'] as const;
+  const sections = ['views', 'queues', 'jobs', 'search', 'actions'] as const;
 
   return (
     <div class="fixed inset-0 z-50 flex items-start justify-center pt-[18vh]" onClick={onClose}>

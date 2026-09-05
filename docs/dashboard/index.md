@@ -17,6 +17,7 @@ A real-time monitoring and management UI for your Conveyor job queues. Ships as 
 - **Advanced search** -- dedicated `/search` page with combinable filters (name, queue, states, date range) and pagination
 - **CSV / JSON export** -- one-click download of the current job list or search results
 - **Group monitoring** -- per-group active/waiting counts
+- **Worker registry** -- live view of the processes consuming each queue, with heartbeat status, concurrency, uptime, and build version
 - **Bulk operations** -- retry all failed jobs, promote all delayed jobs
 - **Read-only mode** -- disable mutation endpoints and hide mutation controls in the UI via a single flag
 - **Auth hook** -- plug in JWT, basic auth, or any custom auth logic

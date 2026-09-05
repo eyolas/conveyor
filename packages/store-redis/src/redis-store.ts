@@ -15,14 +15,23 @@ import type {
   FetchOptions,
   JobData,
   JobState,
+  ListWorkersFilter,
   Logger,
   QueueInfo,
   StoreEvent,
   StoreInterface,
   StoreOptions,
   UpdateJobOptions,
+  WorkerInfo,
+  WorkerRegistration,
 } from '@conveyor/shared';
-import { generateId, InvalidJobStateError, noopLogger } from '@conveyor/shared';
+import {
+  generateId,
+  InvalidJobStateError,
+  noopLogger,
+  WORKER_DEAD_AFTER_MS,
+  WORKER_STALE_AFTER_MS,
+} from '@conveyor/shared';
 import { createClient, ErrorReply } from 'redis';
 import {
   createKeys,
@@ -34,7 +43,13 @@ import {
   type Keys,
 } from './keys.ts';
 import { loadScriptSources, type ScriptName } from './lua/index.ts';
-import { hashToJobData, jobDataToHash } from './mapping.ts';
+import {
+  hashToJobData,
+  hashToWorkerInfo,
+  jobDataToHash,
+  type WorkerHash,
+  workerInfoToHash,
+} from './mapping.ts';
 
 /** Opaque type of a node-redis v5 client. */
 type RedisClient = ReturnType<typeof createClient>;
@@ -1181,6 +1196,12 @@ export class RedisStore implements StoreInterface {
         );
       }
     }
+    // The SCAN below wipes the queue's worker hashes and their index —
+    // both sit under the hash tag — but the global id → queue lookup does
+    // not, so its entries for this queue are cleared explicitly first.
+    const workerIds = await client.zRange(this.keys.workersIndex(queueName), 0, -1);
+    if (workerIds.length > 0) await client.hDel(this.keys.workerQueues(), workerIds);
+
     const pattern = `${this.keys.jobPrefix(queueName).slice(0, -5)}*`;
     // `jobPrefix` returns `{conveyor:q}:job:`; strip the trailing `:job:`
     // (5 chars) so the scan covers every key under `{conveyor:q}…`.
@@ -1386,6 +1407,190 @@ export class RedisStore implements StoreInterface {
       'completed': n(4),
       'failed': n(5),
     };
+  }
+
+  // ─── Worker registry ─────────────────────────────────────────────────
+
+  /**
+   * Register — or re-register — a worker process against a queue.
+   *
+   * Writes three things: the worker hash (inside the queue's hash tag),
+   * its entry in the queue's `workers` ZSET scored by heartbeat, and the
+   * global id → queue lookup that {@linkcode RedisStore.heartbeatWorker}
+   * and {@linkcode RedisStore.unregisterWorker} need to resolve a bare id
+   * back to a namespace.
+   *
+   * Re-registering an id replaces every field (the hash is deleted first,
+   * so a field that is `null` this time cannot survive from the previous
+   * registration) and resets `lastHeartbeatAt` to now.
+   *
+   * The hash carries a `WORKER_DEAD_AFTER_MS` TTL refreshed on every
+   * register / heartbeat — the same `PX` trick as the dedup and lock
+   * keys — so a process that dies without unregistering is reaped by
+   * Redis and this store needs no sweep of its own.
+   *
+   * @param info - The worker to register.
+   */
+  async registerWorker(info: WorkerRegistration): Promise<void> {
+    const client = this.getClient();
+    const now = new Date();
+    const key = this.keys.worker(info.queueName, info.id);
+
+    // An id may be re-registered against a *different* queue: its previous
+    // keys live under another hash tag, so they get their own round-trip
+    // rather than being smuggled into the MULTI below.
+    const previousQueue = await client.hGet(this.keys.workerQueues(), info.id);
+    if (previousQueue && previousQueue !== info.queueName) {
+      await this.forgetWorkers(previousQueue, [info.id]);
+    }
+
+    const multi = client.multi();
+    multi.del(key);
+    multi.hSet(key, workerInfoToHash({ ...info, lastHeartbeatAt: now }));
+    multi.pExpire(key, WORKER_DEAD_AFTER_MS);
+    multi.zAdd(this.keys.workersIndex(info.queueName), {
+      score: now.getTime(),
+      value: info.id,
+    });
+    await multi.exec();
+
+    await client.hSet(this.keys.workerQueues(), info.id, info.queueName);
+  }
+
+  /**
+   * Refresh a worker's heartbeat and push its TTL back out. A no-op when
+   * the id is unknown, or when its hash already expired — in that case the
+   * leftover index / lookup entries are dropped instead of resurrecting a
+   * half-populated hash.
+   *
+   * @param id - The worker id.
+   */
+  async heartbeatWorker(id: string): Promise<void> {
+    const client = this.getClient();
+    const queueName = await client.hGet(this.keys.workerQueues(), id);
+    if (!queueName) return;
+
+    const key = this.keys.worker(queueName, id);
+    if (await client.exists(key) === 0) {
+      await this.forgetWorkers(queueName, [id]);
+      return;
+    }
+
+    const now = Date.now();
+    const multi = client.multi();
+    multi.hSet(key, 'lastHeartbeatAt', String(now));
+    multi.pExpire(key, WORKER_DEAD_AFTER_MS);
+    multi.zAdd(this.keys.workersIndex(queueName), { score: now, value: id });
+    await multi.exec();
+  }
+
+  /**
+   * Remove a worker from the registry. A no-op when the id is unknown.
+   *
+   * @param id - The worker id.
+   */
+  async unregisterWorker(id: string): Promise<void> {
+    const client = this.getClient();
+    const queueName = await client.hGet(this.keys.workerQueues(), id);
+    if (!queueName) return;
+    await this.forgetWorkers(queueName, [id]);
+  }
+
+  /**
+   * List registered workers whose last heartbeat is within
+   * `staleAfterMs` (default `WORKER_STALE_AFTER_MS`), optionally
+   * restricted to one queue. Sorted by `queueName` ascending, then
+   * `lastHeartbeatAt` descending.
+   *
+   * @param filter - Optional queue and staleness filters.
+   * @returns Matching workers.
+   */
+  async listWorkers(filter?: ListWorkersFilter): Promise<WorkerInfo[]> {
+    const staleAfterMs = filter?.staleAfterMs ?? WORKER_STALE_AFTER_MS;
+    // `Infinity` means "no cutoff". `Date.now() - Infinity` is `-Infinity`,
+    // which stringifies to an unusable ZSET bound — `'-inf'` is the literal
+    // Redis understands. Any other non-finite value is treated the same way.
+    const min: string | number = Number.isFinite(staleAfterMs) ? Date.now() - staleAfterMs : '-inf';
+
+    const queueNames = filter?.queueName ? [filter.queueName] : await this.listWorkerQueueNames();
+
+    // `Promise.all` rather than a pipeline: each queue's worker keys sit in
+    // their own `{prefix:queue}` hash tag, so one MULTI spanning queues
+    // would be CROSSSLOT-rejected on Redis Cluster — same reasoning as
+    // {@linkcode RedisStore.findJobById}.
+    const perQueue = await Promise.all(
+      queueNames.map((queueName) => this.listQueueWorkers(queueName, min)),
+    );
+
+    return perQueue.flat().sort((a, b) => {
+      if (a.queueName !== b.queueName) return a.queueName < b.queueName ? -1 : 1;
+      return b.lastHeartbeatAt.getTime() - a.lastHeartbeatAt.getTime();
+    });
+  }
+
+  /**
+   * Distinct queue names holding at least one registry entry.
+   *
+   * Read from the id → queue lookup rather than {@linkcode Keys.queueIndex}:
+   * a worker can be registered against a queue that has never held a job,
+   * so the job-side index would miss it.
+   */
+  private async listWorkerQueueNames(): Promise<string[]> {
+    const client = this.getClient();
+    const lookup = await client.hGetAll(this.keys.workerQueues());
+    return [...new Set(Object.values(lookup))];
+  }
+
+  /**
+   * Read one queue's live workers with heartbeat score `>= min`, pruning
+   * index and lookup entries whose hash has expired (owner died) or came
+   * back half-populated from a heartbeat that raced its own expiry.
+   */
+  private async listQueueWorkers(
+    queueName: string,
+    min: string | number,
+  ): Promise<WorkerInfo[]> {
+    const client = this.getClient();
+    const ids = await client.zRangeByScore(this.keys.workersIndex(queueName), min, '+inf');
+    if (ids.length === 0) return [];
+
+    const multi = client.multi();
+    for (const id of ids) {
+      multi.hGetAll(this.keys.worker(queueName, id));
+    }
+    const results = await multi.exec();
+
+    const workers: WorkerInfo[] = [];
+    const orphans: string[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i]!;
+      const hash = results?.[i] as unknown as WorkerHash | null;
+      if (!hash || !hash.id || !hash.queueName) {
+        orphans.push(id);
+        continue;
+      }
+      workers.push(hashToWorkerInfo(hash));
+    }
+
+    if (orphans.length > 0) await this.forgetWorkers(queueName, orphans);
+    return workers;
+  }
+
+  /**
+   * Drop every trace of the given workers of a single queue. The per-queue
+   * keys share one hash tag so they go in a single `MULTI`; the global
+   * lookup hash lives on another slot and gets its own `HDEL`.
+   */
+  private async forgetWorkers(queueName: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const client = this.getClient();
+    const multi = client.multi();
+    for (const id of ids) {
+      multi.del(this.keys.worker(queueName, id));
+    }
+    multi.zRem(this.keys.workersIndex(queueName), ids);
+    await multi.exec();
+    await client.hDel(this.keys.workerQueues(), ids);
   }
 
   // ─── State-index helpers ─────────────────────────────────────────────

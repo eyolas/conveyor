@@ -157,6 +157,25 @@ export const migrations: Migration[] = [
     name: 'add_children_ids',
     up: `ALTER TABLE conveyor_jobs ADD COLUMN children_ids TEXT NOT NULL DEFAULT '[]'`,
   },
+  {
+    version: 11,
+    name: 'add_workers',
+    up: `
+      CREATE TABLE IF NOT EXISTS conveyor_workers (
+        id                TEXT PRIMARY KEY,
+        queue_name        TEXT NOT NULL,
+        hostname          TEXT,
+        pid               INTEGER,
+        version           TEXT,
+        concurrency       INTEGER NOT NULL DEFAULT 1,
+        started_at        INTEGER NOT NULL,
+        last_heartbeat_at INTEGER NOT NULL,
+        metadata          TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_workers_heartbeat
+        ON conveyor_workers (queue_name, last_heartbeat_at);
+    `,
+  },
 ];
 
 /**

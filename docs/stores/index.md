@@ -31,6 +31,7 @@ expose an identical API.
 | Stalled job detection    | Yes    | Yes                 | Yes                      | Yes                   |
 | Job flows (parent-child) | Yes    | Yes                 | Yes                      | Yes                   |
 | Groups                   | Yes (round-robin) | Yes (round-robin) | Yes (first-fit in v1) | Yes (round-robin) |
+| Worker registry          | Yes    | Yes                 | Yes                      | Yes                   |
 | Auto-migrations          | N/A    | Yes                 | N/A (schemaless)         | Yes                   |
 | Cross-process events     | No     | Yes (LISTEN/NOTIFY) | Yes (Pub/Sub, best-effort) | No (in-process only) |
 | Connection pooling       | N/A    | Yes                 | Single client + subscriber | N/A                 |

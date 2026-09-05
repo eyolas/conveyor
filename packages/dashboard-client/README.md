@@ -103,6 +103,22 @@ const client = new ConveyorDashboardClient({
 | ------------------------- | --------------------- |
 | `listFlowParents(state?)` | List flow parent jobs |
 
+### Workers
+
+| Method                  | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `listWorkers(options?)` | List worker processes consuming the queues |
+
+```ts
+// options: { queue?: string; staleAfterMs?: number }
+const workers = await client.listWorkers({ queue: 'emails' });
+// -> [{ id, queueName, hostname, pid, version, concurrency,
+//        startedAt, lastHeartbeatAt, metadata, status }]
+```
+
+`status` is `'live'` (heartbeat < 10s), `'warning'` (< 30s), or `'stale'`. `hostname`, `pid`,
+`version`, and `metadata` are `null` unless the worker was configured to advertise them.
+
 ### Metrics
 
 | Method                                        | Description                   |
