@@ -12,6 +12,12 @@
         "-y",
         "@upstash/context7-mcp@latest"
       ]
+    },
+    "graft": {
+      "command": "graft",
+      "args": [
+        "mcp"
+      ]
     }
   }
 }

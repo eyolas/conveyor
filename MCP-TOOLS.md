@@ -1,6 +1,6 @@
 # MCP Tools Setup
 
-This project uses two MCP servers to enhance Claude Code sessions.
+This project uses three MCP servers to enhance Claude Code sessions.
 
 ## Claudette (Code Knowledge Graph)
 
@@ -70,6 +70,48 @@ claudette visualize  # Generate interactive HTML graph visualization
 | `get_impact_radius`     | Analyze blast radius of changed files before refactors |
 | `get_review_context`    | Generate focused review context for PRs                |
 | `semantic_search_nodes` | Search for code entities by name or keyword            |
+
+## Graft (Local Context Graph)
+
+Prebuilt graph of every symbol, its `file:line` span, and who calls what, exposed as markdown cards
+under `graft/` plus MCP tools. The `graft/` directory is **local-only**: it is gitignored and must
+be built on each machine (`.ignore` re-admits the cards to ripgrep search).
+
+### Installation
+
+```bash
+npm i -g @nanonets/graft
+```
+
+### Building the Graph
+
+```bash
+graft build          # Wiring graph + per-file cards (no LLM, no API key)
+graft check          # Fail if graft/ is stale relative to the code
+```
+
+The MCP server refreshes the graph before each query, so uncommitted edits are reflected.
+
+### Useful Commands
+
+```bash
+graft ask "<task>" --source   # Ranked nodes with code inlined at file:line
+graft grep "<literal>"        # Every occurrence, grouped by enclosing symbol
+graft skeleton <file>         # A file's API surface (signatures + spans)
+graft callers <sym> --depth 2 # Callers / blast radius before a change
+graft map                     # Repo orientation (clusters, hubs, hotspots)
+```
+
+### MCP Tools Available in Claude Code
+
+| Tool                    | Usage                                          |
+| ----------------------- | ---------------------------------------------- |
+| `graft_find_code`       | "How does X work" / "where is Y", code inlined |
+| `graft_find_all`        | Every occurrence of a literal                  |
+| `graft_trace_calls`     | Callers, callees, blast radius                 |
+| `graft_file_api`        | A file's whole API in a few hundred tokens     |
+| `graft_repo_map`        | Orientation in the repo                        |
+| `graft_check_freshness` | Check whether the graph is up to date          |
 
 ## Context7 (Library Documentation)
 
