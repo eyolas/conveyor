@@ -10,7 +10,12 @@
  */
 
 import { expect, test } from 'vitest';
-import type { SearchJobsFilter, StoreEvent, StoreInterface } from '@conveyor/shared';
+import type {
+  SearchJobsFilter,
+  StoreEvent,
+  StoreInterface,
+  WorkerRegistration,
+} from '@conveyor/shared';
 import { createJobData, hashPayload, MetricsDisabledError } from '@conveyor/shared';
 
 async function isMetricsEnabled(store: StoreInterface): Promise<boolean> {
@@ -2357,6 +2362,287 @@ export function runConformanceTests(
     expect(allHour).toBeDefined();
     expect(allHour!.completedCount).toBeGreaterThanOrEqual(1);
     expect(allHour!.granularity).toBe('hour');
+
+    await store.disconnect();
+  });
+
+  // ─── Worker Registry ──────────────────────────────────────────────────
+
+  /**
+   * The registry is an optional capability. Stores that do not implement it
+   * fall through every test below without failing — same contract as the
+   * metrics and search sections above.
+   */
+  function hasWorkerRegistry(
+    s: StoreInterface,
+  ): s is
+    & StoreInterface
+    & Required<
+      Pick<
+        StoreInterface,
+        'registerWorker' | 'heartbeatWorker' | 'unregisterWorker' | 'listWorkers'
+      >
+    > {
+    return Boolean(
+      s.registerWorker && s.heartbeatWorker && s.unregisterWorker && s.listWorkers,
+    );
+  }
+
+  function makeWorker(
+    id: string,
+    queue: string,
+    overrides: Partial<WorkerRegistration> = {},
+  ): WorkerRegistration {
+    return {
+      id,
+      queueName: queue,
+      hostname: null,
+      pid: null,
+      version: null,
+      concurrency: 1,
+      startedAt: new Date(),
+      metadata: null,
+      ...overrides,
+    };
+  }
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  t('registerWorker round-trips every field', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    const startedAt = new Date(Date.now() - 5_000);
+    await store.registerWorker(makeWorker('w-full', queueName, {
+      hostname: 'box-1',
+      pid: 4242,
+      version: '1.2.3',
+      concurrency: 8,
+      startedAt,
+      metadata: { region: 'eu-west-1', canary: true },
+    }));
+
+    const workers = await store.listWorkers({ queueName });
+    expect(workers.length).toEqual(1);
+    const w = workers[0]!;
+    expect(w.id).toEqual('w-full');
+    expect(w.queueName).toEqual(queueName);
+    expect(w.hostname).toEqual('box-1');
+    expect(w.pid).toEqual(4242);
+    expect(w.version).toEqual('1.2.3');
+    expect(w.concurrency).toEqual(8);
+    expect(w.startedAt.getTime()).toEqual(startedAt.getTime());
+    expect(w.metadata).toEqual({ region: 'eu-west-1', canary: true });
+    expect(w.lastHeartbeatAt).toBeInstanceOf(Date);
+
+    await store.disconnect();
+  });
+
+  t('registerWorker keeps nullable fields null', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.registerWorker(makeWorker('w-bare', queueName));
+
+    const w = (await store.listWorkers({ queueName }))[0]!;
+    expect(w.hostname).toBeNull();
+    expect(w.pid).toBeNull();
+    expect(w.version).toBeNull();
+    expect(w.metadata).toBeNull();
+
+    await store.disconnect();
+  });
+
+  t('listWorkers returns empty when nothing is registered', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    expect(await store.listWorkers()).toEqual([]);
+    expect(await store.listWorkers({ queueName })).toEqual([]);
+
+    await store.disconnect();
+  });
+
+  t('registerWorker upserts on the same id', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.registerWorker(makeWorker('w-1', queueName, { concurrency: 2 }));
+    await store.registerWorker(makeWorker('w-1', queueName, { concurrency: 16 }));
+
+    const workers = await store.listWorkers({ queueName });
+    expect(workers.length).toEqual(1);
+    expect(workers[0]!.concurrency).toEqual(16);
+
+    await store.disconnect();
+  });
+
+  t('heartbeatWorker advances lastHeartbeatAt', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.registerWorker(makeWorker('w-hb', queueName));
+    const before = (await store.listWorkers({ queueName }))[0]!.lastHeartbeatAt;
+
+    await sleep(20);
+    await store.heartbeatWorker('w-hb');
+
+    const after = (await store.listWorkers({ queueName }))[0]!.lastHeartbeatAt;
+    expect(after.getTime()).toBeGreaterThan(before.getTime());
+
+    await store.disconnect();
+  });
+
+  t('heartbeatWorker on an unknown id is a no-op', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.heartbeatWorker('never-registered');
+    expect(await store.listWorkers()).toEqual([]);
+
+    await store.disconnect();
+  });
+
+  t('unregisterWorker removes the worker', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.registerWorker(makeWorker('w-gone', queueName));
+    expect((await store.listWorkers({ queueName })).length).toEqual(1);
+
+    await store.unregisterWorker('w-gone');
+    expect(await store.listWorkers({ queueName })).toEqual([]);
+
+    await store.disconnect();
+  });
+
+  t('unregisterWorker on an unknown id is a no-op', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.unregisterWorker('never-registered');
+    expect(await store.listWorkers()).toEqual([]);
+
+    await store.disconnect();
+  });
+
+  t('listWorkers filters by queue', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.registerWorker(makeWorker('w-a', 'queue-a'));
+    await store.registerWorker(makeWorker('w-b', 'queue-b'));
+
+    expect((await store.listWorkers({ queueName: 'queue-a' })).map((w) => w.id)).toEqual(['w-a']);
+    expect((await store.listWorkers({ queueName: 'queue-b' })).map((w) => w.id)).toEqual(['w-b']);
+    expect((await store.listWorkers()).length).toEqual(2);
+
+    await store.disconnect();
+  });
+
+  t('listWorkers hides workers past the staleness window', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.registerWorker(makeWorker('w-stale', queueName));
+    await sleep(30);
+
+    expect(await store.listWorkers({ queueName, staleAfterMs: 1 })).toEqual([]);
+    expect((await store.listWorkers({ queueName, staleAfterMs: 60_000 })).length).toEqual(1);
+
+    await store.disconnect();
+  });
+
+  t('listWorkers with an infinite window returns every worker', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.registerWorker(makeWorker('w-old', queueName));
+    await sleep(30);
+
+    const all = await store.listWorkers({ staleAfterMs: Infinity });
+    expect(all.map((w) => w.id)).toEqual(['w-old']);
+
+    await store.disconnect();
+  });
+
+  t('listWorkers sorts by queue then most recent heartbeat', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.registerWorker(makeWorker('w-older', 'queue-a'));
+    await sleep(20);
+    await store.registerWorker(makeWorker('w-newer', 'queue-a'));
+    await store.registerWorker(makeWorker('w-other', 'queue-b'));
+
+    const workers = await store.listWorkers();
+    expect(workers.map((w) => w.id)).toEqual(['w-newer', 'w-older', 'w-other']);
+
+    await store.disconnect();
+  });
+
+  t('obliterate clears the queue workers', async () => {
+    store = factory();
+    await store.connect();
+    if (!hasWorkerRegistry(store)) {
+      await store.disconnect();
+      return;
+    }
+
+    await store.registerWorker(makeWorker('w-kept', 'queue-keep'));
+    await store.registerWorker(makeWorker('w-wiped', 'queue-wipe'));
+
+    await store.obliterate('queue-wipe');
+
+    expect((await store.listWorkers()).map((w) => w.id)).toEqual(['w-kept']);
 
     await store.disconnect();
   });

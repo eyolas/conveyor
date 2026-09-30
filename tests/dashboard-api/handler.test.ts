@@ -6,6 +6,7 @@
 
 import { expect, test } from 'vitest';
 import { MemoryStore } from '@conveyor/store-memory';
+import type { WorkerRegistration } from '@conveyor/shared';
 import { createJobData } from '@conveyor/shared';
 import { createDashboardHandler } from '@conveyor/dashboard-api';
 
@@ -777,6 +778,176 @@ test('GET /api/jobs/search ignores invalid state values when mixed with valid', 
   expect(res.status).toBe(200);
   const body = await json(res);
   expect(body.meta.total).toBe(1);
+
+  await store.disconnect();
+});
+
+// ─── Worker Endpoints ─────────────────────────────────────────────────
+
+/** Register a worker in the store's registry with sane defaults. */
+async function registerWorker(
+  store: MemoryStore,
+  id: string,
+  queueName: string,
+  overrides?: Partial<WorkerRegistration>,
+) {
+  await store.registerWorker({
+    id,
+    queueName,
+    hostname: 'host-1',
+    pid: 42,
+    version: '1.0.0',
+    concurrency: 4,
+    startedAt: new Date(),
+    metadata: null,
+    ...overrides,
+  });
+}
+
+test('GET /api/workers returns empty list when no workers registered', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  const res = await handler(new Request('http://localhost/api/workers'));
+  expect(res.status).toBe(200);
+  const body = await json(res);
+  expect(body.data).toEqual([]);
+
+  await store.disconnect();
+});
+
+test('GET /api/workers returns empty list when store has no registry', async () => {
+  const store = new MemoryStore();
+  // Simulate a store adapter that never implemented the optional registry.
+  const storeWithoutRegistry = Object.create(store, {
+    listWorkers: { value: undefined },
+  }) as MemoryStore;
+  const handler = createDashboardHandler({ store: storeWithoutRegistry });
+  await store.connect();
+
+  await registerWorker(store, 'w1', 'emails');
+
+  const res = await handler(new Request('http://localhost/api/workers'));
+  expect(res.status).toBe(200);
+  const body = await json(res);
+  expect(body.data).toEqual([]);
+
+  await store.disconnect();
+});
+
+test('GET /api/workers returns registered workers with derived status', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  await registerWorker(store, 'w1', 'emails');
+  await registerWorker(store, 'w2', 'images', { concurrency: 8 });
+
+  const res = await handler(new Request('http://localhost/api/workers'));
+  expect(res.status).toBe(200);
+  const body = await json(res);
+  expect(body.data.length).toBe(2);
+
+  const w1 = body.data.find((w: { id: string }) => w.id === 'w1');
+  expect(w1.queueName).toBe('emails');
+  expect(w1.concurrency).toBe(4);
+  expect(w1.hostname).toBe('host-1');
+  expect(w1.status).toBe('live');
+  expect(typeof w1.lastHeartbeatAt).toBe('string');
+
+  await store.disconnect();
+});
+
+test('GET /api/workers?queue= restricts to one queue', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  await registerWorker(store, 'w1', 'emails');
+  await registerWorker(store, 'w2', 'images');
+
+  const res = await handler(new Request('http://localhost/api/workers?queue=images'));
+  const body = await json(res);
+  expect(body.data.length).toBe(1);
+  expect(body.data[0].id).toBe('w2');
+
+  await store.disconnect();
+});
+
+test('GET /api/workers respects queues filter', async () => {
+  const { store, handler } = createHandler({ queues: ['allowed'] });
+  await store.connect();
+
+  await registerWorker(store, 'w1', 'allowed');
+  await registerWorker(store, 'w2', 'hidden');
+
+  const res = await handler(new Request('http://localhost/api/workers'));
+  const body = await json(res);
+  expect(body.data.length).toBe(1);
+  expect(body.data[0].queueName).toBe('allowed');
+
+  await store.disconnect();
+});
+
+test('GET /api/workers 404s on a queue outside the queues filter', async () => {
+  const { store, handler } = createHandler({ queues: ['allowed'] });
+  await store.connect();
+
+  await registerWorker(store, 'w2', 'hidden');
+
+  const res = await handler(new Request('http://localhost/api/workers?queue=hidden'));
+  expect(res.status).toBe(404);
+  const body = await json(res);
+  expect(body.error.code).toBe('NOT_FOUND');
+
+  await store.disconnect();
+});
+
+test('GET /api/workers rejects invalid staleAfterMs', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  for (const value of ['abc', '-1', '0', '1.5']) {
+    const res = await handler(
+      new Request(`http://localhost/api/workers?staleAfterMs=${value}`),
+    );
+    expect(res.status).toBe(400);
+    const body = await json(res);
+    expect(body.error.code).toBe('BAD_REQUEST');
+  }
+
+  await store.disconnect();
+});
+
+test('GET /api/workers accepts a valid staleAfterMs', async () => {
+  const { store, handler } = createHandler();
+  await store.connect();
+
+  await registerWorker(store, 'w1', 'emails');
+
+  const res = await handler(
+    new Request('http://localhost/api/workers?staleAfterMs=60000'),
+  );
+  expect(res.status).toBe(200);
+  const body = await json(res);
+  expect(body.data.length).toBe(1);
+
+  await store.disconnect();
+});
+
+test('GET /api/workers requires auth when configured', async () => {
+  const { store, handler } = createHandler({
+    auth: (req) => req.headers.get('Authorization') === 'Bearer secret',
+  });
+  await store.connect();
+
+  const res = await handler(new Request('http://localhost/api/workers'));
+  expect(res.status).toBe(401);
+
+  const authed = await handler(
+    new Request('http://localhost/api/workers', {
+      headers: { Authorization: 'Bearer secret' },
+    }),
+  );
+  expect(authed.status).toBe(200);
 
   await store.disconnect();
 });

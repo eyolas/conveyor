@@ -54,5 +54,26 @@ concurrent advisory lock).
 **Root cause:** The migration test file hardcodes the expected count and version numbers. Adding new
 migrations without updating the test breaks CI.
 
-**Rule:** When adding a new PG migration, always update `tests/store-pg/migrations.test.ts` to
-reflect the new total count and verify the new migration's version/name.
+**Rule:** ~~When adding a new PG migration, always update `tests/store-pg/migrations.test.ts` to
+reflect the new total count and verify the new migration's version/name.~~
+
+**Resolved [2026-09-05]** (workers-view, migration v11): the test now derives its expectations from
+the `migrations` array itself (`migrations.map((m) => m.version)`) instead of hardcoding counts and
+per-index versions, so adding a migration no longer touches it. The general lesson survives the fix:
+**an assertion that restates a list the code already owns will break on every addition — derive it
+from the source instead.**
+
+## [2026-09-05] A task can point at a path vitest excludes and silently run nothing
+
+**What happened:** `deno task test:memory` ran `vitest run tests/conformance/`, but
+`vitest.config.ts` excludes `tests/conformance/store.test.ts` — that file is a parameterised harness
+exporting `runConformanceTests()`, not a suite. The task matched zero test files and exited 0. It
+had been green-by-vacuum for an unknown length of time. The real memory suite lives in
+`tests/store-memory/conformance.test.ts`; the task now points there (122 tests).
+
+**Root cause:** vitest exits 0 when a path matches no test file, so a task can pass without
+asserting anything. The conformance harness/caller split makes the wrong path look plausible.
+
+**Rule:** A test task that passes suspiciously fast is a red flag — check its test count, not just
+its exit code. When adding a task that targets a directory, confirm the path is not in
+`vitest.config.ts`'s `exclude` list.

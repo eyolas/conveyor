@@ -107,6 +107,33 @@ export interface Keys {
   /** Remaining pending-children counter for a parent flow job. */
   flowPending(queueName: string, parentId: string): string;
 
+  /**
+   * Hash holding one registered worker's encoded `WorkerInfo`.
+   * Carries a TTL of `WORKER_DEAD_AFTER_MS`, refreshed on every register /
+   * heartbeat, so a process that dies without unregistering is reaped by
+   * Redis instead of needing a sweep.
+   */
+  worker(queueName: string, id: string): string;
+  /**
+   * Sorted set of the queue's worker ids, scored by `lastHeartbeatAt`
+   * epoch ms. Staleness filtering is a `ZRANGEBYSCORE <cutoff> +inf`,
+   * mirroring how the `delayed` ZSET is scanned.
+   */
+  workersIndex(queueName: string): string;
+  /**
+   * Global hash mapping worker id → queue name.
+   *
+   * `heartbeatWorker` / `unregisterWorker` receive an id with no queue
+   * name, so the id must be resolvable to the hash-tagged namespace that
+   * owns it. A single global hash is the cheapest resolution (one `HGET`)
+   * and doubles as the registry's own queue index — `listWorkers` derives
+   * the set of queues to scan from its values rather than from
+   * {@linkcode Keys.queueIndex}, which only tracks queues that have held
+   * a job. Lives outside every hash tag, so it is never touched by a Lua
+   * script or a `MULTI` alongside per-queue keys.
+   */
+  workerQueues(): string;
+
   /** Pub/Sub channel for cross-process store events (single global channel). */
   eventsChannel(): string;
 }
@@ -147,6 +174,10 @@ export function createKeys(prefix: string = DEFAULT_PREFIX): Keys {
 
     flowChildren: (queueName, parentId) => `${qns(queueName)}:flow:${parentId}:children`,
     flowPending: (queueName, parentId) => `${qns(queueName)}:flow:${parentId}:pending`,
+
+    worker: (queueName, id) => `${qns(queueName)}:worker:${id}`,
+    workersIndex: (queueName) => `${qns(queueName)}:workers`,
+    workerQueues: () => `${prefix}:worker-queues`,
 
     eventsChannel: () => `${prefix}:events`,
   };

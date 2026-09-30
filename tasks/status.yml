@@ -76,8 +76,9 @@ tasks:
 
   workers-view:
     description: 'Worker registry + /workers dashboard page: heartbeat, live/stale status, current job, concurrency, uptime'
-    status: planned
+    status: done
     file: tasks/workers-view.md
+    notes: 'Four optional StoreInterface methods (registerWorker/heartbeatWorker/unregisterWorker/listWorkers) implemented in all four stores — Redis added to scope since it shipped after the task doc was written. PG + SQLite migration v11 add_workers. Worker registers on start, heartbeats at lockDuration/2 (kept alive while paused), unregisters on close. Dashboard GET /api/workers with server-side live/warning/stale classification + /workers page polling every 5s. Deferred: per-worker throughput metrics, worker-level pause/resume, real worker:* pub/sub events.'
 
   dashboard-hardening:
     description: 'Close dashboard product gaps: readOnly UI awareness, 401/403 handling, full Job form options, CSV/JSON export, PRD cleanup'

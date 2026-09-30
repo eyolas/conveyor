@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Goal
 
@@ -133,16 +133,18 @@ New `/workers` page:
 
 ## Checklist
 
-- [ ] Add `WorkerInfo` type + 4 optional methods to `StoreInterface`
-- [ ] MemoryStore implementation + conformance tests
-- [ ] PgStore implementation + migration + conformance tests
-- [ ] SqliteStore implementation + conformance tests
-- [ ] Worker class: register/heartbeat/unregister hooks + unit tests
-- [ ] Dashboard API: `GET /api/workers` + tests
-- [ ] Dashboard client: `listWorkers()` + types
-- [ ] Dashboard UI: `/workers` page + sidebar entry
-- [ ] Docs: update PRD + README snippet
-- [ ] Task doc review and mark done
+- [x] Add `WorkerInfo` type + 4 optional methods to `StoreInterface`
+- [x] MemoryStore implementation + conformance tests
+- [x] PgStore implementation + migration + conformance tests
+- [x] SqliteStore implementation + conformance tests
+- [x] RedisStore implementation + conformance tests (added to scope — the store shipped after this
+      doc was written)
+- [x] Worker class: register/heartbeat/unregister hooks + unit tests
+- [x] Dashboard API: `GET /api/workers` + tests
+- [x] Dashboard client: `listWorkers()` + types
+- [x] Dashboard UI: `/workers` page + sidebar entry
+- [x] Docs: update PRD + README snippet
+- [x] Task doc review and mark done
 
 ## Open Questions
 
@@ -158,15 +160,69 @@ New `/workers` page:
 
 ## Verification Before Merge
 
-- [ ] `deno task fmt`
-- [ ] `deno task lint`
-- [ ] `deno task check`
-- [ ] `deno task test` (core + memory)
-- [ ] `deno task test:sqlite:node`
-- [ ] `deno task test:pg` (docker up)
-- [ ] `deno task test:dashboard-api`
-- [ ] Manual UI smoke test with 2+ running workers
+- [x] `deno task fmt`
+- [x] `deno task lint`
+- [x] `deno task check`
+- [x] `deno task test` (core + memory)
+- [x] `deno task test:sqlite:node` / `:deno` / `:bun`
+- [x] `deno task test:pg` (docker up)
+- [x] `deno task test:redis` (docker up)
+- [x] `deno task test:dashboard-api` / `test:dashboard-client`
+- [x] Manual UI smoke test with 2+ running workers
 
 ## Review
 
-TBD.
+### What shipped
+
+The four optional `StoreInterface` methods (`registerWorker`, `heartbeatWorker`, `unregisterWorker`,
+`listWorkers`) landed in all **four** stores, Redis included — it was not in the original scope
+because the store did not exist when this doc was written. `Worker` announces itself on `start()`,
+heartbeats at `heartbeatInterval ?? lockDuration / 2`, and unregisters on `close()`. The dashboard
+gained `GET /api/workers` and a `/workers` page.
+
+### Answers to the open questions
+
+1. **Heartbeat cadence** — kept at `lockDuration / 2`, overridable via
+   `WorkerOptions.heartbeatInterval`.
+2. **Cleanup of dead rows** — yes, and the trigger matters: the sweep runs inside `registerWorker`,
+   not inside `listWorkers`. Reads stay pure, and a crash-looping process — the only way rows
+   actually accumulate — sweeps on every reboot. Redis gets it for free instead, via a
+   `WORKER_DEAD_AFTER_MS` TTL on the worker hash.
+3. **`WorkerRegistry` wrapper** — no. Flat on `StoreInterface`, like `searchJobs` / `getMetrics`.
+4. **PID/hostname** — opt-in and caller-supplied, default `null`. Core never reads `process` /
+   `Deno` / `globalThis` for them, which keeps the "no runtime-specific APIs in core" rule intact
+   and leaves the privacy call to the caller.
+
+### Decisions worth remembering
+
+- **Status classification lives server-side.** `live` (< 10s) / `warning` (< 30s) / `stale` is
+  computed in the API controller, so the UI never re-derives it and the two cannot drift.
+- **The heartbeat keeps running while a worker is paused.** A paused worker is a healthy live
+  process; stopping its heartbeat would make it vanish from the dashboard after
+  `WORKER_STALE_AFTER_MS`. Corollary: `resume()` must NOT re-arm the timer or it double-fires.
+- **The UI asks for a 150s window, not the 30s default.** Otherwise a dying worker would disappear
+  from the list instead of showing up as `stale` — the exact incident this page exists to diagnose.
+- **A missing registry is not an error.** `GET /api/workers` returns an empty list when the store
+  does not implement `listWorkers`, and the page's empty state covers both causes, because the API
+  genuinely cannot tell them apart.
+- **Redis needs no Lua.** Register/heartbeat/unregister are single-slot writes. A global
+  `prefix:worker-queues` hash resolves a bare worker id to its hash-tagged namespace, and doubles as
+  the registry's own queue index — `keys.queueIndex()` could not serve that role because it only
+  tracks queues that have held a job, and a worker can consume a queue that never saw one.
+
+### Incidental fixes made along the way
+
+- `deno task test:memory` pointed at `tests/conformance/`, which `vitest.config.ts` excludes — it
+  ran **zero** tests. Repointed to `tests/store-memory/` (122 tests).
+- `tests/store-pg/migrations.test.ts` hardcoded every migration version across three assertions and
+  broke on any new migration. It now derives the expected list from the `migrations` array itself.
+
+### Known pre-existing failures (not caused by this work)
+
+`deno task test:sqlite:bun` fails 3 integration tests with 5s timeouts. Verified identical on a
+clean `main` worktree.
+
+### Deferred
+
+Per-worker throughput metrics, worker-level pause/resume commands, and real `worker:*` pub/sub
+events (the page polls every 5s instead) remain out of scope, as originally planned.

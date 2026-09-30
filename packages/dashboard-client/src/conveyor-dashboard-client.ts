@@ -27,6 +27,7 @@ import type {
   ClientQueueDetail,
   ClientQueueInfo,
   ClientSearchJobsFilter,
+  ClientWorkerInfo,
   DataResponse,
   ErrorResponse,
   PaginatedResponse,
@@ -337,6 +338,30 @@ export class ConveyorDashboardClient {
   async listFlowParents(state?: string): Promise<ClientJobData[]> {
     const params = state ? `?state=${encodeURIComponent(state)}` : '';
     const res = await this.#request<DataResponse<ClientJobData[]>>(`/flows${params}`);
+    return res.data;
+  }
+
+  // ─── Workers ─────────────────────────────────────────────────────
+
+  /**
+   * List worker processes registered against the queues.
+   *
+   * Returns an empty list when the store has no worker registry.
+   *
+   * @param options.queue - Restrict to a single queue.
+   * @param options.staleAfterMs - Drop workers whose last heartbeat is older than this (ms).
+   */
+  async listWorkers(
+    options?: { queue?: string; staleAfterMs?: number },
+  ): Promise<ClientWorkerInfo[]> {
+    const params = new URLSearchParams();
+    if (options?.queue !== undefined) params.set('queue', options.queue);
+    if (options?.staleAfterMs !== undefined) {
+      params.set('staleAfterMs', String(options.staleAfterMs));
+    }
+    const qs = params.toString();
+    const query = qs ? `?${qs}` : '';
+    const res = await this.#request<DataResponse<ClientWorkerInfo[]>>(`/workers${query}`);
     return res.data;
   }
 

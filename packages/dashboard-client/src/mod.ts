@@ -38,6 +38,8 @@ export type {
   ClientQueueDetail,
   ClientQueueInfo,
   ClientSearchJobsFilter,
+  ClientWorkerInfo,
+  ClientWorkerStatus,
   DataResponse,
   ErrorResponse,
   PaginatedResponse,

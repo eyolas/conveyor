@@ -61,8 +61,14 @@ All endpoints are prefixed with `{basePath}/api`.
 | `GET`    | `/metrics/sparklines`             | Get sparkline data for all queues |
 | `GET`    | `/metrics/status`                 | Check metrics status              |
 | `GET`    | `/flows`                          | List job flows                    |
+| `GET`    | `/workers`                        | List registered worker processes  |
 | `GET`    | `/events`                         | SSE stream for all queues         |
 | `GET`    | `/queues/:name/events`            | SSE stream for a single queue     |
+
+`GET /workers` lists the worker processes currently consuming the queues, each with a `status`
+(`live` / `warning` / `stale`) derived from its heartbeat age. Accepts `?queue=` and
+`?staleAfterMs=`. Stores that do not implement the optional worker registry return an empty list
+rather than an error.
 
 ## Node.js / Express / Fastify
 

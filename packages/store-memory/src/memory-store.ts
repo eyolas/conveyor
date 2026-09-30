@@ -13,6 +13,7 @@ import type {
   FetchOptions,
   JobData,
   JobState,
+  ListWorkersFilter,
   MetricsBucket,
   MetricsQueryOptions,
   QueueInfo,
@@ -22,12 +23,16 @@ import type {
   StoreInterface,
   StoreOptions,
   UpdateJobOptions,
+  WorkerInfo,
+  WorkerRegistration,
 } from '@conveyor/shared';
 import {
   generateId,
   InvalidJobStateError,
   MetricsDisabledError,
   noopLogger,
+  WORKER_DEAD_AFTER_MS,
+  WORKER_STALE_AFTER_MS,
 } from '@conveyor/shared';
 
 /** @internal */
@@ -57,6 +62,8 @@ export class MemoryStore implements StoreInterface {
   private rateLimitTimestamps = new Map<string, number[]>();
   /** Metrics buckets: key = `${queueName}::${jobName}::${periodStart.getTime()}::${granularity}` */
   private metrics = new Map<string, MetricsBucket>();
+  /** Registered workers: key = worker id */
+  private workers = new Map<string, WorkerInfo>();
   private readonly onEventHandlerError: (error: unknown) => void;
   private readonly logger;
   private readonly options?: StoreOptions;
@@ -85,6 +92,7 @@ export class MemoryStore implements StoreInterface {
     this.groupCursors.clear();
     this.rateLimitTimestamps.clear();
     this.metrics.clear();
+    this.workers.clear();
     return Promise.resolve();
   }
 
@@ -573,6 +581,10 @@ export class MemoryStore implements StoreInterface {
     for (const [key, bucket] of this.metrics) {
       if (bucket.queueName === queueName) this.metrics.delete(key);
     }
+    // Remove registered workers for this queue
+    for (const [id, worker] of this.workers) {
+      if (worker.queueName === queueName) this.workers.delete(id);
+    }
     return Promise.resolve();
   }
 
@@ -937,6 +949,75 @@ export class MemoryStore implements StoreInterface {
     }
 
     return Promise.resolve();
+  }
+
+  // ─── Worker Registry ──────────────────────────────────────────────
+
+  /**
+   * Register a worker, resetting its heartbeat to now.
+   *
+   * Upserts by {@linkcode WorkerRegistration.id}: re-registering an existing id
+   * overwrites every field. Also sweeps rows whose last heartbeat is older than
+   * {@linkcode WORKER_DEAD_AFTER_MS}, so a crash-looping worker cannot accumulate rows.
+   *
+   * @param info - The worker to register.
+   */
+  registerWorker(info: WorkerRegistration): Promise<void> {
+    const now = new Date();
+    const deadBefore = now.getTime() - WORKER_DEAD_AFTER_MS;
+    for (const [id, worker] of this.workers) {
+      if (worker.lastHeartbeatAt.getTime() < deadBefore) this.workers.delete(id);
+    }
+
+    this.workers.set(info.id, structuredClone({ ...info, lastHeartbeatAt: now }));
+    return Promise.resolve();
+  }
+
+  /**
+   * Refresh a worker's heartbeat. No-op when the id is unknown.
+   *
+   * @param id - The worker id.
+   */
+  heartbeatWorker(id: string): Promise<void> {
+    const worker = this.workers.get(id);
+    if (worker) worker.lastHeartbeatAt = new Date();
+    return Promise.resolve();
+  }
+
+  /**
+   * Remove a worker from the registry. No-op when the id is unknown.
+   *
+   * @param id - The worker id.
+   */
+  unregisterWorker(id: string): Promise<void> {
+    this.workers.delete(id);
+    return Promise.resolve();
+  }
+
+  /**
+   * List live workers, sorted by queue name ascending then heartbeat descending.
+   *
+   * Reads stay pure — stale rows are filtered out but never deleted.
+   *
+   * @param filter - Optional queue and staleness filters.
+   * @returns Matching workers, as isolated copies.
+   */
+  listWorkers(filter?: ListWorkersFilter): Promise<WorkerInfo[]> {
+    const staleAfterMs = filter?.staleAfterMs ?? WORKER_STALE_AFTER_MS;
+    const liveSince = Date.now() - staleAfterMs;
+
+    const results: WorkerInfo[] = [];
+    for (const worker of this.workers.values()) {
+      if (filter?.queueName !== undefined && worker.queueName !== filter.queueName) continue;
+      if (worker.lastHeartbeatAt.getTime() < liveSince) continue;
+      results.push(structuredClone(worker));
+    }
+
+    results.sort((a, b) => {
+      if (a.queueName !== b.queueName) return a.queueName < b.queueName ? -1 : 1;
+      return b.lastHeartbeatAt.getTime() - a.lastHeartbeatAt.getTime();
+    });
+    return Promise.resolve(results);
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────

@@ -24,6 +24,7 @@ export type {
   JobOptions,
   JobState,
   LimiterOptions,
+  ListWorkersFilter,
   Logger,
   MetricsBucket,
   MetricsOptions,
@@ -42,7 +43,9 @@ export type {
   StoreOptions,
   TimeUnit,
   UpdateJobOptions,
+  WorkerInfo,
   WorkerOptions,
+  WorkerRegistration,
 } from './types.ts';
 
 export {
@@ -58,6 +61,8 @@ export {
   parseDelay,
   validateQueueName,
   validateTimezone,
+  WORKER_DEAD_AFTER_MS,
+  WORKER_STALE_AFTER_MS,
 } from './utils.ts';
 
 export {

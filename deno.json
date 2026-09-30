@@ -35,7 +35,7 @@
     "test": "deno -A npm:vitest run",
     "test:deno": "deno -A npm:vitest run",
     "test:core": "deno -A npm:vitest run tests/core/ tests/conformance/",
-    "test:memory": "deno -A npm:vitest run tests/conformance/",
+    "test:memory": "deno -A npm:vitest run tests/store-memory/",
     "test:pg": "deno -A npm:vitest run tests/store-pg/",
     "test:sqlite:node": "deno -A npm:vitest run --config vitest.sqlite.config.ts tests/store-sqlite-node/",
     "test:sqlite:bun": "bun test tests/store-sqlite-bun/",

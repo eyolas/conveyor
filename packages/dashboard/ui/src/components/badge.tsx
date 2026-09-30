@@ -34,6 +34,22 @@ const STYLES: Record<string, { bg: string; text: string; dot: string }> = {
     text: 'text-orange-700 dark:text-amber',
     dot: 'bg-orange-500 dark:bg-amber',
   },
+  // Worker heartbeat statuses (see GET /api/workers)
+  live: {
+    bg: 'bg-teal-glow dark:bg-teal-glow bg-emerald-50',
+    text: 'text-emerald-700 dark:text-teal',
+    dot: 'bg-emerald-500 dark:bg-teal',
+  },
+  warning: {
+    bg: 'bg-amber-glow dark:bg-amber-glow bg-amber-50',
+    text: 'text-amber-700 dark:text-amber',
+    dot: 'bg-amber-500 dark:bg-amber',
+  },
+  stale: {
+    bg: 'bg-rose-glow dark:bg-rose-glow bg-rose-50',
+    text: 'text-rose-700 dark:text-rose',
+    dot: 'bg-rose-500 dark:bg-rose',
+  },
 };
 
 export function Badge({ state, count }: { state: string; count?: number }) {

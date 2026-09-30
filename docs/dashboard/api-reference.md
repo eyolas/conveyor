@@ -125,6 +125,79 @@ Cannot edit active jobs.
 | --- | --- | --- |
 | `state` | all | Filter by job state |
 
+## Workers
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/workers` | List worker processes currently consuming the queues |
+
+Workers announce themselves to the store when they start, refresh a heartbeat on
+an interval, and remove themselves on `close()`. This endpoint surfaces that
+registry, which answers the questions job listings cannot: *is anything actually
+consuming this queue, is a process dead, which build is running where.*
+
+The endpoint is always available. When the configured store does not implement
+the [worker registry](/api/store-interface#worker-registry-optional), it returns
+an empty list rather than an error, so clients need no capability check.
+
+### Query Parameters
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `queue` | all allowed queues | Restrict to a single queue -- 404 if the name is not in the `queues` allow-list |
+| `staleAfterMs` | `30000` | Drop workers whose last heartbeat is older than this many ms. Must be a positive integer |
+
+### Response
+
+`data` is sorted by queue name ascending, then by `lastHeartbeatAt` descending.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `string` | Worker id, stable across heartbeats |
+| `queueName` | `string` | Queue the worker consumes |
+| `hostname` | `string \| null` | Host, when the worker was configured to advertise it |
+| `pid` | `number \| null` | Process id, when advertised |
+| `version` | `string \| null` | Build identifier, when advertised |
+| `concurrency` | `number` | Max concurrent jobs this worker processes |
+| `startedAt` | `string` | ISO 8601 date the worker registered |
+| `lastHeartbeatAt` | `string` | ISO 8601 date of the most recent heartbeat |
+| `metadata` | `object \| null` | Arbitrary caller-supplied metadata |
+| `status` | `string` | `"live"`, `"warning"`, or `"stale"` -- see below |
+
+`status` is computed server-side from the heartbeat age so that every consumer
+(the bundled UI, custom UIs, alerting scripts) agrees on what "live" means:
+
+| Status | Heartbeat age | Meaning |
+| --- | --- | --- |
+| `live` | < 10s | Healthy |
+| `warning` | < 30s | Late heartbeat -- slow event loop, GC pause, or network hiccup |
+| `stale` | >= 30s | Only visible when `staleAfterMs` was raised; the process is likely gone |
+
+```json
+{
+  "data": [
+    {
+      "id": "worker-3f2a1c",
+      "queueName": "emails",
+      "hostname": "worker-node-01",
+      "pid": 4821,
+      "version": "1.4.2",
+      "concurrency": 5,
+      "startedAt": "2026-09-05T09:12:44.000Z",
+      "lastHeartbeatAt": "2026-09-05T09:31:02.412Z",
+      "metadata": { "region": "eu-west-1" },
+      "status": "live"
+    }
+  ]
+}
+```
+
+::: tip
+`hostname`, `pid`, `version`, and `metadata` are `null` unless the worker was
+explicitly configured to advertise them -- Conveyor never reads them from the
+runtime on its own. See [Worker registry](/api/worker#worker-registry).
+:::
+
 ## Search
 
 | Method | Path | Description |

@@ -398,3 +398,45 @@ test('ConveyorDashboardClient.listFlowParents returns empty for no flows', async
 
   await store.disconnect();
 });
+
+// ─── Worker Endpoints ────────────────────────────────────────────────
+
+test('ConveyorDashboardClient.listWorkers returns registered workers', async () => {
+  const { store, client } = setup();
+  await store.connect();
+
+  expect(await client.listWorkers()).toEqual([]);
+
+  await store.registerWorker({
+    id: 'w1',
+    queueName: 'emails',
+    hostname: 'host-1',
+    pid: 42,
+    version: '1.0.0',
+    concurrency: 4,
+    startedAt: new Date(),
+    metadata: null,
+  });
+  await store.registerWorker({
+    id: 'w2',
+    queueName: 'images',
+    hostname: null,
+    pid: null,
+    version: null,
+    concurrency: 1,
+    startedAt: new Date(),
+    metadata: null,
+  });
+
+  const all = await client.listWorkers();
+  expect(all.length).toBe(2);
+  expect(all.map((w) => w.id).sort()).toEqual(['w1', 'w2']);
+  expect(all.every((w) => w.status === 'live')).toBe(true);
+
+  const filtered = await client.listWorkers({ queue: 'emails', staleAfterMs: 60_000 });
+  expect(filtered.length).toBe(1);
+  expect(filtered[0]?.queueName).toBe('emails');
+  expect(filtered[0]?.concurrency).toBe(4);
+
+  await store.disconnect();
+});

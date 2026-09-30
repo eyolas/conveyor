@@ -199,6 +199,29 @@ export const migrations: Migration[] = [
       `;
     },
   },
+  {
+    version: 11,
+    name: 'add_workers',
+    async up(sql) {
+      await sql`
+        CREATE TABLE IF NOT EXISTS conveyor_workers (
+          id                TEXT PRIMARY KEY,
+          queue_name        TEXT NOT NULL,
+          hostname          TEXT,
+          pid               INTEGER,
+          version           TEXT,
+          concurrency       INTEGER NOT NULL DEFAULT 1,
+          started_at        TIMESTAMPTZ NOT NULL,
+          last_heartbeat_at TIMESTAMPTZ NOT NULL,
+          metadata          JSONB
+        )
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_workers_heartbeat
+          ON conveyor_workers (queue_name, last_heartbeat_at)
+      `;
+    },
+  },
 ];
 
 /**

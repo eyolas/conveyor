@@ -6,8 +6,11 @@ or anything else.
 
 ## The StoreInterface Contract
 
-Your store must implement every method in `StoreInterface`. The core `Queue` and `Worker` classes
-interact exclusively with this interface and never depend on a concrete store implementation.
+Your store must implement every **required** method in `StoreInterface`. The core `Queue` and
+`Worker` classes interact exclusively with this interface and never depend on a concrete store
+implementation. A handful of methods are declared optional (`?`) -- see
+[Optional Capabilities](#optional-capabilities) -- and callers feature-detect them, so you can ship
+a conformant store without them and add them later without a breaking change.
 
 ```ts
 import type { StoreInterface } from '@conveyor/shared';
@@ -188,6 +191,70 @@ getGroupActiveCount(queueName: string, groupId: string): Promise<number>;
 getWaitingGroupCount(queueName: string, groupId: string): Promise<number>;
 ```
 
+## Optional Capabilities
+
+These methods are declared optional on `StoreInterface`. Every caller checks for them before use, so
+omitting them degrades a feature gracefully instead of breaking the store.
+
+| Method | Omitting it means |
+| ------ | ----------------- |
+| `getMetrics` / `aggregateMetrics` | The dashboard reports metrics as disabled |
+| `searchByPayload` / `searchByName` / `searchJobs` | The matching search endpoints return nothing |
+| `listFlowParents` | The dashboard Flows page stays empty |
+| `registerWorker` / `heartbeatWorker` / `unregisterWorker` / `listWorkers` | Workers never announce themselves; `/api/workers` returns an empty list |
+
+### Worker Registry
+
+The registry lets operators see which processes are consuming a queue, when each last checked in,
+and which build it is running. `Worker` calls `registerWorker` on start, `heartbeatWorker` on an
+interval, and `unregisterWorker` on `close()` -- each guarded by a feature check.
+
+Implement all four together, or none: a store that registers workers but never lets them heartbeat
+would show every worker as dead.
+
+```ts
+import { WORKER_DEAD_AFTER_MS, WORKER_STALE_AFTER_MS } from '@conveyor/shared';
+
+/**
+ * Upsert by id (a re-registration replaces the row entirely), set
+ * lastHeartbeatAt to now, and sweep rows older than WORKER_DEAD_AFTER_MS.
+ */
+registerWorker?(info: WorkerRegistration): Promise<void>;
+
+/** Refresh lastHeartbeatAt. No-op on an unknown id; must never throw. */
+heartbeatWorker?(id: string): Promise<void>;
+
+/** Remove a worker. No-op on an unknown id; must never throw. */
+unregisterWorker?(id: string): Promise<void>;
+
+/**
+ * Rows newer than filter.staleAfterMs ?? WORKER_STALE_AFTER_MS, optionally
+ * restricted to filter.queueName, sorted by queueName ASC then
+ * lastHeartbeatAt DESC. Infinity returns everything. Reads never sweep.
+ */
+listWorkers?(filter?: ListWorkersFilter): Promise<WorkerInfo[]>;
+```
+
+Key points:
+
+**Cleanup happens on registration, not on read.** A worker that crashes leaves its row behind.
+Sweeping rows older than `WORKER_DEAD_AFTER_MS` (150s, five staleness windows) inside
+`registerWorker` keeps the work bounded and needs no background timer -- a crash-looping worker
+cleans up after itself on its next boot. `listWorkers` filters stale rows out of the result but must
+never delete them. If your backend has native key expiry (Redis, DynamoDB TTL), set a
+`WORKER_DEAD_AFTER_MS` TTL refreshed on every register and heartbeat, and skip the sweep entirely.
+
+**Heartbeat and unregister must be forgiving.** Both run against ids the store may no longer know
+about -- a swept row, a duplicate `close()`. Return silently rather than throwing: `heartbeatWorker`
+runs on a timer, so a rejection would fire the worker's `error` event on every tick.
+
+**Do not invent identity.** `hostname`, `pid`, `version`, and `metadata` arrive as `null` unless the
+application passed them to the `Worker` constructor. Persist what you are given; never read them
+from the runtime.
+
+**Obliterating a queue removes its workers.** If your store supports a per-queue wipe, drop that
+queue's registry rows with it.
+
 ## Implementation Guide
 
 ### Step 1: Scaffold the Class
@@ -298,6 +365,7 @@ The conformance tests cover:
 - Event subscribe, unsubscribe, and publish
 - Flow operations (saveFlow, notifyChildCompleted, failParentOnChildFailure, getChildrenJobs)
 - Group counting (getGroupActiveCount, getWaitingGroupCount)
+- Worker registry, when implemented (register, heartbeat, unregister, list, staleness filtering)
 
 Run the tests with:
 

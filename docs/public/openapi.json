@@ -19,6 +19,7 @@
     { "name": "Jobs", "description": "Job CRUD and lifecycle operations" },
     { "name": "Groups", "description": "Job group queries" },
     { "name": "Flows", "description": "Flow (parent/child) job queries" },
+    { "name": "Workers", "description": "Worker registry (running consumer processes)" },
     { "name": "Search", "description": "Cross-queue search (Cmd+K)" },
     { "name": "Metrics", "description": "Metrics and sparklines" },
     { "name": "Events", "description": "Real-time SSE event streams" }
@@ -873,6 +874,49 @@
         }
       }
     },
+    "/workers": {
+      "get": {
+        "tags": ["Workers"],
+        "summary": "List registered workers",
+        "description": "Returns the worker processes currently consuming the queues, sorted by queue name then most recent heartbeat. Each worker carries a server-computed `status` derived from its heartbeat age. Returns an empty list when the configured store does not implement the optional worker registry.",
+        "operationId": "listWorkers",
+        "parameters": [
+          {
+            "name": "queue",
+            "in": "query",
+            "description": "Restrict to a single queue",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "staleAfterMs",
+            "in": "query",
+            "description": "Drop workers whose last heartbeat is older than this many ms",
+            "schema": { "type": "integer", "minimum": 1, "default": 30000 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of registered workers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/WorkerInfo" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/search": {
       "get": {
         "tags": ["Search"],
@@ -1233,6 +1277,23 @@
           "totalProcessMs": { "type": "number", "description": "Sum of processing durations in ms" },
           "minProcessMs": { "type": "number", "nullable": true, "description": "Shortest processing duration" },
           "maxProcessMs": { "type": "number", "nullable": true, "description": "Longest processing duration" }
+        }
+      },
+      "WorkerInfo": {
+        "type": "object",
+        "description": "A worker process registered against a queue, with its derived heartbeat status",
+        "required": ["id", "queueName", "hostname", "pid", "version", "concurrency", "startedAt", "lastHeartbeatAt", "metadata", "status"],
+        "properties": {
+          "id": { "type": "string", "description": "Worker id, stable across heartbeats" },
+          "queueName": { "type": "string", "description": "Queue the worker consumes" },
+          "hostname": { "type": "string", "nullable": true, "description": "Host, or null when the worker does not advertise it" },
+          "pid": { "type": "integer", "nullable": true, "description": "Process id, or null when the worker does not advertise it" },
+          "version": { "type": "string", "nullable": true, "description": "Caller-supplied build identifier, or null" },
+          "concurrency": { "type": "integer", "description": "Max concurrent jobs this worker processes" },
+          "startedAt": { "type": "string", "format": "date-time", "description": "When the worker registered" },
+          "lastHeartbeatAt": { "type": "string", "format": "date-time", "description": "Most recent heartbeat" },
+          "metadata": { "type": "object", "nullable": true, "additionalProperties": true, "description": "Caller-supplied metadata, or null" },
+          "status": { "type": "string", "enum": ["live", "warning", "stale"], "description": "Heartbeat freshness: live (<10s), warning (<30s), stale (older)" }
         }
       },
       "StoreEvent": {

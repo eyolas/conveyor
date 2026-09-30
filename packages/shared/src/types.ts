@@ -338,6 +338,30 @@ export interface WorkerOptions {
 
   /** Per-group concurrency and rate limiting configuration. */
   group?: GroupWorkerOptions;
+
+  /**
+   * Heartbeat interval in ms for the worker registry (default: `lockDuration / 2`).
+   * Only used when the store implements {@linkcode StoreInterface.registerWorker}.
+   */
+  heartbeatInterval?: number;
+
+  /**
+   * Host to advertise in the worker registry (default: `null`).
+   * Opt-in: core never reads it from the runtime.
+   */
+  hostname?: string;
+
+  /**
+   * Process id to advertise in the worker registry (default: `null`).
+   * Opt-in: core never reads it from the runtime.
+   */
+  pid?: number;
+
+  /** Build/version identifier to advertise in the worker registry (default: `null`). */
+  version?: string;
+
+  /** Arbitrary metadata to advertise in the worker registry (default: `null`). */
+  metadata?: Record<string, unknown>;
 }
 
 /** Event types emitted by the store (used for cross-process pub/sub). */
@@ -446,6 +470,45 @@ export interface QueueInfo {
 
   /** Number of jobs with a repeat/cron schedule. */
   scheduledCount: number;
+}
+
+/**
+ * A worker process registered against a queue.
+ *
+ * Workers announce themselves on start, refresh {@linkcode WorkerInfo.lastHeartbeatAt}
+ * on an interval, and unregister on close. A worker is considered *live* while
+ * `Date.now() - lastHeartbeatAt` stays below the staleness threshold.
+ */
+export interface WorkerInfo {
+  /** Worker id, stable across heartbeats. */
+  id: string;
+  /** Name of the queue being consumed. */
+  queueName: string;
+  /** Host the worker runs on, or `null` when not disclosed. */
+  hostname: string | null;
+  /** Process id, or `null` when not disclosed. */
+  pid: number | null;
+  /** Caller-supplied build/version identifier, or `null`. */
+  version: string | null;
+  /** Max concurrent jobs this worker processes. */
+  concurrency: number;
+  /** When the worker registered. */
+  startedAt: Date;
+  /** Timestamp of the most recent heartbeat. */
+  lastHeartbeatAt: Date;
+  /** Caller-supplied metadata, or `null`. */
+  metadata: Record<string, unknown> | null;
+}
+
+/** Registration payload for {@linkcode StoreInterface.registerWorker}. */
+export type WorkerRegistration = Omit<WorkerInfo, 'lastHeartbeatAt'>;
+
+/** Filter for {@linkcode StoreInterface.listWorkers}. */
+export interface ListWorkersFilter {
+  /** Restrict to a single queue. */
+  queueName?: string;
+  /** Drop workers whose last heartbeat is older than this many ms (default: 30_000). */
+  staleAfterMs?: number;
 }
 
 /**
@@ -980,6 +1043,43 @@ export interface StoreInterface {
     start?: number,
     end?: number,
   ): Promise<SearchJobsResult>;
+
+  // ─── Worker Registry ──────────────────────────────────────────────────────
+
+  /**
+   * Register a worker process against a queue.
+   * Optional — stores without a worker registry simply omit it.
+   *
+   * Re-registering an existing id overwrites the row and resets its heartbeat.
+   *
+   * @param info - The worker to register.
+   */
+  registerWorker?(info: WorkerRegistration): Promise<void>;
+
+  /**
+   * Refresh a worker's heartbeat timestamp.
+   * Optional — a no-op when the worker is unknown.
+   *
+   * @param id - The worker id.
+   */
+  heartbeatWorker?(id: string): Promise<void>;
+
+  /**
+   * Remove a worker from the registry.
+   * Optional — a no-op when the worker is unknown.
+   *
+   * @param id - The worker id.
+   */
+  unregisterWorker?(id: string): Promise<void>;
+
+  /**
+   * List registered workers, most recent heartbeat first.
+   * Optional — returns workers across all queues unless filtered.
+   *
+   * @param filter - Optional queue and staleness filters.
+   * @returns Matching workers.
+   */
+  listWorkers?(filter?: ListWorkersFilter): Promise<WorkerInfo[]>;
 }
 
 /**

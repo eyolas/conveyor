@@ -400,6 +400,12 @@ interface StoreInterface {
     reason: string,
   ): Promise<boolean>;
   getChildrenJobs(parentQueueName: string, parentId: string): Promise<JobData[]>;
+
+  // Worker registry (optional — stores without it keep working unchanged)
+  registerWorker?(info: WorkerRegistration): Promise<void>;
+  heartbeatWorker?(id: string): Promise<void>;
+  unregisterWorker?(id: string): Promise<void>;
+  listWorkers?(filter?: ListWorkersFilter): Promise<WorkerInfo[]>;
 }
 ```
 
@@ -670,6 +676,31 @@ type QueueEvent =
 await worker.close(/* forceTimeout: */ 10_000);
 await queue.close();
 ```
+
+### 4.13 Worker Registry
+
+Workers announce themselves to the store, refresh a heartbeat on an interval, and unregister on
+`close()`, so operators can see which processes consume which queue.
+
+```typescript
+interface WorkerInfo {
+  id: string;
+  queueName: string;
+  hostname: string | null; // opt-in, never read from the runtime
+  pid: number | null; // opt-in
+  version: string | null; // opt-in (build identifier)
+  concurrency: number;
+  startedAt: Date;
+  lastHeartbeatAt: Date;
+  metadata: Record<string, unknown> | null;
+}
+```
+
+- Heartbeat cadence: `heartbeatInterval`, default `lockDuration / 2`.
+- Live while `now - lastHeartbeatAt < WORKER_STALE_AFTER_MS` (30s); rows are swept after
+  `WORKER_DEAD_AFTER_MS` (150s) on the next `registerWorker`.
+- A paused worker keeps heartbeating — only `close()` leaves the registry.
+- Exposed by the dashboard as `GET /api/workers` and the `/workers` page.
 
 ---
 

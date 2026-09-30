@@ -83,11 +83,21 @@ export class Worker<T = unknown> {
   private readonly groupOptions: GroupWorkerOptions | null;
   private groupRateLimitTimestamps = new Map<string, number[]>();
 
+  /** Worker registry metadata — all caller-supplied, never read from the runtime. */
+  private readonly heartbeatInterval: number;
+  private readonly hostname: string | null;
+  private readonly pid: number | null;
+  private readonly version: string | null;
+  private readonly metadata: Record<string, unknown> | null;
+  private readonly startedAt: Date;
+
   private activeCount = 0;
   private closed = false;
   private paused = false;
+  private registered = false;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private stalledTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private lockRenewTimers = new Map<string, ReturnType<typeof setInterval>>();
   private abortControllers = new Map<string, AbortController>();
 
@@ -139,18 +149,75 @@ export class Worker<T = unknown> {
     this.lifo = options.lifo ?? false;
     this.groupOptions = options.group ?? null;
 
+    // Worker registry — hostname/pid/version/metadata are opt-in so the core
+    // stays runtime-agnostic (no `process`, no `Deno`, no `globalThis` reads).
+    this.heartbeatInterval = options.heartbeatInterval ?? Math.floor(this.lockDuration / 2);
+    this.hostname = options.hostname ?? null;
+    this.pid = options.pid ?? null;
+    this.version = options.version ?? null;
+    this.metadata = options.metadata ?? null;
+    this.startedAt = new Date();
+
     // Start processing unless autoStart is explicitly false
     if (options.autoStart !== false) {
       this.start();
     }
   }
 
-  /** Start polling for jobs and stalled-job detection. No-op if already running or closed. */
+  /**
+   * Start polling for jobs, stalled-job detection and the registry heartbeat.
+   * No-op if already running or closed.
+   */
   start(): void {
     if (this.closed || (!this.paused && this.pollTimer !== null)) return;
     this.paused = false;
+    this.startRegistry();
     this.poll();
     this.startStalledCheck();
+  }
+
+  // ─── Worker Registry ───────────────────────────────────────────────
+
+  /**
+   * Announce this worker to the store and start its heartbeat.
+   *
+   * Idempotent, and a no-op when the store has no worker registry — the
+   * registry methods are optional on {@linkcode StoreInterface}, so a store
+   * without them must keep working exactly as before.
+   *
+   * `start()` is synchronous, so registration is fire-and-forget: failures
+   * surface on the `error` event, like {@linkcode Worker.poll}.
+   */
+  private startRegistry(): void {
+    const register = this.store.registerWorker?.bind(this.store);
+    if (this.registered || !register) return;
+    this.registered = true;
+
+    register({
+      id: this.id,
+      queueName: this.queueName,
+      hostname: this.hostname,
+      pid: this.pid,
+      version: this.version,
+      concurrency: this.concurrency,
+      startedAt: this.startedAt,
+      metadata: this.metadata,
+    }).catch((err) => this.events.emit('error', err));
+
+    const heartbeat = this.store.heartbeatWorker?.bind(this.store);
+    if (!heartbeat) return;
+
+    this.heartbeatTimer = setInterval(() => {
+      heartbeat(this.id).catch((err) => this.events.emit('error', err));
+    }, this.heartbeatInterval);
+  }
+
+  /** Stop the heartbeat timer. Safe to call more than once. */
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   // ─── Event helpers (mirror common pattern) ─────────────────────────
@@ -186,6 +253,9 @@ export class Worker<T = unknown> {
       this.stalledTimer = null;
     }
 
+    // Stop the registry heartbeat
+    this.stopHeartbeat();
+
     // Wait for active jobs to finish
     if (this.activeCount > 0) {
       await Promise.race([
@@ -201,6 +271,18 @@ export class Worker<T = unknown> {
     this.lockRenewTimers.clear();
     this.abortControllers.clear();
 
+    // Leave the registry before tearing down the event bus, so a failure can
+    // still be observed. Closing must never throw because of the registry.
+    const unregister = this.store.unregisterWorker?.bind(this.store);
+    if (this.registered && unregister) {
+      this.registered = false;
+      try {
+        await unregister(this.id);
+      } catch (err) {
+        this.events.emit('error', err);
+      }
+    }
+
     this.events.removeAllListeners();
   }
 
@@ -208,12 +290,23 @@ export class Worker<T = unknown> {
     await this.close();
   }
 
-  /** Pause the worker. Active jobs will finish but no new jobs are fetched. */
+  /**
+   * Pause the worker. Active jobs will finish but no new jobs are fetched.
+   *
+   * The registry heartbeat keeps running: a paused worker is still a live
+   * process and must stay visible (and non-stale) to monitoring. Only
+   * {@linkcode Worker.close} leaves the registry.
+   */
   pause(): void {
     this.paused = true;
   }
 
-  /** Resume the worker after pausing, restarting the poll loop. */
+  /**
+   * Resume the worker after pausing, restarting the poll loop.
+   *
+   * The heartbeat is untouched — it was never stopped by
+   * {@linkcode Worker.pause}, so re-arming it here would double the interval.
+   */
   resume(): void {
     if (!this.paused) return;
     this.paused = false;

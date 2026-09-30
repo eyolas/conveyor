@@ -25,5 +25,5 @@ export {
   GROUP_WAITING_SUFFIX,
 } from './keys.ts';
 export type { Keys } from './keys.ts';
-export { hashToJobData, jobDataToHash } from './mapping.ts';
-export type { JobHash } from './mapping.ts';
+export { hashToJobData, hashToWorkerInfo, jobDataToHash, workerInfoToHash } from './mapping.ts';
+export type { JobHash, WorkerHash } from './mapping.ts';

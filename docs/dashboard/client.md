@@ -127,6 +127,40 @@ const client = new ConveyorDashboardClient({
 | --- | --- | --- |
 | `listFlowParents(state?)` | `ClientJobData[]` | List flow parent jobs |
 
+### Workers
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `listWorkers(options?)` | `ClientWorkerInfo[]` | List the worker processes consuming the queues |
+
+```typescript
+// All workers, across every queue
+const workers = await client.listWorkers();
+
+// Only one queue, and keep workers whose heartbeat is up to 5 minutes old
+const stragglers = await client.listWorkers({
+  queue: 'emails',
+  staleAfterMs: 5 * 60_000,
+});
+
+for (const w of workers) {
+  console.log(w.queueName, w.id, w.status, w.version ?? 'unknown build');
+}
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `queue` | `string` | all queues | Restrict to a single queue |
+| `staleAfterMs` | `number` | `30000` | Drop workers whose last heartbeat is older than this many ms |
+
+Each entry carries a `status` computed by the server from the heartbeat age:
+`'live'` (< 10s), `'warning'` (< 30s), or `'stale'`. Results are sorted by queue
+name, then by most recent heartbeat.
+
+`hostname`, `pid`, `version`, and `metadata` are `null` unless the worker was
+configured to advertise them. Stores without a worker registry return an empty
+list rather than an error, so no capability check is needed.
+
 ### Metrics
 
 | Method | Returns | Description |
@@ -246,6 +280,8 @@ import type {
   ClientGroupInfo,        // Group active/waiting counts
   ClientMetricsBucket,    // Metrics bucket
   ClientSearchJobsFilter, // name + queueName + states + date range
+  ClientWorkerInfo,       // Registered worker with heartbeat status
+  ClientWorkerStatus,     // 'live' | 'warning' | 'stale'
   SSEEvent,               // SSE event payload
   PaginatedResponse,      // { data: T[], meta: { total, start, end } }
   JobState,               // 'waiting' | 'active' | 'completed' | ...

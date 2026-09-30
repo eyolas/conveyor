@@ -44,6 +44,7 @@
 - Real-time job lifecycle events
 - Graceful shutdown with timeout
 - Job timeout support
+- Worker registry with heartbeats (see running consumers in the dashboard)
 
 ## Quick Start
 
@@ -222,6 +223,24 @@ worker.resume();
 
 // Graceful shutdown (waits up to 30s for active jobs)
 await worker.close(30_000);
+```
+
+#### Worker Registry
+
+Workers announce themselves to the store on start, heartbeat every `lockDuration / 2`, and
+unregister on `close()`. The dashboard's `/workers` page lists them with their heartbeat status, so
+you can spot a crashed consumer or a half-finished rollout. Automatic on every built-in store; a
+store without the registry is unaffected.
+
+Host, PID, and version are opt-in -- Conveyor never reads them from the runtime:
+
+```typescript
+const worker = new Worker('emails', handler, {
+  store,
+  hostname: os.hostname(),
+  pid: process.pid,
+  version: process.env.GIT_SHA, // makes a mixed deploy obvious in the dashboard
+});
 ```
 
 ### Rate Limiting

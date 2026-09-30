@@ -1,13 +1,17 @@
 import process from 'node:process';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import postgres from 'postgres';
-import { runMigrations } from '../../packages/store-pg/src/migrations.ts';
+import { migrations, runMigrations } from '../../packages/store-pg/src/migrations.ts';
 
 const PG_URL = process.env.PG_URL ??
   'postgres://conveyor:conveyor@localhost:5432/conveyor_test';
 
 describe('[PgStore] migrations', () => {
   let sql: ReturnType<typeof postgres>;
+
+  // Derived from the migration list itself so adding a migration does not
+  // require touching every assertion below.
+  const allVersions = migrations.map((m) => m.version);
 
   beforeAll(() => {
     sql = postgres(PG_URL);
@@ -82,18 +86,8 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    // Should have exactly ten migration entries
-    expect(rows.length).toBe(10);
-    expect(rows[0]!.version).toBe(1);
-    expect(rows[1]!.version).toBe(2);
-    expect(rows[2]!.version).toBe(3);
-    expect(rows[3]!.version).toBe(4);
-    expect(rows[4]!.version).toBe(5);
-    expect(rows[5]!.version).toBe(6);
-    expect(rows[6]!.version).toBe(7);
-    expect(rows[7]!.version).toBe(8);
-    expect(rows[8]!.version).toBe(9);
-    expect(rows[9]!.version).toBe(10);
+    // Exactly one entry per declared migration, no duplicates
+    expect(rows.map((r) => r.version)).toEqual(allVersions);
   });
 
   it('skips already applied migrations', async () => {
@@ -108,17 +102,12 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBe(10);
-    expect(rows[0]!.version).toBe(1);
-    expect(rows[1]!.version).toBe(2);
-    expect(rows[2]!.version).toBe(3);
-    expect(rows[3]!.version).toBe(4);
-    expect(rows[4]!.version).toBe(5);
-    expect(rows[5]!.version).toBe(6);
-    expect(rows[6]!.version).toBe(8);
-    expect(rows[7]!.version).toBe(9);
-    expect(rows[8]!.version).toBe(10);
-    expect(rows[9]!.version).toBe(999);
+    // Version 7 was rewritten to 999, so it moves to the end of the ordering
+    // and nothing is re-applied on top of it.
+    expect(rows.map((r) => r.version)).toEqual([
+      ...allVersions.filter((v) => v !== 7),
+      999,
+    ]);
   });
 
   it('concurrent calls do not conflict (advisory lock)', async () => {
@@ -132,16 +121,6 @@ describe('[PgStore] migrations', () => {
     const rows = await sql`
       SELECT version FROM conveyor_migrations ORDER BY version
     `;
-    expect(rows.length).toBe(10);
-    expect(rows[0]!.version).toBe(1);
-    expect(rows[1]!.version).toBe(2);
-    expect(rows[2]!.version).toBe(3);
-    expect(rows[3]!.version).toBe(4);
-    expect(rows[4]!.version).toBe(5);
-    expect(rows[5]!.version).toBe(6);
-    expect(rows[6]!.version).toBe(7);
-    expect(rows[7]!.version).toBe(8);
-    expect(rows[8]!.version).toBe(9);
-    expect(rows[9]!.version).toBe(10);
+    expect(rows.map((r) => r.version)).toEqual(allVersions);
   });
 });

@@ -9,6 +9,7 @@ import type {
   FetchOptions,
   JobData,
   JobState,
+  ListWorkersFilter,
   MetricsBucket,
   MetricsQueryOptions,
   QueueInfo,
@@ -18,6 +19,8 @@ import type {
   StoreInterface,
   StoreOptions,
   UpdateJobOptions,
+  WorkerInfo,
+  WorkerRegistration,
 } from '@conveyor/shared';
 import {
   assertJobState,
@@ -25,10 +28,12 @@ import {
   InvalidJobStateError,
   MetricsDisabledError,
   noopLogger,
+  WORKER_DEAD_AFTER_MS,
+  WORKER_STALE_AFTER_MS,
 } from '@conveyor/shared';
 import type { DatabaseOpener, SqliteDatabase, SqliteStatement } from './types.ts';
-import type { JobRow } from './mapping.ts';
-import { jobDataToRow, rowToJobData } from './mapping.ts';
+import type { JobRow, WorkerRow } from './mapping.ts';
+import { jobDataToRow, rowToJobData, rowToWorkerInfo } from './mapping.ts';
 import { runMigrations } from './migrations.ts';
 
 /** @internal */
@@ -896,6 +901,7 @@ export class BaseSqliteStore implements StoreInterface {
         this.db.prepare('DELETE FROM conveyor_group_cursors WHERE queue_name = ?').run(queueName);
         this.db.prepare('DELETE FROM conveyor_rate_limits WHERE queue_name = ?').run(queueName);
         this.db.prepare('DELETE FROM conveyor_metrics WHERE queue_name = ?').run(queueName);
+        this.db.prepare('DELETE FROM conveyor_workers WHERE queue_name = ?').run(queueName);
       });
       return Promise.resolve();
     } catch (err) {
@@ -1262,6 +1268,111 @@ export class BaseSqliteStore implements StoreInterface {
       ORDER BY created_at ASC
     `).all(parentQueueName, parentId) as unknown as JobRow[];
     return Promise.resolve(rows.map(rowToJobData));
+  }
+
+  // ─── Worker Registry ─────────────────────────────────────────────
+
+  /**
+   * Register a worker, overwriting any existing row with the same id and
+   * resetting its heartbeat. Also sweeps rows whose last heartbeat is older
+   * than {@linkcode WORKER_DEAD_AFTER_MS}, keeping dead-row cleanup bounded
+   * and tied to worker boot.
+   *
+   * @param info - The worker to register.
+   */
+  registerWorker(info: WorkerRegistration): Promise<void> {
+    const now = Date.now();
+    this.runTransaction(() => {
+      this.db.prepare('DELETE FROM conveyor_workers WHERE last_heartbeat_at < ?')
+        .run(now - WORKER_DEAD_AFTER_MS);
+
+      this.db.prepare(`
+        INSERT INTO conveyor_workers
+          (id, queue_name, hostname, pid, version, concurrency, started_at, last_heartbeat_at, metadata)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (id) DO UPDATE SET
+          queue_name = excluded.queue_name,
+          hostname = excluded.hostname,
+          pid = excluded.pid,
+          version = excluded.version,
+          concurrency = excluded.concurrency,
+          started_at = excluded.started_at,
+          last_heartbeat_at = excluded.last_heartbeat_at,
+          metadata = excluded.metadata
+      `).run(
+        info.id,
+        info.queueName,
+        info.hostname,
+        info.pid,
+        info.version,
+        info.concurrency,
+        info.startedAt.getTime(),
+        now,
+        info.metadata !== null && info.metadata !== undefined
+          ? JSON.stringify(info.metadata)
+          : null,
+      );
+    });
+    return Promise.resolve();
+  }
+
+  /**
+   * Refresh a worker's heartbeat. Unknown ids are a silent no-op.
+   *
+   * @param id - The worker id.
+   */
+  heartbeatWorker(id: string): Promise<void> {
+    this.runTransaction(() => {
+      this.db.prepare('UPDATE conveyor_workers SET last_heartbeat_at = ? WHERE id = ?')
+        .run(Date.now(), id);
+    });
+    return Promise.resolve();
+  }
+
+  /**
+   * Remove a worker from the registry. Unknown ids are a silent no-op.
+   *
+   * @param id - The worker id.
+   */
+  unregisterWorker(id: string): Promise<void> {
+    this.runTransaction(() => {
+      this.db.prepare('DELETE FROM conveyor_workers WHERE id = ?').run(id);
+    });
+    return Promise.resolve();
+  }
+
+  /**
+   * List live workers, ordered by queue name then most recent heartbeat.
+   * Never sweeps — stale rows are simply filtered out of the result.
+   *
+   * @param filter - Optional queue and staleness filters. A non-finite
+   *   `staleAfterMs` (e.g. `Infinity`) disables the staleness cutoff entirely.
+   * @returns Matching workers.
+   */
+  listWorkers(filter?: ListWorkersFilter): Promise<WorkerInfo[]> {
+    const staleAfterMs = filter?.staleAfterMs ?? WORKER_STALE_AFTER_MS;
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filter?.queueName !== undefined) {
+      conditions.push('queue_name = ?');
+      params.push(filter.queueName);
+    }
+    // `Infinity` (or any non-finite value) would yield an invalid cutoff —
+    // branch the query instead of computing one.
+    if (Number.isFinite(staleAfterMs)) {
+      conditions.push('last_heartbeat_at >= ?');
+      params.push(Date.now() - staleAfterMs);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const rows = this.db.prepare(`
+      SELECT * FROM conveyor_workers
+      ${where}
+      ORDER BY queue_name ASC, last_heartbeat_at DESC
+    `).all(...params) as unknown as WorkerRow[];
+
+    return Promise.resolve(rows.map(rowToWorkerInfo));
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────
