@@ -29,7 +29,7 @@
     "@conveyor/store-redis": "./packages/store-redis/src/mod.ts",
     "@db/sqlite": "jsr:@db/sqlite@^0.13",
     "redis": "npm:redis@^6.0.0",
-    "vitest": "npm:vitest@^4"
+    "vitest": "npm:vitest@^5.0.0"
   },
   "tasks": {
     "test": "deno -A npm:vitest run",
