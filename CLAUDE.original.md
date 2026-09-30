@@ -256,6 +256,8 @@ Redis store, Cloudflare D1, dead letter queue.
 
 - **Claudette** (code graph): use `get_impact_radius` before refactors, `query_graph` for
   callers/importers, `get_review_context` for PR reviews. Run `build_or_update_graph` first.
+- **graft** (local context graph, `graft/` gitignored — run `graft build`): `graft_find_code` to
+  locate code, `graft_trace_calls` for callers/blast radius, `graft_file_api` for a file's API.
 - **context7**: use `resolve-library-id` + `query-docs` to fetch current docs for any dependency
   (croner, postgres, vitest, etc.) instead of relying on training data
 
