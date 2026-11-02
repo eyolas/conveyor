@@ -11,12 +11,13 @@
     "jsr:@std/path@1.0": "1.0.9",
     "jsr:@std/path@^1.1.4": "1.1.4",
     "npm:croner@10": "10.0.1",
+    "npm:croner@11": "11.0.0",
     "npm:hono@4": "4.12.0",
     "npm:postgres@^3.4.0": "3.4.8",
     "npm:redis@6": "6.0.1",
-    "npm:vitest@*": "4.1.0_vite@7.3.1__picomatch@4.0.3",
-    "npm:vitest@3": "3.2.4_vite@7.3.1__picomatch@4.0.3",
-    "npm:vitest@4": "4.1.0_vite@7.3.1__picomatch@4.0.3"
+    "npm:vitest@*": "4.1.0_vite@7.3.1",
+    "npm:vitest@3": "3.2.4_vite@7.3.1",
+    "npm:vitest@4": "4.1.0_vite@7.3.1"
   },
   "jsr": {
     "@db/sqlite@0.13.0": {
@@ -387,7 +388,7 @@
         "tinyrainbow@3.1.0"
       ]
     },
-    "@vitest/mocker@3.2.4_vite@7.3.1__picomatch@4.0.3": {
+    "@vitest/mocker@3.2.4_vite@7.3.1": {
       "integrity": "sha512-46ryTE9RZO/rfDd7pEqFl7etuyzekzEhUbTW3BvmeO/BcCMEgq59BKhek3dXDWgAj4oMK6OZi+vRr1wPW6qjEQ==",
       "dependencies": [
         "@vitest/spy@3.2.4",
@@ -399,7 +400,7 @@
         "vite"
       ]
     },
-    "@vitest/mocker@4.1.0_vite@7.3.1__picomatch@4.0.3": {
+    "@vitest/mocker@4.1.0_vite@7.3.1": {
       "integrity": "sha512-evxREh+Hork43+Y4IOhTo+h5lGmVRyjqI739Rz4RlUPqwrkFFDF6EMvOOYjTx4E8Tl6gyCLRL8Mu7Ry12a13Tw==",
       "dependencies": [
         "@vitest/spy@4.1.0",
@@ -510,6 +511,9 @@
     },
     "croner@10.0.1": {
       "integrity": "sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g=="
+    },
+    "croner@11.0.0": {
+      "integrity": "sha512-T17ADjdttrVToyzLpLq9Xb9xzcMwpQ/M3Qs9szhh0MVNTbv6NWQ9OFYa2qlzPYXFMn+uoDlnW1IpIv6cAvFtyA=="
     },
     "debug@4.4.3": {
       "integrity": "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==",
@@ -750,12 +754,12 @@
       ],
       "bin": true
     },
-    "vitest@3.2.4_vite@7.3.1__picomatch@4.0.3": {
+    "vitest@3.2.4_vite@7.3.1": {
       "integrity": "sha512-LUCP5ev3GURDysTWiP47wRRUpLKMOfPh+yKTx3kVIEiu5KOMeqzpnYNsKyOoVrULivR8tLcks4+lga33Whn90A==",
       "dependencies": [
         "@types/chai",
         "@vitest/expect@3.2.4",
-        "@vitest/mocker@3.2.4_vite@7.3.1__picomatch@4.0.3",
+        "@vitest/mocker@3.2.4_vite@7.3.1",
         "@vitest/pretty-format@3.2.4",
         "@vitest/runner@3.2.4",
         "@vitest/snapshot@3.2.4",
@@ -779,11 +783,11 @@
       ],
       "bin": true
     },
-    "vitest@4.1.0_vite@7.3.1__picomatch@4.0.3": {
+    "vitest@4.1.0_vite@7.3.1": {
       "integrity": "sha512-YbDrMF9jM2Lqc++2530UourxZHmkKLxrs4+mYhEwqWS97WJ7wOYEkcr+QfRgJ3PW9wz3odRijLZjHEaRLTNbqw==",
       "dependencies": [
         "@vitest/expect@4.1.0",
-        "@vitest/mocker@4.1.0_vite@7.3.1__picomatch@4.0.3",
+        "@vitest/mocker@4.1.0_vite@7.3.1",
         "@vitest/pretty-format@4.1.0",
         "@vitest/runner@4.1.0",
         "@vitest/snapshot@4.1.0",
@@ -832,7 +836,7 @@
       "packages/core": {
         "dependencies": [
           "jsr:@conveyor/shared@1",
-          "npm:croner@10"
+          "npm:croner@11"
         ]
       },
       "packages/dashboard": {
