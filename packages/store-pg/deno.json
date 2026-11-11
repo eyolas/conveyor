@@ -7,7 +7,7 @@
   },
   "imports": {
     "@conveyor/shared": "jsr:@conveyor/shared@^1.0.0",
-    "postgres": "npm:postgres@^3.4.0"
+    "postgres": "npm:postgres@^4.0.0"
   },
   "lint": {
     "rules": {
