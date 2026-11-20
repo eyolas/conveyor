@@ -62,7 +62,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18
+        image: postgres:19
         env:
           POSTGRES_USER: conveyor
           POSTGRES_PASSWORD: conveyor
@@ -127,7 +127,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18
+        image: postgres:19
         env:
           POSTGRES_USER: conveyor
           POSTGRES_PASSWORD: conveyor
@@ -183,7 +183,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:18
+        image: postgres:19
         env:
           POSTGRES_USER: conveyor
           POSTGRES_PASSWORD: conveyor
